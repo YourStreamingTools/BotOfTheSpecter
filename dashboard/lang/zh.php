@@ -6307,7 +6307,7 @@ return [
     'admin_users_js_yes' => '是',
     'admin_users_js_no' => '否',
     'admin_users_js_delete_db_title' => '删除用户数据库？',
-    'admin_users_js_delete_db_html' => '您是否还要删除数据库 :name？',
+    'admin_users_js_delete_db_html' => '您是否还要删除数据库 :name 及其自定义模块数据库？',
     'admin_users_js_final_confirm_title' => '你绝对确定吗？',
     'admin_users_js_final_confirm_with_db' => '这将永久删除用户和数据库“:name”。此操作无法撤消。',
     'admin_users_js_final_confirm_no_db' => '这将永久删除用户“:name”。数据库不会被删除。',

@@ -221,19 +221,18 @@ if ($isPremiumAjax) {
 // Handle AJAX delete request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
     $user_id = intval($_POST['delete_user_id']);
-    $delete_db = isset($_POST['delete_db']) ? $_POST['delete_db'] : null;
+    $delete_db = isset($_POST['delete_db']) && $_POST['delete_db'] === '1';
     $response = ['success' => false, 'msg' => ''];
-    // Get username from POST if provided (sent from JS before user row is deleted)
-    $username = isset($_POST['username']) ? $_POST['username'] : null;
-    // If not provided, fallback to DB lookup (for safety)
-    if (!$username) {
-        $stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $stmt->bind_result($username);
-        $stmt->fetch();
-        $stmt->close();
-    }
+    // Always resolve the target from the users table; never trust a client-supplied username
+    $username = null;
+    $targetIsAdminFlag = 0;
+    $targetIsSuperAdminFlag = 0;
+    $stmt = $conn->prepare("SELECT username, is_admin, super_admin FROM users WHERE id = ? LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->bind_result($username, $targetIsAdminFlag, $targetIsSuperAdminFlag);
+    $stmt->fetch();
+    $stmt->close();
     if (!$username) {
         $response['msg'] = t('admin_users_msg_user_not_found');
         echo json_encode($response);
@@ -246,22 +245,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
         exit;
     }
     // Non-super-admins cannot delete admins or super admins
-    if (!$currentAdminIsSuperAdmin) {
-        $chkStmt = $conn->prepare("SELECT is_admin, super_admin FROM users WHERE id = ? LIMIT 1");
-        $chkStmt->bind_param("i", $user_id);
-        $chkStmt->execute();
-        $chkStmt->bind_result($targetIsAdminFlag, $targetIsSuperAdminFlag);
-        $chkStmt->fetch();
-        $chkStmt->close();
-        if ($targetIsAdminFlag || $targetIsSuperAdminFlag) {
-            $response['msg'] = t('admin_users_msg_no_permission_delete_admin');
+    if (!$currentAdminIsSuperAdmin && ($targetIsAdminFlag || $targetIsSuperAdminFlag)) {
+        $response['msg'] = t('admin_users_msg_no_permission_delete_admin');
+        echo json_encode($response);
+        exit;
+    }
+    // Per-user databases: the main user DB plus the SQL data API custom modules DB
+    $db_names = [];
+    if ($delete_db) {
+        $reserved_dbs = ['website', 'mysql', 'information_schema', 'performance_schema', 'sys'];
+        if (!preg_match('/^[A-Za-z0-9_]{1,25}$/', $username) || in_array(strtolower($username), $reserved_dbs, true)) {
+            $response['msg'] = t('admin_users_msg_db_delete_failed');
             echo json_encode($response);
             exit;
         }
+        $db_names = [$username, strtolower($username) . '_custom_modules'];
     }
-    if ($delete_db === '1') {
-        // Drop the user's database
-        $db_name = $username;
+    // Delete user from users table
+    $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        $response['msg'] = t('admin_users_msg_delete_user_failed');
+        echo json_encode($response);
+        exit;
+    }
+    $stmt->close();
+    $response['success'] = true;
+    $response['username'] = $username;
+    if ($delete_db) {
+        $response['db_deleted'] = false;
         require_once "/var/www/config/database.php";
         $mysqli = new mysqli($db_servername, $db_username, $db_password);
         if ($mysqli->connect_errno) {
@@ -269,29 +282,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
             echo json_encode($response);
             exit;
         }
-        if ($mysqli->query("DROP DATABASE `" . $mysqli->real_escape_string($db_name) . "`")) {
-            $response['success'] = true;
-            $response['msg'] = t('admin_users_msg_db_deleted');
-        } else {
-            $response['msg'] = t('admin_users_msg_db_delete_failed');
+        $failed_dbs = [];
+        foreach ($db_names as $db_name) {
+            if (!$mysqli->query("DROP DATABASE IF EXISTS `" . $db_name . "`")) {
+                $failed_dbs[] = $db_name;
+            }
         }
         $mysqli->close();
-        echo json_encode($response);
-        exit;
-    } else {
-        // Delete user from users table
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        if ($stmt->execute()) {
-            $response['success'] = true;
-            $response['username'] = $username;
+        if (empty($failed_dbs)) {
+            $response['db_deleted'] = true;
+            $response['msg'] = t('admin_users_msg_db_deleted');
         } else {
-            $response['msg'] = t('admin_users_msg_delete_user_failed');
+            $response['msg'] = t('admin_users_msg_db_delete_failed') . ' (' . implode(', ', $failed_dbs) . ')';
         }
-        $stmt->close();
-        echo json_encode($response);
-        exit;
     }
+    echo json_encode($response);
+    exit;
 }
 
 // Handle AJAX restrict/unrestrict requests
@@ -1152,27 +1158,22 @@ function deleteUser(userId) {
                     cancelButtonText: T.cancel
                 }).then((finalResult) => {
                     if (finalResult.isConfirmed) {
-                        // Always delete user first
-                        $.post('', { delete_user_id: userId, username: user.username }, function(resp) {
+                        // Server deletes the user, then drops their databases if requested
+                        $.post('', { delete_user_id: userId, delete_db: deleteDb ? 1 : 0 }, function(resp) {
                             let data = {};
                             try { data = JSON.parse(resp); } catch {}
                             if (data.success) {
                                 if (deleteDb) {
-                                    // Now delete DB
-                                    $.post('', { delete_user_id: userId, delete_db: 1, username: user.username }, function(dbResp) {
-                                        let dbData = {};
-                                        try { dbData = JSON.parse(dbResp); } catch {}
-                                        if (dbData.success) {
-                                            Swal.fire(T.deleted_title, T.deleted_user_and_db, 'success').then(() => location.reload());
-                                        } else {
-                                            Swal.fire(
-                                                T.user_deleted_title,
-                                                T.db_delete_failed_html + '<br>' +
-                                                (dbData.msg ? T.db_delete_reason.replace(':reason', dbData.msg) : T.unknown_error),
-                                                'warning'
-                                            ).then(() => location.reload());
-                                        }
-                                    });
+                                    if (data.db_deleted) {
+                                        Swal.fire(T.deleted_title, T.deleted_user_and_db, 'success').then(() => location.reload());
+                                    } else {
+                                        Swal.fire(
+                                            T.user_deleted_title,
+                                            T.db_delete_failed_html + '<br>' +
+                                            (data.msg ? T.db_delete_reason.replace(':reason', data.msg) : T.unknown_error),
+                                            'warning'
+                                        ).then(() => location.reload());
+                                    }
                                 } else {
                                     Swal.fire(T.deleted_title, T.deleted_user_no_db, 'success').then(() => location.reload());
                                 }
