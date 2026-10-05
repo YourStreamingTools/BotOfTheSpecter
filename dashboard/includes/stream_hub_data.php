@@ -906,6 +906,9 @@ if ($canYoutube && isset($conn) && $conn instanceof mysqli) {
         youtube_fail_stale_jobs($conn, $userId);
     }
     $youtubeJobs = youtube_upload_map($conn, $userId);
+    if ($youtubeJobs && function_exists('youtube_reconcile_done_jobs')) {
+        $youtubeJobs = youtube_reconcile_done_jobs($conn, $userId, $youtubeJobs);
+    }
 }
 
 // YouTube / S3 jobs for a Twitch VOD sit in 'pulling' while the shared download runs;

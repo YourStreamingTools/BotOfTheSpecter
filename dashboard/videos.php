@@ -20,6 +20,9 @@ $youtubeLinked = $youtubeAdminTesting && youtube_is_linked($conn, (int) ($user_i
 $youtubeTokenRow = $youtubeLinked ? youtube_token_row($conn, (int) ($user_id ?? 0)) : null;
 $youtubeCanUpload = $youtubeLinked && (int) ($youtubeTokenRow['can_upload'] ?? 0) === 1;
 $youtubeTwitchJobs = $youtubeLinked ? youtube_twitch_job_map($conn, (int) ($user_id ?? 0)) : [];
+if ($youtubeTwitchJobs) {
+    $youtubeTwitchJobs = youtube_reconcile_done_jobs($conn, (int) ($user_id ?? 0), $youtubeTwitchJobs);
+}
 
 $accessToken = $_SESSION['access_token'] ?? '';
 $channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ($broadcasterID ?? '')));

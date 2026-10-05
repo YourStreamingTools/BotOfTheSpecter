@@ -688,6 +688,221 @@ function youtube_fail_stale_jobs(mysqli $conn, int $userId): int
     return $n;
 }
 
+function youtube_remote_video_id_ok(string $videoId): bool
+{
+    return preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId) === 1;
+}
+
+function youtube_presence_cache_file(int $userId): string
+{
+    return rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'specter-yt-presence-' . $userId . '.json';
+}
+
+function youtube_presence_cache_read(int $userId): array
+{
+    $raw = @file_get_contents(youtube_presence_cache_file($userId));
+    $data = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($data)) {
+        return [];
+    }
+    $now = time();
+    $fresh = [];
+    foreach ($data as $id => $until) {
+        if (!is_string($id) || !is_numeric($until) || (int) $until <= $now) {
+            continue;
+        }
+        if (youtube_remote_video_id_ok($id)) {
+            $fresh[$id] = (int) $until;
+        }
+    }
+    return $fresh;
+}
+
+function youtube_presence_cache_write(int $userId, array $fresh): void
+{
+    $json = json_encode($fresh);
+    if (!is_string($json)) {
+        return;
+    }
+    @file_put_contents(youtube_presence_cache_file($userId), $json, LOCK_EX);
+}
+
+function youtube_item_presence_reason(array $item): string
+{
+    $upload = strtolower((string) ($item['status']['uploadStatus'] ?? ''));
+    if ($upload === 'rejected' || $upload === 'deleted') {
+        return 'youtube_upload_rejected';
+    }
+    if ($upload === 'failed') {
+        return 'youtube_processing_failed';
+    }
+    $processing = strtolower((string) ($item['processingDetails']['processingStatus'] ?? ''));
+    if ($processing === 'failed' || $processing === 'terminated') {
+        return 'youtube_processing_failed';
+    }
+    return 'ok';
+}
+
+function youtube_fetch_video_presence(string $accessToken, array $ids): ?array
+{
+    $ids = array_values(array_unique(array_filter($ids, 'youtube_remote_video_id_ok')));
+    if (!$ids || $accessToken === '') {
+        return [];
+    }
+    $states = [];
+    foreach (array_chunk($ids, 50) as $chunk) {
+        $resp = youtube_http(
+            'GET',
+            'https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id=' . rawurlencode(implode(',', $chunk)),
+            [
+                'Authorization: Bearer ' . $accessToken,
+                'Accept: application/json',
+            ],
+            null,
+            20
+        );
+        if ((int) ($resp['code'] ?? 0) !== 200 || !is_array($resp['json']['items'] ?? null)) {
+            return null;
+        }
+        $found = [];
+        foreach ($resp['json']['items'] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $id = (string) ($item['id'] ?? '');
+            if ($id !== '') {
+                $found[$id] = youtube_item_presence_reason($item);
+            }
+        }
+        foreach ($chunk as $id) {
+            $states[$id] = $found[$id] ?? 'youtube_video_missing';
+        }
+    }
+    return $states;
+}
+
+function youtube_demote_done_job(mysqli $conn, int $jobId, string $reason): bool
+{
+    if ($jobId <= 0 || $reason === '') {
+        return false;
+    }
+    $stmt = $conn->prepare(
+        "UPDATE youtube_vod_uploads SET status = 'failed', error_message = ? WHERE id = ? AND status = 'done'"
+    );
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('si', $reason, $jobId);
+    $ok = $stmt->execute() && $stmt->affected_rows > 0;
+    $stmt->close();
+    return $ok;
+}
+
+function youtube_job_updated_unix(array $job): int
+{
+    $unix = (int) ($job['updated_unix'] ?? 0);
+    if ($unix > 0) {
+        return $unix;
+    }
+    $at = trim((string) ($job['updated_at'] ?? ''));
+    if ($at === '') {
+        return 0;
+    }
+    $parsed = strtotime($at);
+    return $parsed ? (int) $parsed : 0;
+}
+
+function youtube_reconcile_done_jobs(mysqli $conn, int $userId, array $jobs): array
+{
+    if ($userId <= 0 || !$jobs) {
+        return $jobs;
+    }
+    $grace = 15 * 60;
+    $pending = [];
+    foreach ($jobs as $key => $job) {
+        if (!is_array($job) || (string) ($job['status'] ?? '') !== 'done') {
+            continue;
+        }
+        $jobId = (int) ($job['id'] ?? 0);
+        if ($jobId <= 0) {
+            continue;
+        }
+        $videoId = trim((string) ($job['youtube_video_id'] ?? ''));
+        if (!youtube_remote_video_id_ok($videoId)) {
+            if (youtube_demote_done_job($conn, $jobId, 'youtube_video_missing')) {
+                $jobs[$key]['status'] = 'failed';
+                $jobs[$key]['error_message'] = 'youtube_video_missing';
+            }
+            continue;
+        }
+        $pending[$videoId][] = $key;
+    }
+    if (!$pending) {
+        return $jobs;
+    }
+    $cache = youtube_presence_cache_read($userId);
+    $need = [];
+    foreach (array_keys($pending) as $videoId) {
+        if (!isset($cache[$videoId])) {
+            $need[] = $videoId;
+        }
+    }
+    if (!$need) {
+        return $jobs;
+    }
+    $row = youtube_token_row($conn, $userId);
+    $fresh = is_array($row) ? youtube_ensure_fresh_access($conn, $row) : null;
+    $access = is_array($fresh) ? trim((string) ($fresh['access_token'] ?? '')) : '';
+    if ($access === '') {
+        return $jobs;
+    }
+    $states = youtube_fetch_video_presence($access, $need);
+    if ($states === null) {
+        return $jobs;
+    }
+    $now = time();
+    $until = $now + $grace;
+    foreach ($need as $videoId) {
+        $state = (string) ($states[$videoId] ?? 'youtube_video_missing');
+        if ($state === 'ok') {
+            $cache[$videoId] = $until;
+            continue;
+        }
+        unset($cache[$videoId]);
+        foreach ($pending[$videoId] as $key) {
+            $updated = youtube_job_updated_unix(is_array($jobs[$key]) ? $jobs[$key] : []);
+            if ($state === 'youtube_video_missing' && $updated > 0 && ($now - $updated) < $grace) {
+                continue;
+            }
+            $jobId = (int) ($jobs[$key]['id'] ?? 0);
+            if (youtube_demote_done_job($conn, $jobId, $state)) {
+                $jobs[$key]['status'] = 'failed';
+                $jobs[$key]['error_message'] = $state;
+            }
+        }
+    }
+    youtube_presence_cache_write($userId, $cache);
+    return $jobs;
+}
+
+function youtube_block_if_active(mysqli $conn, int $userId, array $existing): ?array
+{
+    $status = (string) ($existing['status'] ?? '');
+    if ($status === 'done') {
+        $checked = youtube_reconcile_done_jobs($conn, $userId, [0 => $existing]);
+        if ((string) ($checked[0]['status'] ?? '') === 'done') {
+            return [
+                'ok' => true,
+                'already' => true,
+                'status' => 'done',
+                'youtube_video_id' => (string) ($existing['youtube_video_id'] ?? ''),
+            ];
+        }
+        return null;
+    }
+    return ['ok' => true, 'already' => true, 'status' => $status];
+}
+
 function youtube_job_for_twitch_id(array $jobs, string $twitchVideoId, string $title = ''): ?array
 {
     if ($twitchVideoId !== '') {
@@ -772,7 +987,8 @@ function youtube_enqueue_vod(
     }
     $title = function_exists('mb_substr') ? mb_substr($title, 0, 100) : substr($title, 0, 100);
     $check = $conn->prepare(
-        "SELECT id, status, youtube_video_id FROM youtube_vod_uploads
+        "SELECT id, status, youtube_video_id, UNIX_TIMESTAMP(updated_at) AS updated_unix
+         FROM youtube_vod_uploads
          WHERE user_id = ? AND filename = ? AND status IN ('queued','pulling','uploading','done')
          ORDER BY id DESC LIMIT 1"
     );
@@ -782,16 +998,10 @@ function youtube_enqueue_vod(
         $existing = $check->get_result()->fetch_assoc();
         $check->close();
         if ($existing) {
-            $status = (string) ($existing['status'] ?? '');
-            if ($status === 'done') {
-                return [
-                    'ok' => true,
-                    'already' => true,
-                    'status' => 'done',
-                    'youtube_video_id' => $existing['youtube_video_id'] ?? '',
-                ];
+            $block = youtube_block_if_active($conn, $userId, $existing);
+            if ($block !== null) {
+                return $block;
             }
-            return ['ok' => true, 'already' => true, 'status' => $status];
         }
     }
     $failed = $conn->prepare(
@@ -886,7 +1096,8 @@ function youtube_enqueue_twitch_vod(
     }
     $title = function_exists('mb_substr') ? mb_substr(trim($title), 0, 100) : substr(trim($title), 0, 100);
     $check = $conn->prepare(
-        "SELECT id, status, youtube_video_id FROM youtube_vod_uploads
+        "SELECT id, status, youtube_video_id, UNIX_TIMESTAMP(updated_at) AS updated_unix
+         FROM youtube_vod_uploads
          WHERE user_id = ? AND twitch_video_id = ? AND status IN ('queued','pulling','uploading','done')
          ORDER BY id DESC LIMIT 1"
     );
@@ -896,16 +1107,10 @@ function youtube_enqueue_twitch_vod(
         $existing = $check->get_result()->fetch_assoc();
         $check->close();
         if ($existing) {
-            $status = (string) ($existing['status'] ?? '');
-            if ($status === 'done') {
-                return [
-                    'ok' => true,
-                    'already' => true,
-                    'status' => 'done',
-                    'youtube_video_id' => $existing['youtube_video_id'] ?? '',
-                ];
+            $block = youtube_block_if_active($conn, $userId, $existing);
+            if ($block !== null) {
+                return $block;
             }
-            return ['ok' => true, 'already' => true, 'status' => $status];
         }
     }
     $failed = $conn->prepare(
