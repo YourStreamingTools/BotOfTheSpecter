@@ -26,7 +26,7 @@ The GeoIP/CF-Worker CDN idea was **dropped** (goal was freeing disk; that code w
 
 ## Other S3 (do not conflate)
 
-`config/object_storage.php` is the **paid Persistent Storage** recordings bucket (`botofthespecter-au` / `us-persistent`), browsed in `persistent_storage.php`. Not Mega S4 static assets.
+The old paid Persistent Storage recordings buckets (`botofthespecter-au` / `us-persistent`, `config/object_storage.php`) are retired and their code removed. They were never Mega S4 static assets.
 
 AWS SDK for PHP is vendored at `/var/www/vendor/aws-autoloader.php`.
 

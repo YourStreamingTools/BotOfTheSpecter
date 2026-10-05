@@ -209,7 +209,6 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 
 **Auxiliary Scripts** (in `/stream/`):
 - `check_videos.py` - Validates/audits recorded MP4 files
-- `upload_to_persistent_storage.py` - Pushes recordings to long-term storage
 - `twitch-recorder.py` - Standalone Twitch stream recorder (separate from RTMPS ingest)
 - `setup.sh` - Server provisioning script
 

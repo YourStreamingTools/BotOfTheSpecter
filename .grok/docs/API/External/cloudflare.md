@@ -914,9 +914,9 @@ $request = $s3->createPresignedRequest($cmd, '+1 hour');
 $url     = (string) $request->getUri();
 ```
 
-**WARNING:** `$s3->getObjectUrl($bucket, $key)` returns an unsigned URL. It produces a 403 on private buckets. Always use `createPresignedRequest` for download links. (Active bug in `./dashboard/persistent_storage.php:488` - see §12.)
+**WARNING:** `$s3->getObjectUrl($bucket, $key)` returns an unsigned URL. It produces a 403 on private buckets. Always use `createPresignedRequest` for download links.
 
-**PHP config convention:** PHP never reads `.env`. Credentials always come from `./config/cloudflare.php` or `./config/object_storage.php` (dev) / `/var/www/config/` (server). See [`../rules/php-config.md`](../../../rules/php-config.md).
+**PHP config convention:** PHP never reads `.env`. Credentials always come from `./config/cloudflare.php` (dev) / `/var/www/config/` (server). See [`../rules/php-config.md`](../../../rules/php-config.md).
 
 ---
 
@@ -927,8 +927,6 @@ $url     = (string) $request->getUri();
 | Bucket | Purpose | Region | Credentials source |
 | ------ | ------- | ------ | ------------------ |
 | `specterexports` | User data export ZIPs | auto | `S3_ACCESS_KEY`, `S3_SECRET_KEY` env vars |
-| `botofthespecter-au-persistent` | Stream recordings (Sydney) | AU | `au_s3_access_key`, `au_s3_secret_key` env vars; `$au_s3_access_key` PHP |
-| `botofthespecter-us-persistent` | Stream recordings (US-East, US-West) | US | `us_s3_access_key`, `us_s3_secret_key` env vars; `$us_s3_access_key` PHP |
 
 ### Operations used
 
@@ -936,24 +934,14 @@ $url     = (string) $request->getUri();
 | --------- | ---- | ----- |
 | `PutObject` | `./bot/export_user_data.py` | Uploads ZIP under `user-exports/<username>/` key |
 | `generate_presigned_url` (GET, 7 days) | `./bot/export_user_data.py` | For exports >50 MB (`MAX_EMAIL_ZIP_SIZE`). Requires `s3v4` + virtual addressing |
-| `PutObject` (folder placeholder) | `./dashboard/persistent_storage.php` | `<username>/.placeholder` to simulate a folder |
-| `ListObjectsV2` | `./dashboard/persistent_storage.php` | Lists recordings by `<username>/` prefix; calculates storage usage |
-| `DeleteObject` | `./dashboard/persistent_storage.php` | Single recording deletion |
-| `getObjectUrl` | `./dashboard/persistent_storage.php:488` | **Bug: returns unsigned URL, 403s on private bucket.** Switch to `createPresignedRequest` if this feature is reactivated |
-| `HeadObject` | `./stream/upload_to_persistent_storage.py` | Verifies upload success after stream recording |
-| `upload_file` (multipart via TransferConfig) | `./stream/upload_to_persistent_storage.py` | 100 MB multipart threshold for stream MP4s |
 
 ### Object key conventions
 
 | Bucket | Key pattern |
 | ------ | ----------- |
 | `specterexports` | `user-exports/<username>/BotOfTheSpecter_Export_<username>_<YYYY-MM-DD>_<timestamp>.zip` |
-| `botofthespecter-{au,us}-persistent` | `<username>/<location>/<filename>` (dashboard reads with `Prefix=<username>/`) |
-| `botofthespecter-{au,us}-persistent` | `<username>/.placeholder` (PHP folder marker) |
 
-### Known issue: stream uploader / dashboard bucket mismatch
-
-`./stream/upload_to_persistent_storage.py` passes `Bucket=<username>` (the username as bucket name), but `./dashboard/persistent_storage.php` reads with `Bucket='botofthespecter-au-persistent'` and `Prefix=<username>/`. These are inconsistent. If reactivating persistent storage end-to-end, normalise to `Bucket=botofthespecter-{region}-persistent`, `Key=<username>/<location>/<filename>` throughout.
+Persistent Storage (the paid `botofthespecter-{au,us}-persistent` recordings buckets, its dashboard page and the stream-server uploader) was retired and its code removed.
 
 ---
 

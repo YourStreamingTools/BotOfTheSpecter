@@ -7,19 +7,9 @@ include_once __DIR__ . '/../lang/i18n.php';
 
 require_once '/var/www/lib/require_auth.php';
 require_once "/var/www/config/db_connect.php";
-include "/var/www/config/object_storage.php";
 include "/var/www/config/ssh.php";
 include '../includes/userdata.php';
 session_write_close();
-
-$from_persistent = isset($_GET['persistent']) && $_GET['persistent'] === 'true';
-
-if ($from_persistent) {
-    $filename = $_GET['file'];
-    $file_url = "https://{$username}.{$bucket_url}/{$filename}";
-    header("Location: $file_url");
-    exit();
-}
 
 // Validate and get parameters
 if (!isset($_GET['server']) || !isset($_GET['file'])) {
