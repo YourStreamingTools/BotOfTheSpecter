@@ -1871,6 +1871,9 @@ input[type="range"].modern-volume:hover::-moz-range-thumb { background: var(--ac
 .playlist-row.is-filtered-out:hover {
     opacity: 0.55;
 }
+.playlist-row .song-artist {
+    color: var(--text-secondary);
+}
 
 /* Progress bars */
 .progress {

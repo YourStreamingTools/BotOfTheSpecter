@@ -1,5 +1,6 @@
 <?php
 include '/var/www/config/database.php';
+require_once '/var/www/dashboard/includes/music_meta.php';
 $primary_db_name = 'website';
 
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
@@ -77,6 +78,9 @@ function getUserMusicFiles($username) {
 $systemMusicFiles = getSystemMusicFiles();
 $userMusicFiles = getUserMusicFiles($username);
 $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
+$systemMusicMeta = music_meta_annotate('/var/www/cdn/music', $systemMusicFiles);
+// Tags come from the local private copies (same filenames) - usermusic is an object-storage mount.
+$userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' . $username, $userMusicFiles, true) : [];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -99,19 +103,21 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         let excludedTracks = new Set(<?php echo json_encode(array_values($music_playlist_filter)); ?>);
         // systemPlaylist: tracks served from CDN
         let systemPlaylist = <?php
-            echo json_encode(array_map(function($f) {
+            echo json_encode(array_map(function($f) use ($systemMusicMeta) {
                 return [
                     'file' => $f,
-                    'title' => preg_replace('/_/', ' ', preg_replace('/\.mp3$/', '', $f))
+                    'title' => str_replace('_', ' ', $systemMusicMeta[$f]['title']),
+                    'artist' => $systemMusicMeta[$f]['artist']
                 ];
             }, $systemMusicFiles));
         ?>;
         // userPlaylist: public URLs under music.botspecter.com/{username}/
         let userPlaylist = <?php
-            echo json_encode(array_map(function($f) use ($userBaseUrl) {
+            echo json_encode(array_map(function($f) use ($userBaseUrl, $userMusicMeta) {
                 return [
                     'file' => $f,
-                    'title' => preg_replace('/_/', ' ', preg_replace('/\.mp3$/', '', $f)),
+                    'title' => str_replace('_', ' ', $userMusicMeta[$f]['title']),
+                    'artist' => $userMusicMeta[$f]['artist'],
                     'url' => $userBaseUrl ? $userBaseUrl . rawurlencode($f) : null
                 ];
             }, $userMusicFiles));
@@ -213,11 +219,13 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 if (songData && songData.file) {
                     currentSongData = {
                         file: songData.file,
-                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
+                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
+                        artist: songData.artist || ''
                     };
                     playedHistory.add(url);
                 if (showNowPlaying) {
-                    nowPlayingDiv.innerText = 'Now Playing: ' + currentSongData.title;
+                    nowPlayingDiv.innerText = 'Now Playing: ' + currentSongData.title
+                        + (currentSongData.artist ? ' — ' + currentSongData.artist : '');
                 }
                 }
                 if (socket && currentSongData && currentSongData.file) {
@@ -225,6 +233,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                         command: 'NOW_PLAYING',
                         song: {
                             title: currentSongData.title,
+                            artist: currentSongData.artist,
                             file: currentSongData.file
                         }
                     });
