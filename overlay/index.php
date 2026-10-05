@@ -145,7 +145,11 @@ if ($username) {
                 const sorted = enabled.slice().sort((a, b) => b.variant_index - a.variant_index);
                 for (const variant of sorted) {
                     const cond = variant.alert_condition;
-                    if (!cond) return variant; // No condition = matches all
+                    if (!cond) {
+                        // A channel-point variant with no reward must not catch every redemption.
+                        if (category === 'channel_points') continue;
+                        return variant; // No condition = matches all
+                    }
                     // Parse simple conditions
                     if (category === 'bits') {
                         const amount = parseInt(eventData.amount) || 0;
@@ -201,16 +205,17 @@ if ($username) {
                         const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
                         if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
                     } else if (category === 'channel_points') {
-                        // Dashboard stores: reward_id = 'uuid'
+                        // Dashboard stores: reward_id = 'uuid'. Misses do not fall through.
                         const rewardMatch = cond.match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
-                        if (rewardMatch && eventData.reward_id
-                            && String(rewardMatch[1]) === String(eventData.reward_id)) {
-                            return variant;
-                        }
+                        const wanted = rewardMatch ? String(rewardMatch[1]).toLowerCase() : '';
+                        const got = String(eventData.reward_id || '').toLowerCase();
+                        if (wanted && got && wanted === got) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
                 }
+                // Channel-point alerts are one reward each. No match means no alert.
+                if (category === 'channel_points') return null;
                 // Fallback to first enabled variant
                 return enabled[0];
             }
