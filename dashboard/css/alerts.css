@@ -852,6 +852,22 @@
     font-weight: 700;
     margin-top: 2px;
 }
+.alerts-preview-ads {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border-radius: 10px;
+    padding: 12px 18px;
+    text-align: center;
+    min-width: 160px;
+}
+.alerts-preview-ads .apa-title {
+    font-weight: 700;
+}
+.alerts-preview-ads .apa-time {
+    margin-top: 4px;
+    font-size: 14px;
+    opacity: 0.9;
+}
 .alerts-preview-walkon {
     display: flex;
     flex-direction: column;
