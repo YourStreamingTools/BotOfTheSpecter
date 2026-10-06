@@ -264,7 +264,7 @@ per_user_cooldown_commands = {
     "rps", "roulette", "gamble", "slots",
     "pet", "feed", "play", "sad", "sleep",
     "joinraffle", "leaveraffle",
-    "mybirthday", "updatebirthday",
+    "mybirthday", "updatebirthday", "addbirthday",
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
