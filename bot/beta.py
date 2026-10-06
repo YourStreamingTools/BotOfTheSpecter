@@ -4220,6 +4220,7 @@ class TwitchBot(commands.Bot):
                     except Exception as pet_err:
                         chat_logger.error(f"[WELCOME] Pet first_chat trigger failed for {messageAuthor}: {pet_err}")
                     if _module_handled:
+                        await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
                         safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
                     # Only send welcome message if enabled
@@ -4253,7 +4254,6 @@ class TwitchBot(commands.Bot):
                             )
                         if message_to_send.strip():
                             await send_chat_message(message_to_send)
-                            await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
                         if send_shoutout and shoutout_message:
                             await add_shoutout(
                                 user_to_shoutout,
@@ -4263,6 +4263,8 @@ class TwitchBot(commands.Bot):
                                 source="welcome_message"
                             )
                         chat_logger.info(f"[WELCOME] Sent welcome message to {messageAuthor}")
+                    # Birthday wish is its own message, so it goes out even when welcome messages are off
+                    await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
                     safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                 elif not already_seen_today and stream_online and is_command_message:
                     # First message is a command - do not mark as seen yet.
@@ -4374,7 +4376,6 @@ class TwitchBot(commands.Bot):
                         )
                     if message_to_send.strip():
                         await send_chat_message(message_to_send)
-                        await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
                     if send_shoutout and shoutout_message:
                         await add_shoutout(
                             user_to_shoutout,
@@ -4385,6 +4386,8 @@ class TwitchBot(commands.Bot):
                         )
                     chat_logger.info(f"[WELCOME] Sent first-command welcome message to {messageAuthor}")
                     safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
+                # Birthday wish is its own message, so it goes out even when welcome messages are off
+                await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
         except Exception as e:
             chat_logger.error(f"[WELCOME] Error in send_first_command_welcome_if_needed for {messageAuthor}: {e}")
 
@@ -12370,7 +12373,7 @@ class TwitchBot(commands.Bot):
 ##
 # Functions for all the commands
 ##
-# Birthdays: !addbirthday (mods), !mybirthday and !updatebirthday store a viewer's day/month in the per-user `birthdays` table (keyed by Twitch user_id). When a viewer's first chat of the stream falls on their birthday (streamer's profile timezone), a birthday wish is sent as its own chat message right after their welcome message.
+# Birthdays: !addbirthday (mods), !mybirthday and !updatebirthday store a viewer's day/month in the per-user `birthdays` table (keyed by Twitch user_id). When a viewer's first chat of the stream falls on their birthday (streamer's profile timezone), a birthday wish is sent as its own chat message (after their welcome message, if one is sent).
 def parse_birthday_date(raw):
     match = re.fullmatch(r"(\d{1,2})[/.\-](\d{1,2})", (raw or "").strip())
     if not match:
@@ -12425,7 +12428,7 @@ async def send_birthday_wish(cursor, user_id, user_name):
     except Exception as e:
         chat_logger.error(f"[BIRTHDAY] Could not check birthday for {user_name}: {e}")
         return
-    chat_logger.info(f"[BIRTHDAY] Sending birthday wish after the welcome message for {user_name}")
+    chat_logger.info(f"[BIRTHDAY] Sending birthday wish to {user_name}")
     await send_chat_message(f"Happy Birthday, @{user_name}! 🎂")
 
 # Word Replacer (random syllable swap) Occasionally re-posts a viewer's chat line with random syllables swapped for a streamer-set word (default "fun"). Configured per channel via the `protection` table plus the word_replace_ignored_users / word_replace_ignored_words tables. Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.

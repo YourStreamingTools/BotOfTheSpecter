@@ -652,12 +652,12 @@
 			"syntax": "!warn @username Reason for the warning here"
 		},
 		"addbirthday": {
-			"description": "Saves (or replaces) a viewer's birthday as day/month. On their birthday, their first-chat welcome message on stream gets a birthday wish attached. Mods and the broadcaster only. Birthdays are listed on the Birthdays dashboard page.",
+			"description": "Saves (or replaces) a viewer's birthday as day/month. On their birthday, the bot posts a birthday wish when they first chat on stream. Mods and the broadcaster only. Birthdays are listed on the Birthdays dashboard page.",
 			"force_level": "mod",
 			"syntax": "!addbirthday @username 15/10"
 		},
 		"mybirthday": {
-			"description": "Shows the birthday you have saved. If you haven't saved one yet, add a day/month to save it. On your birthday, your welcome message on stream will include a birthday wish.",
+			"description": "Shows the birthday you have saved. If you haven't saved one yet, add a day/month to save it. On your birthday, the bot posts a birthday wish when you first chat on stream.",
 			"syntax": ["!mybirthday", "!mybirthday 15/10"]
 		},
 		"updatebirthday": {

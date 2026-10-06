@@ -620,7 +620,7 @@ return [
     'moderation_bans_partial' => '部分数据无法从 Twitch 加载，仅显示 :count 个。',
     // birthdays.php — Viewer birthdays
     'birthdays_page_title' => '生日',
-    'birthdays_page_subtitle' => '通过聊天保存的观众生日。在观众生日当天，直播中的欢迎消息会附上生日祝福。',
+    'birthdays_page_subtitle' => '通过聊天保存的观众生日。在观众生日当天，当他们在直播中首次发言时，机器人会在聊天中发送生日祝福。',
     'birthdays_beta_notice' => '<strong>测试版功能：</strong>生日功能仅在测试版机器人（v5.8 和 v6）中可用。',
     'birthdays_stat_total' => '已保存的生日',
     'birthdays_stat_today' => '今天生日',
@@ -629,7 +629,7 @@ return [
     'birthdays_cmd_add' => '管理员和主播：保存或替换观众的生日。',
     'birthdays_cmd_my' => '观众：查看已保存的生日；如果尚未保存，可以保存一个。',
     'birthdays_cmd_update' => '观众：修改已保存的生日。',
-    'birthdays_commands_note' => '日期使用 日/月 格式（23/8 表示 8 月 23 日）。生日按频道时区判断，并且仅在开启欢迎消息时才会附上祝福。',
+    'birthdays_commands_note' => '日期使用 日/月 格式（23/8 表示 8 月 23 日）。生日按频道时区判断。生日祝福是一条单独的聊天消息，因此即使关闭了欢迎消息也会发送。',
     'birthdays_list_title' => '生日列表',
     'birthdays_search_placeholder' => '按用户名筛选…',
     'birthdays_col_user' => '用户',

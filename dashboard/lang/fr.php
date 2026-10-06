@@ -596,7 +596,7 @@ return [
     'moderation_bans_partial' => 'Une partie de la liste est indisponible sur Twitch, seuls :count sont affichés.',
     // birthdays.php — Viewer birthdays
     'birthdays_page_title' => 'Anniversaires',
-    'birthdays_page_subtitle' => 'Anniversaires des spectateurs enregistrés depuis le chat. Le jour de leur anniversaire, leur message de bienvenue en stream inclut un souhait d\'anniversaire.',
+    'birthdays_page_subtitle' => 'Anniversaires des spectateurs enregistrés depuis le chat. Le jour de leur anniversaire, le bot publie un souhait d\'anniversaire dans le chat lors de leur premier message en stream.',
     'birthdays_beta_notice' => '<strong>Fonctionnalité bêta :</strong> les anniversaires sont disponibles sur le bot bêta (v5.8 et v6).',
     'birthdays_stat_total' => 'Anniversaires enregistrés',
     'birthdays_stat_today' => 'Anniversaires aujourd\'hui',
@@ -605,7 +605,7 @@ return [
     'birthdays_cmd_add' => 'Modérateurs et streamer : enregistrer ou remplacer l\'anniversaire d\'un spectateur.',
     'birthdays_cmd_my' => 'Spectateurs : afficher votre anniversaire enregistré, ou en enregistrer un si vous n\'en avez pas encore.',
     'birthdays_cmd_update' => 'Spectateurs : modifier votre anniversaire enregistré.',
-    'birthdays_commands_note' => 'Les dates utilisent le format jour/mois (23/8 correspond au 23 août). Les anniversaires sont vérifiés selon le fuseau horaire de votre chaîne, et le souhait n\'est ajouté que si les messages de bienvenue sont activés.',
+    'birthdays_commands_note' => 'Les dates utilisent le format jour/mois (23/8 correspond au 23 août). Les anniversaires sont vérifiés selon le fuseau horaire de votre chaîne. Le souhait est un message de chat distinct, il est donc envoyé même si les messages de bienvenue sont désactivés.',
     'birthdays_list_title' => 'Liste des anniversaires',
     'birthdays_search_placeholder' => 'Filtrer par nom d\'utilisateur…',
     'birthdays_col_user' => 'Utilisateur',

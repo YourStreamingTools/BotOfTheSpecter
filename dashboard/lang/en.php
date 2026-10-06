@@ -622,7 +622,7 @@ return [
     'moderation_bans_partial' => 'Some could not be loaded from Twitch, so only :count are shown.',
     // birthdays.php — Viewer birthdays
     'birthdays_page_title' => 'Birthdays',
-    'birthdays_page_subtitle' => 'Viewer birthdays saved from chat. On a viewer\'s birthday, their welcome message on stream includes a birthday wish.',
+    'birthdays_page_subtitle' => 'Viewer birthdays saved from chat. On a viewer\'s birthday, the bot posts a birthday wish in chat when they first chat on stream.',
     'birthdays_beta_notice' => '<strong>Beta feature:</strong> Birthdays are available on the beta bot (v5.8 and v6).',
     'birthdays_stat_total' => 'Saved birthdays',
     'birthdays_stat_today' => 'Birthdays today',
@@ -631,7 +631,7 @@ return [
     'birthdays_cmd_add' => 'Mods and the broadcaster: save or replace a viewer\'s birthday.',
     'birthdays_cmd_my' => 'Viewers: show your saved birthday, or save one if you don\'t have one yet.',
     'birthdays_cmd_update' => 'Viewers: change your saved birthday.',
-    'birthdays_commands_note' => 'Dates use the day/month format (23/8 is 23 August). Birthdays are checked against your channel timezone, and the wish is only added when welcome messages are turned on.',
+    'birthdays_commands_note' => 'Dates use the day/month format (23/8 is 23 August). Birthdays are checked against your channel timezone. The wish is its own chat message, so it is sent even when welcome messages are turned off.',
     'birthdays_list_title' => 'Birthday list',
     'birthdays_search_placeholder' => 'Filter by username…',
     'birthdays_col_user' => 'User',
