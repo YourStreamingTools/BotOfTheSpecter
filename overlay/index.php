@@ -175,8 +175,9 @@ if ($username) {
                 // Filter enabled variants
                 const enabled = variants.filter(v => v.enabled == 1);
                 if (enabled.length === 0) return null;
-                // For categories with conditions, find best match (highest index first = most specific)
-                const sorted = enabled.slice().sort((a, b) => b.variant_index - a.variant_index);
+                // Conditional variants first so a newer catch-all can't shadow them, then highest index first
+                const sorted = enabled.slice().sort((a, b) =>
+                    (!a.alert_condition - !b.alert_condition) || (b.variant_index - a.variant_index));
                 for (const variant of sorted) {
                     const cond = variant.alert_condition;
                     if (!cond) {

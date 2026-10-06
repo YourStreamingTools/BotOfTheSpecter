@@ -380,7 +380,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         // Next variant_index for this category
         $idxRes = $db->query("SELECT COALESCE(MAX(variant_index), -1) + 1 AS next_idx FROM twitch_alerts WHERE alert_category = " . "'" . $db->real_escape_string($category) . "'");
         $nextIdx = (int)$idxRes->fetch_assoc()['next_idx'];
-        $insStmt = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, message_template) VALUES (?, ?, ?, ?)");
+        // Starts disabled: an unconfigured catch-all would otherwise take over the category on the overlay.
+        $insStmt = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, message_template) VALUES (?, ?, ?, 0, ?)");
         $tpl = "{username}\nfired this alert!";
         $insStmt->bind_param('ssis', $category, $name, $nextIdx, $tpl);
         if ($insStmt->execute()) {
