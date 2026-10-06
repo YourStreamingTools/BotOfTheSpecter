@@ -11145,6 +11145,10 @@ class TwitchBot(commands.Bot):
                     if not choice or choice not in ["red", "black"]:
                         await send_chat_message(f"{ctx.author.name}, please specify red or black for roulette. Usage: !gamble roulette red 100 or !gamble roulette 100 red")
                         return
+                # A zero or negative bet would add points on a loss
+                if bet_amount < 1:
+                    await send_chat_message(f"{ctx.author.name}, please bet at least 1 point.")
+                    return
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
