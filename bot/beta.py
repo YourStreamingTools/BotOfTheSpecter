@@ -1179,7 +1179,7 @@ async def connect_to_streamelements():
             integrations_logger.info(f"[STREAMELEMENTS] Successfully authenticated to StreamElements channel {channel_id}")
         @streamelements_socket.event
         async def unauthorized(data):
-            integrations_logger.error(f"[STREAMELEMENTS] StreamElements authentication failed: {data}")
+            integrations_logger.error(f"[STREAMELEMENTS] StreamElements authentication failed: {redact_for_log(data)}")
             # Token might be expired or invalid - trigger disconnection so reconnection manager can refresh token
             integrations_logger.error("[STREAMELEMENTS] Authentication failed, disconnecting to trigger token refresh and reconnection")
             await streamelements_socket.disconnect()
@@ -2610,7 +2610,7 @@ async def ERROR(data):
 async def connect_error(data):
     global websocket_connected
     websocket_connected = False
-    websocket_logger.error(f"[SPECTER WEBSOCKET] Connection error: {data}")
+    websocket_logger.error(f"[SPECTER WEBSOCKET] Connection error: {redact_for_log(data)}")
 
 @specterSocket.event
 async def disconnect():
@@ -2622,11 +2622,11 @@ async def disconnect():
 
 @specterSocket.event
 async def message(data):
-    websocket_logger.info(f"[SPECTER WEBSOCKET] Message received: {data}")
+    websocket_logger.info(f"[SPECTER WEBSOCKET] Message received: {redact_for_log(data)}")
 
 @specterSocket.event
 async def STREAM_ONLINE(data):
-    websocket_logger.info(f"[STREAM ONLINE] Stream online event received: {data}")
+    websocket_logger.info(f"[STREAM ONLINE] Stream online event received: {redact_for_log(data)}")
     try:
         await process_stream_online_websocket()
     except Exception as e:
@@ -2634,7 +2634,7 @@ async def STREAM_ONLINE(data):
 
 @specterSocket.event
 async def STREAM_OFFLINE(data):
-    websocket_logger.info(f"[STREAM OFFLINE] Stream offline event received: {data}")
+    websocket_logger.info(f"[STREAM OFFLINE] Stream offline event received: {redact_for_log(data)}")
     try:
         await process_stream_offline_websocket()
     except Exception as e:
@@ -2642,7 +2642,7 @@ async def STREAM_OFFLINE(data):
 
 @specterSocket.event
 async def PET_SETTINGS_UPDATE(data):
-    websocket_logger.info(f"[PET SETTINGS] Pet settings update received: {data}")
+    websocket_logger.info(f"[PET SETTINGS] Pet settings update received: {redact_for_log(data)}")
     try:
         pet_invalidate_cache()
     except Exception as e:
@@ -2650,7 +2650,7 @@ async def PET_SETTINGS_UPDATE(data):
 
 @specterSocket.event
 async def WEATHER_DATA(data):
-    websocket_logger.info(f"[WS WEATHER] Weather data received: {data}")
+    websocket_logger.info(f"[WS WEATHER] Weather data received: {redact_for_log(data)}")
     try:
         await process_weather_websocket(data)
     except Exception as e:
@@ -2658,7 +2658,7 @@ async def WEATHER_DATA(data):
 
 @specterSocket.event
 async def FOURTHWALL(data):
-    websocket_logger.info(f"[FOURTHWALL] FourthWall event received: {data}")
+    websocket_logger.info(f"[FOURTHWALL] FourthWall event received: {redact_for_log(data)}")
     try:
         await process_fourthwall_event(data)
     except Exception as e:
@@ -2666,7 +2666,7 @@ async def FOURTHWALL(data):
 
 @specterSocket.event
 async def KOFI(data):
-    websocket_logger.info(f"[KOFI] Ko-fi event received: {data}")
+    websocket_logger.info(f"[KOFI] Ko-fi event received: {redact_for_log(data)}")
     try:
         await process_kofi_event(data)
     except Exception as e:
@@ -2674,7 +2674,7 @@ async def KOFI(data):
 
 @specterSocket.event
 async def PATREON(data):
-    websocket_logger.info(f"[PATREON] Patreon event received: {data}")
+    websocket_logger.info(f"[PATREON] Patreon event received: {redact_for_log(data)}")
     try:
         await process_patreon_event(data)
     except Exception as e:
@@ -2682,12 +2682,12 @@ async def PATREON(data):
 
 @specterSocket.event
 async def CUSTOM_COMMAND(data):
-    websocket_logger.info(f"[CUSTOM COMMAND] Custom command event received: {data}")
+    websocket_logger.info(f"[CUSTOM COMMAND] Custom command event received: {redact_for_log(data)}")
     try:
         command = data.get('command')
         response = data.get('response')
         if not command or not response:
-            websocket_logger.error(f"[CUSTOM COMMAND] Missing command or response in custom command event: {data}")
+            websocket_logger.error(f"[CUSTOM COMMAND] Missing command or response in custom command event: {redact_for_log(data)}")
             return
         # Process and send the custom command
         await process_dynamic_variables(command, response, user="API", send_to_chat=True)
@@ -2697,12 +2697,12 @@ async def CUSTOM_COMMAND(data):
 
 @specterSocket.event
 async def RAFFLE_WINNER(data):
-    websocket_logger.info(f"[RAFFLE WINNER] Raffle winner event received: {data}")
+    websocket_logger.info(f"[RAFFLE WINNER] Raffle winner event received: {redact_for_log(data)}")
     try:
         raffle_name = data.get('raffle_name') or data.get('raffle')
         winner = data.get('winner')
         if not raffle_name or not winner:
-            websocket_logger.error(f"[RAFFLE WINNER] Missing raffle_name or winner in RAFFLE_WINNER event: {data}")
+            websocket_logger.error(f"[RAFFLE WINNER] Missing raffle_name or winner in RAFFLE_WINNER event: {redact_for_log(data)}")
             return
         # Announce in chat
         try:
@@ -2715,7 +2715,7 @@ async def RAFFLE_WINNER(data):
 @specterSocket.event
 async def STORE(data):
     """Point Store purchase from members (or other clients). Chat buys use source=chat and already announced."""
-    websocket_logger.info(f"[STORE] STORE event received: {data}")
+    websocket_logger.info(f"[STORE] STORE event received: {redact_for_log(data)}")
     try:
         source = (data.get("source") or "").lower()
         if source == "chat":
@@ -2747,7 +2747,7 @@ async def STORE(data):
 
 @specterSocket.event
 async def SYSTEM_UPDATE(data):
-    websocket_logger.info(f"[SYSTEM UPDATE] System update event received: {data}")
+    websocket_logger.info(f"[SYSTEM UPDATE] System update event received: {redact_for_log(data)}")
     try:
         # Fetch version information from API
         async with httpClientSession() as session:
@@ -2776,7 +2776,7 @@ async def SYSTEM_UPDATE(data):
 
 @specterSocket.event
 async def OBS_EVENT_RECEIVED(data):
-    websocket_logger.info(f"[OBS EVENT] OBS event received: {data}")
+    websocket_logger.info(f"[OBS EVENT] OBS event received: {redact_for_log(data)}")
     try:
         # Extract action and scene information from the data
         action = data.get('action')
@@ -2793,13 +2793,13 @@ async def OBS_EVENT_RECEIVED(data):
             websocket_logger.info(f"[OBS EVENT] OBS action executed: {action}")
             await send_chat_message(f"OBS action executed: {action}")
         else:
-            websocket_logger.error(f"[OBS EVENT] OBS event received but no action specified: {data}")
+            websocket_logger.error(f"[OBS EVENT] OBS event received but no action specified: {redact_for_log(data)}")
     except Exception as e:
         websocket_logger.error(f"[OBS EVENT] Error processing OBS event: {e}", exc_info=True)
 
 @specterSocket.event
 async def TASK_REWARD_TRIGGER(data):
-    websocket_logger.info(f"[TASK REWARD] TASK_REWARD_TRIGGER received: {data}")
+    websocket_logger.info(f"[TASK REWARD] TASK_REWARD_TRIGGER received: {redact_for_log(data)}")
     try:
         user_id    = data.get("user_id")
         user_name  = data.get("user_name")
@@ -2809,7 +2809,7 @@ async def TASK_REWARD_TRIGGER(data):
         channel_code = data.get("channel_code", "")
         # Validate required fields
         if not user_id or not user_name:
-            websocket_logger.error(f"[TASK REWARD] TASK_REWARD_TRIGGER: missing user_id or user_name in payload: {data}")
+            websocket_logger.error(f"[TASK REWARD] TASK_REWARD_TRIGGER: missing user_id or user_name in payload: {redact_for_log(data)}")
             return
         if points <= 0:
             websocket_logger.warning(f"[TASK REWARD] TASK_REWARD_TRIGGER: points={points} for user {user_name}, skipping reward")
@@ -15534,7 +15534,7 @@ async def process_kofi_event(data):
             integrations_logger.error(f"[KOFI] Failed to parse data: {e}")
             return
     if not isinstance(data.get('data'), dict):
-        integrations_logger.error(f"[KOFI] Unexpected data structure: {data}")
+        integrations_logger.error(f"[KOFI] Unexpected data structure: {redact_for_log(data)}")
         return
     # Extract event type and data
     event_type = data.get('data', {}).get('type', None)
@@ -17425,6 +17425,29 @@ async def deny_automod_message(msg_id, use_streamer=False):
         if connection:
             await connection.close()
 
+# Keys masked before a payload is written to the logs: the user code/api_key is a live credential, and Ko-fi sends tokens and donor emails
+LOG_REDACT_KEYS = {'code', 'channel_code', 'api_key', 'verification_token', 'token', 'access_token', 'refresh_token'}
+
+def mask_log_value(value):
+    text = str(value or '')
+    return '***' + text[-4:] if len(text) > 8 else '***'
+
+def redact_for_log(value):
+    if isinstance(value, dict):
+        return {
+            key: mask_log_value(item) if str(key).lower() in LOG_REDACT_KEYS or 'email' in str(key).lower() else redact_for_log(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [redact_for_log(item) for item in value]
+    if isinstance(value, str) and value.strip()[:1] in ('{', '['):
+        # Ko-fi and some notices carry their payload as a JSON string
+        try:
+            return json.dumps(redact_for_log(json.loads(value)))
+        except ValueError:
+            return value
+    return value
+
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
     event, user=None, user_id=None, death=None, game=None, weather=None, cheer_amount=None,
@@ -17719,7 +17742,7 @@ async def websocket_notice(
                 # Send the HTTP request
                 async with session.get(url) as response:
                     if response.status == 200:
-                        websocket_logger.info(f"[WS NOTICE] HTTP event '{event}' sent successfully with params: {params}")
+                        websocket_logger.info(f"[WS NOTICE] HTTP event '{event}' sent successfully with params: {redact_for_log(params)}")
                     else:
                         websocket_logger.error(f"[WS NOTICE] Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
