@@ -14374,11 +14374,30 @@ VIEWER_TEXT_BREAK = '\ue002'
 # Hard stop for the variable loop so an unresolved token can never spin it forever
 MAX_DYNAMIC_VARIABLE_PASSES = 25
 
+def escape_viewer_text(text):
+    return (text or '').replace('(', VIEWER_TEXT_OPEN).replace(')', VIEWER_TEXT_CLOSE)
+
+def inside_open_customapi(text):
+    start = text.rfind('(customapi.')
+    if start == -1:
+        return False
+    depth = 0
+    for char in text[start:]:
+        if char == '(':
+            depth += 1
+        elif char == ')':
+            depth -= 1
+    return depth > 0
+
 def insert_viewer_text(response, placeholder, text):
-    safe = (text or '').replace('(', VIEWER_TEXT_OPEN).replace(')', VIEWER_TEXT_CLOSE)
+    safe = escape_viewer_text(text)
     pieces = response.split(placeholder)
     result = pieces[0]
     for piece in pieces[1:]:
+        # Inside a (customapi.URL) the viewer text is URL-encoded so it can't add query parameters or path segments
+        if inside_open_customapi(result):
+            result += quote(text or '', safe='') + piece
+            continue
         # Template text just before the placeholder (e.g. "((arg))" or "(call(arg))") must not join with the viewer text into a variable
         tail = result[-32:]
         joined = tail + safe
@@ -14872,7 +14891,8 @@ async def process_dynamic_variables(
                                 response = response.replace(full_placeholder, "")
                         else:
                             api_response = await fetch_api_response(url, json_flag=False)
-                            response = response.replace(full_placeholder, api_response)
+                            # API text can echo viewer input, so it is inserted as plain text too
+                            response = response.replace(full_placeholder, escape_viewer_text(api_response))
                 # Handle (json.path.to.value)
                 if '(json.' in response:
                     json_placeholders = extract_json_placeholders(response)
@@ -14880,7 +14900,7 @@ async def process_dynamic_variables(
                         if json_context is None:
                             replacement = ""
                         else:
-                            replacement = format_json_placeholder_value(resolve_json_path(json_context, json_path))
+                            replacement = escape_viewer_text(format_json_placeholder_value(resolve_json_path(json_context, json_path)))
                         response = response.replace(full_placeholder, replacement)
                 # Handle (if.condition|true_text|false_text) All other variables are already resolved at this point. Supported operators: = != < > <= >= contains startswith endswith Example: (if.(json.username) = (user)|You're authorised|You're not authorised)
                 if '(if.' in response:
