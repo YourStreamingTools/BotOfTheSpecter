@@ -14367,6 +14367,39 @@ DYNAMIC_VARIABLE_SWITCHES = (
 def has_dynamic_variables(text):
     return bool(text) and any(switch in text for switch in DYNAMIC_VARIABLE_SWITCHES)
 
+# Viewer text from (arg), (message) and (redeem.input) is inserted as plain text: its brackets are swapped for placeholders until the message goes out, so a viewer can never inject a variable such as (call.settitle.x) or (vip).
+VIEWER_TEXT_OPEN = '\ue000'
+VIEWER_TEXT_CLOSE = '\ue001'
+VIEWER_TEXT_BREAK = '\ue002'
+# Hard stop for the variable loop so an unresolved token can never spin it forever
+MAX_DYNAMIC_VARIABLE_PASSES = 25
+
+def insert_viewer_text(response, placeholder, text):
+    safe = (text or '').replace('(', VIEWER_TEXT_OPEN).replace(')', VIEWER_TEXT_CLOSE)
+    pieces = response.split(placeholder)
+    result = pieces[0]
+    for piece in pieces[1:]:
+        # Template text just before the placeholder (e.g. "((arg))" or "(call(arg))") must not join with the viewer text into a variable
+        tail = result[-32:]
+        joined = tail + safe
+        boundary = len(tail)
+        crosses = False
+        for switch in DYNAMIC_VARIABLE_SWITCHES:
+            start = joined.find(switch)
+            while start != -1 and not crosses:
+                if start < boundary < start + len(switch):
+                    crosses = True
+                start = joined.find(switch, start + 1)
+            if crosses:
+                break
+        result += (VIEWER_TEXT_BREAK + safe if crosses else safe) + piece
+    return result
+
+def restore_viewer_text(text):
+    if not isinstance(text, str):
+        return text
+    return text.replace(VIEWER_TEXT_OPEN, '(').replace(VIEWER_TEXT_CLOSE, ')').replace(VIEWER_TEXT_BREAK, '')
+
 # Function to process dynamic message variables
 async def process_dynamic_variables(
     command,
@@ -14419,7 +14452,13 @@ async def process_dynamic_variables(
             # Process variables in a loop until none remain
             responses_to_send = []
             pending_calls = []  # (call.) commands deferred until after the main message is sent
+            variable_passes = 0
             while has_dynamic_variables(response):
+                variable_passes += 1
+                if variable_passes > MAX_DYNAMIC_VARIABLE_PASSES:
+                    chat_logger.warning(f"[MESSAGE VARS] Stopped processing variables for '{command}' after {MAX_DYNAMIC_VARIABLE_PASSES} passes")
+                    break
+                response_at_pass_start = response
                 # Handle (count)
                 if '(count)' in response:
                     try:
@@ -14527,7 +14566,7 @@ async def process_dynamic_variables(
                     response = response.replace('(author)', user)
                 # Handle (arg) - the argument passed to the command
                 if '(arg)' in response:
-                    response = response.replace('(arg)', arg if arg is not None else '')
+                    response = insert_viewer_text(response, '(arg)', arg)
                 # Channel-point-specific variables (only when channel_point_data is provided)
                 if channel_point_data:
                     cp_reward_id = channel_point_data.get("reward_id")
@@ -14535,10 +14574,10 @@ async def process_dynamic_variables(
                     cp_user_input = channel_point_data.get("user_input", "")
                     # Handle (message) - user input from the redemption
                     if '(message)' in response:
-                        response = response.replace('(message)', cp_user_input)
+                        response = insert_viewer_text(response, '(message)', cp_user_input)
                     # Handle (redeem.*) variables - channel point reward data
                     if '(redeem.input)' in response:
-                        response = response.replace('(redeem.input)', cp_user_input)
+                        response = insert_viewer_text(response, '(redeem.input)', cp_user_input)
                     if '(redeem.title)' in response:
                         response = response.replace('(redeem.title)', channel_point_data.get("reward_title", ""))
                     if '(redeem.cost)' in response:
@@ -14899,6 +14938,12 @@ async def process_dynamic_variables(
                             chat_logger.error(f"[MESSAGE VARS] (if.) evaluation error for condition {condition_str!r}: {e}")
                             result = False
                         response = response.replace(full_placeholder, true_val if result else false_val, 1)
+                # A pass that changes nothing means the remaining tokens can't be resolved here; send them as plain text
+                if response == response_at_pass_start:
+                    chat_logger.warning(f"[MESSAGE VARS] Unresolved variables left as text in '{command}': {response[:200]!r}")
+                    break
+            response = restore_viewer_text(response)
+            responses_to_send = [restore_viewer_text(resp) for resp in responses_to_send]
             # Send the main response to chat if requested
             if send_to_chat:
                 await send_long_chat_message(response)
@@ -14907,7 +14952,7 @@ async def process_dynamic_variables(
                 try:
                     bot_ref = BOTS_TWITCH_BOT
                     if bot_ref and hasattr(bot_ref, 'call_command'):
-                        await bot_ref.call_command(call_cmd, None, call_args)
+                        await bot_ref.call_command(call_cmd, None, restore_viewer_text(call_args))
                     else:
                         chat_logger.warning(f"[MESSAGE VARS] Cannot call command '{call_cmd}': bot not available")
                 except Exception as e:
@@ -14921,7 +14966,7 @@ async def process_dynamic_variables(
             return response
     except Exception as e:
         chat_logger.error(f"[MESSAGE VARS] Error processing dynamic message variables: {e}")
-        return response
+        return restore_viewer_text(response)
 
 # Functions for weather
     finally:
