@@ -18512,6 +18512,12 @@ async def fetch_category_name(cursor, category_id):
     return result.get("category") if result else None
 
 # Function to start subathon timer
+# A paused subathon keeps its time left; a stopped or expired one is paused with nothing left, so it can't be resumed
+def subathon_has_time_saved(subathon_state):
+    if not subathon_state or not subathon_state.get("paused"):
+        return False
+    return (subathon_state.get("remaining_seconds") or 0) > 0 or (subathon_state.get("remaining_minutes") or 0) > 0
+
 async def start_subathon(ctx):
     connection = None
     try:
@@ -18521,7 +18527,7 @@ async def start_subathon(ctx):
             if subathon_state and not subathon_state["paused"]:
                 await send_chat_message(f"A subathon is already running!")
                 return
-            if subathon_state and subathon_state["paused"]:
+            if subathon_has_time_saved(subathon_state):
                 await resume_subathon(ctx)
             else:
                 await cursor.execute("SELECT * FROM subathon_settings LIMIT 1")
@@ -18550,8 +18556,9 @@ async def stop_subathon(ctx):
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
-            if subathon_state and not subathon_state["paused"]:
-                await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
+            # Stop ends a running subathon or a paused one, clearing the saved time so it can't be resumed
+            if subathon_state and (not subathon_state["paused"] or subathon_has_time_saved(subathon_state)):
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, remaining_seconds = %s WHERE id = %s", (True, 0, 0, subathon_state["id"]))
                 await connection.commit()
                 await send_chat_message(f"Subathon ended!")
                 # Send websocket notice
