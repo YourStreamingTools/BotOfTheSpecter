@@ -16909,9 +16909,10 @@ async def process_cheer_event(user_id, user_name, bits):
             await connection.commit()
             # Add time to subathon if it's running
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]:  # If subathon is running
-                cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
-                await addtime_subathon(CHANNEL_NAME, cheer_add_time)  # Call to add time based on cheers
+            if subathon_state and not subathon_state["paused"]:  # If subathon is running
+                cheer_add_time = await get_subathon_add_minutes('cheer_add')
+                if cheer_add_time > 0:
+                    await addtime_subathon(CHANNEL_NAME, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Twitch Chat, and Websocket
             safe_create_task(websocket_notice(event="TWITCH_CHEER", user=user_name, cheer_amount=bits))
             safe_create_task(pet_try_event_trigger("cheer", user_name))
@@ -16975,16 +16976,11 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             event_logger.info("[SUB EVENT] Database changes committed successfully")
             # Add time to subathon based on sub_plan
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]:  # If subathon is running
-                if sub_plan == 'Tier 1':
-                    sub_add_time = int(settings['sub_add_1'])
-                elif sub_plan == 'Tier 2':
-                    sub_add_time = int(settings['sub_add_2'])
-                elif sub_plan == 'Tier 3':
-                    sub_add_time = int(settings['sub_add_3'])
-                else:
-                    sub_add_time = 0  # Default to 0 if no matching tier
-                await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
+            if subathon_state and not subathon_state["paused"]:  # If subathon is running
+                sub_add_column = {'Tier 1': 'sub_add_1', 'Tier 2': 'sub_add_2', 'Tier 3': 'sub_add_3'}.get(sub_plan)
+                sub_add_time = await get_subathon_add_minutes(sub_add_column) if sub_add_column else 0
+                if sub_add_time > 0:
+                    await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages (skip for upgrades since they send their own message)
             if not is_upgrade:
                 await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
@@ -17099,16 +17095,11 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             event_logger.info("[SUB MESSAGE] Database changes committed successfully")
             # Add time to subathon based on sub_plan
             subathon_state = await get_subathon_state()
-            if subathon_state and not subathon_state[4]:  # If subathon is running
-                if sub_plan == 'Tier 1':
-                    sub_add_time = int(settings['sub_add_1'])
-                elif sub_plan == 'Tier 2':
-                    sub_add_time = int(settings['sub_add_2'])
-                elif sub_plan == 'Tier 3':
-                    sub_add_time = int(settings['sub_add_3'])
-                else:
-                    sub_add_time = 0  # Default to 0 if no matching tier
-                await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
+            if subathon_state and not subathon_state["paused"]:  # If subathon is running
+                sub_add_column = {'Tier 1': 'sub_add_1', 'Tier 2': 'sub_add_2', 'Tier 3': 'sub_add_3'}.get(sub_plan)
+                sub_add_time = await get_subathon_add_minutes(sub_add_column) if sub_add_column else 0
+                if sub_add_time > 0:
+                    await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages (skip for upgrades since they send their own message)
             if not is_upgrade:
                 await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
@@ -19202,6 +19193,21 @@ async def subathon_countdown():
             # No active subathon to watch - exit; a new !subathon start spawns a fresh task.
             break
         await sleep(30)
+
+# Function to get how many minutes a cheer or sub adds to a running subathon (subathon_settings column; empty counts as 0)
+async def get_subathon_add_minutes(column):
+    if column not in ('cheer_add', 'sub_add_1', 'sub_add_2', 'sub_add_3'):
+        return 0
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(f"SELECT {column} FROM subathon_settings ORDER BY id DESC LIMIT 1")
+            row = await cursor.fetchone()
+            return int((row or {}).get(column) or 0)
+    finally:
+        if connection:
+            await connection.close()
 
 # Function to get the current subathon state
 async def get_subathon_state():
