@@ -596,7 +596,7 @@ return [
     'moderation_bans_partial' => 'Einige konnten nicht von Twitch geladen werden, daher werden nur :count angezeigt.',
     // birthdays.php — Viewer birthdays
     'birthdays_page_title' => 'Geburtstage',
-    'birthdays_page_subtitle' => 'Im Chat gespeicherte Geburtstage deiner Zuschauer. Am Geburtstag enthält ihre Willkommensnachricht im Stream einen Geburtstagsgruß.',
+    'birthdays_page_subtitle' => 'Im Chat gespeicherte Geburtstage deiner Zuschauer. Am Geburtstag postet der Bot einen Geburtstagsgruß im Chat, sobald sie zum ersten Mal im Stream schreiben.',
     'birthdays_beta_notice' => '<strong>Beta-Funktion:</strong> Geburtstage sind im Beta-Bot (v5.8 und v6) verfügbar.',
     'birthdays_stat_total' => 'Gespeicherte Geburtstage',
     'birthdays_stat_today' => 'Geburtstage heute',
@@ -605,7 +605,7 @@ return [
     'birthdays_cmd_add' => 'Mods und Streamer: Geburtstag eines Zuschauers speichern oder ersetzen.',
     'birthdays_cmd_my' => 'Zuschauer: gespeicherten Geburtstag anzeigen oder einen speichern, falls noch keiner vorhanden ist.',
     'birthdays_cmd_update' => 'Zuschauer: gespeicherten Geburtstag ändern.',
-    'birthdays_commands_note' => 'Datumsangaben im Format Tag/Monat (23/8 ist der 23. August). Geburtstage werden in der Zeitzone deines Kanals geprüft, und der Gruß wird nur angehängt, wenn Willkommensnachrichten aktiviert sind.',
+    'birthdays_commands_note' => 'Datumsangaben im Format Tag/Monat (23/8 ist der 23. August). Geburtstage werden in der Zeitzone deines Kanals geprüft. Der Gruß ist eine eigene Chatnachricht und wird auch gesendet, wenn Willkommensnachrichten deaktiviert sind.',
     'birthdays_list_title' => 'Geburtstagsliste',
     'birthdays_search_placeholder' => 'Nach Benutzername filtern…',
     'birthdays_col_user' => 'Benutzer',

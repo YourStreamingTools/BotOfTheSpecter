@@ -622,7 +622,7 @@ return [
     'moderation_bans_partial' => 'Algunos no se pudieron cargar desde Twitch, así que solo se muestran :count.',
     // birthdays.php — Viewer birthdays
     'birthdays_page_title' => 'Cumpleaños',
-    'birthdays_page_subtitle' => 'Cumpleaños de los espectadores guardados desde el chat. El día de su cumpleaños, su mensaje de bienvenida en el directo incluye una felicitación.',
+    'birthdays_page_subtitle' => 'Cumpleaños de los espectadores guardados desde el chat. El día de su cumpleaños, el bot publica una felicitación en el chat cuando escriben por primera vez en el directo.',
     'birthdays_beta_notice' => '<strong>Función beta:</strong> los cumpleaños están disponibles en el bot beta (v5.8 y v6).',
     'birthdays_stat_total' => 'Cumpleaños guardados',
     'birthdays_stat_today' => 'Cumpleaños hoy',
@@ -631,7 +631,7 @@ return [
     'birthdays_cmd_add' => 'Moderadores y streamer: guardar o reemplazar el cumpleaños de un espectador.',
     'birthdays_cmd_my' => 'Espectadores: muestra tu cumpleaños guardado, o guarda uno si aún no lo tienes.',
     'birthdays_cmd_update' => 'Espectadores: cambia tu cumpleaños guardado.',
-    'birthdays_commands_note' => 'Las fechas usan el formato día/mes (23/8 es el 23 de agosto). Los cumpleaños se comprueban según la zona horaria de tu canal, y la felicitación solo se añade si los mensajes de bienvenida están activados.',
+    'birthdays_commands_note' => 'Las fechas usan el formato día/mes (23/8 es el 23 de agosto). Los cumpleaños se comprueban según la zona horaria de tu canal. La felicitación es un mensaje de chat propio, así que se envía aunque los mensajes de bienvenida estén desactivados.',
     'birthdays_list_title' => 'Lista de cumpleaños',
     'birthdays_search_placeholder' => 'Filtrar por nombre de usuario…',
     'birthdays_col_user' => 'Usuario',
