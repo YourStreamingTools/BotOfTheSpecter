@@ -10964,6 +10964,11 @@ class TwitchBot(commands.AutoBot):
                             from_unit = unit_aliases[from_unit]
                         if to_unit in unit_aliases:
                             to_unit = unit_aliases[to_unit]
+                        # pint evaluates unit strings as expressions, so only plain unit names reach it (an input like 10**999999999 would freeze the bot)
+                        unit_pattern = r"[a-z_ ]+(?:\s*[/*]\s*[a-z_ ]+)?"
+                        if any(len(unit) > 32 or not re.fullmatch(unit_pattern, unit, re.IGNORECASE) for unit in (from_unit, to_unit)):
+                            await send_chat_message(f"{ctx.author.name}, that unit isn't supported. Try plain unit names, e.g. !convert 10 km mi or !convert 30 c f")
+                            return
                         quantity = amount * ureg(from_unit)
                         converted_quantity = quantity.to(to_unit)
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
