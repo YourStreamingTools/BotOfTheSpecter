@@ -850,7 +850,7 @@ async def refresh_twitch_token(current_refresh_token):
                     if new_access_token:
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
-                        twitch_logger.info(f"[TOKEN REFRESH] Refreshed token. New Access Token: {CHANNEL_AUTH}.")
+                        twitch_logger.info(f"[TOKEN REFRESH] Refreshed token (expires in {expires_in}s). Access token: [REDACTED].")
                         async with await mysql_connection(db_name="website") as connection:
                             try:
                                 async with connection.cursor(DictCursor) as cursor:
