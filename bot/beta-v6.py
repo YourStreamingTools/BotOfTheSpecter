@@ -1188,7 +1188,7 @@ async def connect_to_tipping_services():
                 create_task(streamelements_connection_manager())
                 await sleep(2)
             if streamlabs_token:
-                create_task(connect_to_streamlabs())
+                create_task(streamlabs_connection_manager())
             if not streamelements_token and not streamlabs_token:
                 event_logger.error("No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
                 return
@@ -1312,16 +1312,52 @@ async def connect_to_streamelements():
         event_logger.error(f"StreamElements WebSocket error: {e}")
         raise
 
+async def streamlabs_connection_manager():
+    # StreamLabs gives no reconnect signal, so keep reconnecting with backoff (5s doubling to 5 min) while a token is configured
+    delay = 5
+    while streamlabs_token:
+        connected_at = time.monotonic()
+        await connect_to_streamlabs()
+        if time.monotonic() - connected_at >= 300:
+            delay = 5
+        event_logger.info(f"Reconnecting to StreamLabs in {delay} seconds")
+        await sleep(delay)
+        delay = min(delay * 2, 300)
+
+async def streamlabs_heartbeat(streamlabs_websocket, interval):
+    # Engine.IO v3: the client must send "2" pings every pingInterval, or the server closes the socket after pingInterval + pingTimeout
+    try:
+        while True:
+            await sleep(interval)
+            await streamlabs_websocket.send("2")
+    except WebSocketConnectionClosed:
+        return
+
 async def connect_to_streamlabs():
     global streamlabs_token
     uri = f"wss://sockets.streamlabs.com/socket.io/?token={streamlabs_token}&EIO=3&transport=websocket"
-    sanitized_uri = uri.replace(streamlabs_token, "[REDACTED]")
+    heartbeat_task = None
     try:
-        async with WebSocketConnect(uri) as streamlabs_websocket:
-            event_logger.info(f"Connected to StreamLabs WebSocket with URI: {sanitized_uri}")
-            # Listen for messages
+        async with WebSocketConnect(uri, ping_interval=None) as streamlabs_websocket:
+            event_logger.info(f"Connected to StreamLabs WebSocket")
             while True:
-                message = await streamlabs_websocket.recv()
+                message = str(await streamlabs_websocket.recv())
+                # The open packet ("0{...}") carries the heartbeat timing
+                if message.startswith('0{'):
+                    try:
+                        ping_interval = json.loads(message[1:]).get('pingInterval', 25000) / 1000
+                    except (ValueError, AttributeError):
+                        ping_interval = 25
+                    if heartbeat_task is None:
+                        heartbeat_task = create_task(streamlabs_heartbeat(streamlabs_websocket, ping_interval))
+                    event_logger.debug(f"StreamLabs handshake received, pinging every {ping_interval}s")
+                    continue
+                # Pongs and Socket.IO connect/disconnect frames carry no data
+                if message in ('3', '40', '41'):
+                    continue
+                if message == '2':
+                    await streamlabs_websocket.send('3')
+                    continue
                 sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
                 event_logger.info(f"StreamLabs Message: {sanitized_message}")
                 await process_message(message, "StreamLabs")
@@ -1329,6 +1365,9 @@ async def connect_to_streamlabs():
         event_logger.error(f"StreamLabs WebSocket connection closed: {e}")
     except Exception as e:
         event_logger.error(f"StreamLabs WebSocket error: {e}")
+    finally:
+        if heartbeat_task:
+            heartbeat_task.cancel()
 
 async def process_message(message, source):
     global streamelements_token, streamlabs_token
@@ -1368,7 +1407,10 @@ async def process_message(message, source):
                 await process_tipping_message(json.loads(sanitized_message), source)
         elif source == "StreamLabs":
             sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
-            await process_tipping_message(json.loads(sanitized_message), source)
+            event = json.loads(sanitized_message)
+            # Socket.IO event frames decode to ["event", payload]
+            if isinstance(event, list) and len(event) >= 2 and event[0] == 'event' and isinstance(event[1], dict):
+                await process_tipping_message(event[1], source)
     except Exception as e:
         event_logger.error(f"Error processing message from {source}: {e}")
 
@@ -1387,13 +1429,7 @@ def handle_streamelements_error(error, message):
 
 async def process_tipping_message(data, source):
     try:
-        send_message = None
-        user = None
-        amount = None
-        tip_message = None
-        tip_id = None
-        currency = None
-        created_at = None
+        tips = []
         if source == "StreamElements" and data.get('type') == 'tip':
             # Use correct StreamElements API field names
             tip_data = data.get('data', {})
@@ -1408,32 +1444,35 @@ async def process_tipping_message(data, source):
             message_part = f" Message: {tip_message}" if tip_message else ""
             send_message = f"{user} just tipped {amount_text}!{message_part}"
             event_logger.info(f"StreamElements Tip: {send_message} (ID: {tip_id})")
-        elif source == "StreamLabs" and 'event' in data and data['event'] == 'donation':
-            for donation in data['data']['donations']:
-                user = donation['name']
-                amount = donation['amount']
-                tip_message = donation['message']
-                send_message = f"{user} just tipped {amount}! Message: {tip_message}"
-                event_logger.info(f"StreamLabs Tip: {send_message}")
-        if send_message and user and amount is not None:
+            tips.append((user, amount, tip_message, tip_id, currency, created_at, send_message))
+        elif source == "StreamLabs" and data.get('type') == 'donation':
+            # StreamLabs sends {"type": "donation", "message": [{name, amount, formatted_amount, message, currency, id}, ...]}
+            for donation in data.get('message') or []:
+                if not isinstance(donation, dict):
+                    continue
+                user = donation.get('name')
+                amount = donation.get('amount')
+                tip_message = donation.get('message') or ''
+                currency = donation.get('currency') or ''
+                tip_id = donation.get('id') or donation.get('_id')
+                amount_text = donation.get('formatted_amount') or f"{amount} {currency}".strip()
+                message_part = f" Message: {tip_message}" if tip_message else ""
+                send_message = f"{user} just tipped {amount_text}!{message_part}"
+                event_logger.info(f"StreamLabs Tip: {send_message} (ID: {tip_id})")
+                tips.append((user, amount, tip_message, str(tip_id) if tip_id is not None else None, currency, None, send_message))
+        for user, amount, tip_message, tip_id, currency, created_at, send_message in tips:
+            if not user or amount is None:
+                continue
             await send_chat_message(send_message)
             # Save tipping data to database
             connection = None
             connection = await mysql_handler.get_connection()
             try:
                 async with connection.cursor(DictCursor) as cursor:
-                    # For StreamElements, store additional data
-                    if source == "StreamElements":
-                        await cursor.execute(
-                            "INSERT INTO tipping (username, amount, message, source, tip_id, currency, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                            (user, amount, tip_message or '', source, tip_id, currency, created_at)
-                        )
-                    else:
-                        # For other sources, use the basic format
-                        await cursor.execute(
-                            "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
-                            (user, amount, tip_message or '', source)
-                        )
+                    await cursor.execute(
+                        "INSERT INTO tipping (username, amount, message, source, tip_id, currency, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        (user, amount, tip_message or '', source, tip_id, currency, created_at)
+                    )
                     await connection.commit()
             except MySQLError as err:
                 event_logger.error(f"Database error saving tip: {err}")
