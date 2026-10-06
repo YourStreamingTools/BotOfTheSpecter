@@ -4080,14 +4080,14 @@ class TwitchBot(commands.AutoBot):
                     blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
                     contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
                     if contains_blacklisted_link:
-                        await message.delete()
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                        deleted = await delete_chat_message(getattr(message, 'id', None))
+                        chat_logger.info(f"{'Deleted' if deleted else 'Could not delete'} message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
                         await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
                         return
                     # Now check if URL blocking is enabled
                     await cursor.execute('SELECT url_blocking FROM protection')
                     result = await cursor.fetchone()
-                    url_blocking = bool(result.get("url_blocking")) if result else False
+                    url_blocking = result.get("url_blocking") == 'True' if result else False
                     if url_blocking:
                         # Check if user has permission to post links
                         if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
@@ -4102,8 +4102,8 @@ class TwitchBot(commands.AutoBot):
                         # Check for Twitch clip links
                         contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
                         if not contains_whitelisted_link and not contains_twitch_clip_link:
-                            await message.delete()
-                            chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
+                            deleted = await delete_chat_message(getattr(message, 'id', None))
+                            chat_logger.info(f"{'Deleted' if deleted else 'Could not delete'} message from {messageAuthor} containing a URL: {AuthorMessage}")
                             await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                             return
                         else:
@@ -17004,6 +17004,41 @@ async def ban_user(username, user_id, use_streamer=False):
     finally:
         if connection:
             await connection.release()
+
+# Function to delete a chat message through Helix, using the same token source as ban_user (Specter bot first, then the streamer's token)
+async def delete_chat_message(message_id):
+    if not message_id:
+        return False
+    attempts = []
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", ("971436498",))
+            result = await cursor.fetchone()
+            if result and result.get('twitch_access_token'):
+                attempts.append(("971436498", result.get('twitch_access_token')))
+    except Exception as e:
+        twitch_logger.error(f"Could not load the bot token to delete a chat message: {e}")
+    finally:
+        if connection:
+            await connection.release()
+    attempts.append((CHANNEL_ID, CHANNEL_AUTH))
+    delete_url = "https://api.twitch.tv/helix/moderation/chat"
+    async with httpClientSession() as session:
+        for moderator_id, token in attempts:
+            headers = {"Client-ID": CLIENT_ID, "Authorization": f"Bearer {token}"}
+            params = {"broadcaster_id": CHANNEL_ID, "moderator_id": moderator_id, "message_id": message_id}
+            async with session.delete(delete_url, headers=headers, params=params) as response:
+                if response.status == 204:
+                    twitch_logger.info(f"Deleted chat message {message_id}")
+                    return True
+                error_text = await response.text()
+                twitch_logger.error(f"Failed to delete chat message {message_id} as {moderator_id}. Status Code: {response.status}, Response: {error_text}")
+                # Only a token/scope problem is worth retrying with the streamer's token
+                if response.status not in (401, 403):
+                    return False
+    return False
 
 # Function to deny an AutoMod-held message using the same token source as ban_user
 async def deny_automod_message(msg_id, use_streamer=False):

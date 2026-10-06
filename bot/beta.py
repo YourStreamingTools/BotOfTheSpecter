@@ -4061,6 +4061,7 @@ class TwitchBot(commands.Bot):
             should_delete = False
             alert_mods = False
             send_warning = False
+            blocked_term_found = False
             if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                 # Block 3: Link Protection (Acquire -> Release immediately)
                 async with await mysql_connection() as connection:
@@ -4078,7 +4079,7 @@ class TwitchBot(commands.Bot):
                             # Check URL blocking setting (only if not blacklisted)
                             await cursor.execute('SELECT url_blocking FROM protection')
                             result = await cursor.fetchone()
-                            url_blocking = bool(result.get("url_blocking")) if result else False
+                            url_blocking = result.get("url_blocking") == 'True' if result else False
                             if url_blocking:
                                 # Check if user is mod or streamer (bypass URL blocking for privileged users)
                                 is_privileged = False
@@ -4121,22 +4122,27 @@ class TwitchBot(commands.Bot):
                                 for term in blocked_terms:
                                     if term in message_lower:
                                         should_delete = True
+                                        blocked_term_found = True
                                         chat_logger.info(f"[EVENT MESSAGE] Blocked term '{term}' detected in message from {messageAuthor}")
-                                        try:
-                                            await send_chat_message(f"{messageAuthor}, your message contained a blocked term and has been removed.")
-                                        except Exception as send_err:
-                                            chat_logger.error(f"[EVENT MESSAGE] Error sending blocked term notice: {send_err}")
                                         break
             except Exception as term_error:
                 chat_logger.error(f"[EVENT MESSAGE] Error checking blocked terms: {term_error}")
             if should_delete:
-                await message.delete()
+                message_id = getattr(message, 'id', None) or (getattr(message, 'tags', None) or {}).get('id')
+                deleted = await delete_chat_message(message_id)
+                delete_result = "Deleted" if deleted else "Could not delete"
+                # Only tell the viewer their message was removed when it actually was
+                if blocked_term_found and deleted:
+                    try:
+                        await send_chat_message(f"{messageAuthor}, your message contained a blocked term and has been removed.")
+                    except Exception as send_err:
+                        chat_logger.error(f"[EVENT MESSAGE] Error sending blocked term notice: {send_err}")
                 if alert_mods:
-                    chat_logger.info(f"[EVENT MESSAGE] Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                    chat_logger.info(f"[EVENT MESSAGE] {delete_result} message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
                     await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
                     return
                 if send_warning:
-                    chat_logger.info(f"[EVENT MESSAGE] Deleted message from {messageAuthor} containing a non-whitelisted URL: {AuthorMessage}")
+                    chat_logger.info(f"[EVENT MESSAGE] {delete_result} message from {messageAuthor} containing a non-whitelisted URL: {AuthorMessage}")
                     await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                     return
             if not should_delete and messageContentRaw and not messageContentRaw.startswith('!'):
@@ -17354,6 +17360,41 @@ async def ban_user(username, user_id, use_streamer=False):
     finally:
         if connection:
             await connection.close()
+
+# Function to delete a chat message through Helix, using the same token source as ban_user (Specter bot first, then the streamer's token)
+async def delete_chat_message(message_id):
+    if not message_id:
+        return False
+    attempts = []
+    connection = None
+    try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", ("971436498",))
+            result = await cursor.fetchone()
+            if result and result.get('twitch_access_token'):
+                attempts.append(("971436498", result.get('twitch_access_token')))
+    except Exception as e:
+        twitch_logger.error(f"[DELETE MESSAGE] Could not load the bot token to delete a chat message: {e}")
+    finally:
+        if connection:
+            await connection.close()
+    attempts.append((CHANNEL_ID, CHANNEL_AUTH))
+    delete_url = "https://api.twitch.tv/helix/moderation/chat"
+    async with httpClientSession() as session:
+        for moderator_id, token in attempts:
+            headers = {"Client-ID": CLIENT_ID, "Authorization": f"Bearer {token}"}
+            params = {"broadcaster_id": CHANNEL_ID, "moderator_id": moderator_id, "message_id": message_id}
+            async with session.delete(delete_url, headers=headers, params=params) as response:
+                if response.status == 204:
+                    twitch_logger.info(f"[DELETE MESSAGE] Deleted chat message {message_id}")
+                    return True
+                error_text = await response.text()
+                twitch_logger.error(f"[DELETE MESSAGE] Failed to delete chat message {message_id} as {moderator_id}. Status Code: {response.status}, Response: {error_text}")
+                # Only a token/scope problem is worth retrying with the streamer's token
+                if response.status not in (401, 403):
+                    return False
+    return False
 
 # Function to deny an AutoMod-held message using the same token source as ban_user
 async def deny_automod_message(msg_id, use_streamer=False):
