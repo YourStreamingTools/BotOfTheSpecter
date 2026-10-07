@@ -5195,7 +5195,9 @@ def format_weather_data(current_metric, current_imperial, location):
         status = 'Unknown status'
     temperature_c = whole_degrees(current_metric.get('temp', 'Unknown'))
     temperature_f = whole_degrees(current_imperial.get('temp', 'Unknown'))
-    wind_speed_kph = current_metric.get('wind_speed', 'Unknown')
+    # OpenWeatherMap metric wind speed is in metres per second; convert to km/h for the "kph" label
+    wind_speed_ms = current_metric.get('wind_speed')
+    wind_speed_kph = round(wind_speed_ms * 3.6, 1) if isinstance(wind_speed_ms, (int, float)) else 'Unknown'
     wind_speed_mph = current_imperial.get('wind_speed', 'Unknown')
     humidity = current_metric.get('humidity', 'Unknown')
     wind_direction = get_wind_direction(current_metric.get('wind_deg', 0))
