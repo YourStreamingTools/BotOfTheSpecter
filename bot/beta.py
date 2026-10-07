@@ -18973,14 +18973,8 @@ async def perform_lotto_draw(announce_empty=True):
                     division = None
                 if division:
                     prize = prize_pool.get(division, 0)
-                    await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                    user_points = await cursor.fetchone()
-                    if user_points:
-                        new_points = user_points["points"] + prize
-                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
-                    else:
-                        await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
-                    await connection.commit()
+                    # Paid by Twitch user id (the old name-only insert failed for winners without a points row and stopped the draw)
+                    await credit_lotto_prize(user_name, prize)
                     division_winners.setdefault(division, []).append(user_name)
                 await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                 await connection.commit()
@@ -19009,6 +19003,18 @@ async def perform_lotto_draw(announce_empty=True):
     finally:
         if connection:
             await connection.close()
+
+# Function to pay a lotto prize; bot_points is keyed by Twitch user_id, so a winner with no points row yet needs their id looked up. Returns the new total, or None if it couldn't be paid.
+async def credit_lotto_prize(user_name, prize):
+    winner_id, _ = await get_twitch_user_by_login(user_name)
+    if not winner_id:
+        bot_logger.error(f"[LOTTO] Could not find Twitch user {user_name} to pay a lotto prize of {prize}")
+        return None
+    result = await manage_user_points(winner_id, user_name, "credit", prize)
+    if not result.get("success"):
+        bot_logger.error(f"[LOTTO] Could not pay lotto prize to {user_name}: {result.get('error')}")
+        return None
+    return result.get("points")
 
 # Function to fetch a random fortune
 async def tell_fortune():
