@@ -10141,16 +10141,16 @@ class TwitchBot(commands.AutoBot):
                                 if cancelled_local:
                                     await send_chat_message(f"The next stream scheduled for {cancelled_local.strftime('%A, %d %B %Y')} ({cancelled_local.strftime('%H:%M %Z')}) has been cancelled.")
                                 if next_stream:
-                                    start_date_utc = next_stream['start_time'].split('T')[0]
                                     start_time_utc = parse_twitch_schedule_time(next_stream.get('start_time'))
                                     start_time = start_time_utc.astimezone(tz)
+                                    start_date = start_time.strftime('%Y-%m-%d')
                                     time_until = start_time - current_time
                                     days, seconds = time_until.days, time_until.seconds
                                     hours = seconds // 3600
                                     minutes = (seconds % 3600) // 60
                                     seconds = (seconds % 60)
                                     time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
-                                    await send_chat_message(f"The next stream will be on {start_date_utc} at {format_schedule_time(start_time)}, which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                                    await send_chat_message(f"The next stream will be on {start_date} at {format_schedule_time(start_time)}, which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                                 else:
                                     await send_chat_message(f"There are no upcoming streams scheduled.")
                             else:
