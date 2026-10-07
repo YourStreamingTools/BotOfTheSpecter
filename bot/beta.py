@@ -3340,8 +3340,13 @@ async def process_stream_bingo_message(data):
                 player_name = data.get('playername')
                 player_id = data.get('playerid')
                 rank = data.get('rank')
-                rank_suffixes = {1: "1st", 2: "2nd", 3: "3rd"}
-                rank_text = rank_suffixes.get(rank, f"{rank}th")
+                # English ordinal: 1st 2nd 3rd 4th ... 11th 12th 13th ... 21st 22nd 23rd
+                try:
+                    rank_num = int(rank)
+                    suffix = "th" if 10 <= rank_num % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(rank_num % 10, "th")
+                    rank_text = f"{rank_num}{suffix}"
+                except (TypeError, ValueError):
+                    rank_text = str(rank)
                 if _current_bingo_game_id:
                     async with user_db.cursor() as cursor:
                         await cursor.execute("""
@@ -7973,7 +7978,7 @@ class TwitchBot(commands.Bot):
                             if clip_response.status == 202:
                                 clip_data = await clip_response.json()
                                 clip_id = clip_data['data'][0]['id']
-                                clip_url = f"http://clips.twitch.tv/{clip_id}"
+                                clip_url = f"https://clips.twitch.tv/{clip_id}"
                                 await send_chat_message(f"{ctx.author.name} created a clip: {clip_url}")
                                 marker_description = f"Clip creation by {ctx.author.name}"
                                 if await make_stream_marker(marker_description):
