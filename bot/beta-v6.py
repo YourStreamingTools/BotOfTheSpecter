@@ -2896,6 +2896,8 @@ async def hyperate_websocket_persistent():
                     except Exception:
                         # Be defensive: nothing critical if cancelling fails
                         pass
+            # A clean close (or a server that drops us straight away) waits before reconnecting instead of spinning
+            await sleep(5)
         except Exception as e:
             bot_logger.error(f"HypeRate error: An unexpected error occurred with HypeRate Heart Rate WebSocket: {redact(e)}")
             await sleep(10)  # Retry connection after a brief wait
@@ -2995,6 +2997,8 @@ async def stream_bingo_websocket():
                     except Exception as e:
                         integrations_logger.error(f"[STREAM BINGO] Error receiving message: {e}")
                         break
+            # A clean close (or a server that drops us straight away) waits before reconnecting instead of spinning
+            await sleep(5)
         except Exception as e:
             integrations_logger.error(f"[STREAM BINGO] WebSocket connection error: {e}")
             await sleep(10)
@@ -3047,6 +3051,8 @@ async def connect_to_tanggle():
                     except Exception as e:
                         integrations_logger.error(f"Tanggle: Error receiving message: {e}")
                         break
+            # A clean close (or a server that drops us straight away) waits before reconnecting instead of spinning
+            await sleep(5)
         except Exception as e:
             integrations_logger.error(f"Tanggle: WebSocket connection error: {e}")
             await sleep(10)
