@@ -725,6 +725,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     }
+    elseif (isset($_POST['ban_monitored_users'])) {
+        $activeTab = "chat-protection";
+        $ban_monitored_users = $_POST['ban_monitored_users'] == 'True' ? 'True' : 'False';
+        $stmt = $db->prepare("UPDATE protection SET ban_monitored_users = ?");
+        $stmt->bind_param("s", $ban_monitored_users);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Monitored users setting updated successfully.";
+        } else {
+            $_SESSION['update_message'] = "Failed to update your monitored users setting.";
+            error_log("Error updating ban_monitored_users: " . $db->error);
+        }
+        $stmt->close();
+    }
     elseif (isset($_POST['blocked_term'])) {
         $activeTab = "chat-protection";
         $blocked_term = trim($_POST['blocked_term']);

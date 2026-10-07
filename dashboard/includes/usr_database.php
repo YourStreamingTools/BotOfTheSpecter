@@ -422,7 +422,8 @@ try {
                 word_replace_word VARCHAR(32) DEFAULT 'fun',
                 word_replace_frequency INT DEFAULT 30,
                 word_replace_rate INT DEFAULT 10,
-                word_replace_cooldown INT DEFAULT 30
+                word_replace_cooldown INT DEFAULT 30,
+                ban_monitored_users VARCHAR(10) DEFAULT 'False'
             ) ENGINE=InnoDB",
         'link_whitelist' => "
             CREATE TABLE IF NOT EXISTS link_whitelist (

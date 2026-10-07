@@ -2104,8 +2104,12 @@ async def process_twitch_eventsub_message(message):
                     if banEvasionTypes:
                         twitch_logger.info(f"Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
                     if lowTrustStatus == "active_monitoring":
-                        bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
-                        create_task(ban_user(messageAuthor, messageAuthorID))
+                        # "Monitor" is usually a mod's choice not to ban, so the auto-ban is an opt-in protection setting (off by default)
+                        if await protection_setting_enabled("ban_monitored_users"):
+                            bot_logger.info(f"Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
+                            create_task(ban_user(messageAuthor, messageAuthorID))
+                        else:
+                            twitch_logger.info(f"Suspicious user {messageAuthor} is being monitored; not banned because auto-ban for monitored users is off.")
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
@@ -17047,6 +17051,24 @@ async def delete_chat_message(message_id):
                 if response.status not in (401, 403):
                     return False
     return False
+
+# Function to read a True/False protection setting; a missing column (dashboard not visited since the update) counts as off
+async def protection_setting_enabled(column):
+    if column not in ('ban_monitored_users',):
+        return False
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(f"SELECT {column} FROM protection LIMIT 1")
+            row = await cursor.fetchone()
+            return bool(row) and row.get(column) == 'True'
+    except Exception as e:
+        twitch_logger.error(f"Could not read protection setting {column}: {e}")
+        return False
+    finally:
+        if connection:
+            await connection.release()
 
 # Function to deny an AutoMod-held message using the same token source as ban_user
 async def deny_automod_message(msg_id, use_streamer=False):
