@@ -17731,6 +17731,8 @@ async def wait_and_persist_outgoing_raid():
             return
         target = pending_outgoing_raid.get('target')
         viewers_sent = pending_outgoing_raid.get('viewers', 0)
+        # Close the extra analytics connection too (it was left open after every raid)
+        user_conn = None
         try:
             user_conn = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
             async with user_conn.cursor(DictCursor) as user_cursor:
@@ -17741,6 +17743,9 @@ async def wait_and_persist_outgoing_raid():
                 await user_conn.commit()
         except Exception as e:
             twitch_logger.error(f"Failed to save sent raid analytics for channel {CHANNEL_NAME}: {e}")
+        finally:
+            if user_conn:
+                await user_conn.release()
     except asyncioCancelledError:
         event_logger.info("Outgoing raid persistence task cancelled")
     finally:

@@ -16861,6 +16861,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 )
             await connection.commit()
             # Record raid in per-channel analytics DB (analytic_raids) if available
+            # Close the extra analytics connection too (it was left open after every raid)
+            user_conn = None
             try:
                 user_conn = await mysql_connection(db_name=CHANNEL_NAME)
                 async with user_conn.cursor(DictCursor) as user_cursor:
@@ -16871,6 +16873,9 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                     await user_conn.commit()
             except Exception as e:
                 twitch_logger.error(f"[RAID] Failed to write raid analytics to analytic_raids for channel {CHANNEL_NAME}: {e}")
+            finally:
+                if user_conn:
+                    await user_conn.close()
             # Send raid notification to Twitch Chat, and Websocket
             safe_create_task(websocket_notice(event="TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             safe_create_task(pet_try_event_trigger("raid", from_broadcaster_name))
@@ -18057,6 +18062,8 @@ async def wait_and_persist_outgoing_raid():
             return
         target = pending_outgoing_raid.get('target')
         viewers_sent = pending_outgoing_raid.get('viewers', 0)
+        # Close the extra analytics connection too (it was left open after every raid)
+        user_conn = None
         try:
             user_conn = await mysql_connection(db_name=CHANNEL_NAME)
             async with user_conn.cursor(DictCursor) as user_cursor:
@@ -18064,6 +18071,9 @@ async def wait_and_persist_outgoing_raid():
                 await user_conn.commit()
         except Exception as e:
             twitch_logger.error(f"[RAID] Failed to save sent raid analytics for channel {CHANNEL_NAME}: {e}")
+        finally:
+            if user_conn:
+                await user_conn.close()
     except asyncioCancelledError:
         event_logger.info("[RAID] Outgoing raid persistence task cancelled")
     finally:
