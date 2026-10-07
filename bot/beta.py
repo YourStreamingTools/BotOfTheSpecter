@@ -15701,12 +15701,10 @@ async def process_weather_websocket(data):
     wind_speed_kph = weather_data.get('wind', 'Unknown').split('kph')[0].strip()
     wind_speed_mph = weather_data.get('wind', 'Unknown').split('mph')[0].split('|')[-1].strip()
     wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
-    humidity = weather_data.get('humidity', 'Unknown').split('%')[0].strip()
-    # Get the current UTC time using timezone-aware datetime
-    now = time_right_now(pytz_timezone("UTC"))
-    minutes_ago = now.minute  # Get current minutes (0-59)
-    # Format the message
-    message = (f"The weather as of {minutes_ago} min ago in {location} is {status} with a temperature of "
+    # The API sends "Humidity: 55%" - keep just the number
+    humidity = re.sub(r'[^\d.]', '', str(weather_data.get('humidity', ''))) or 'Unknown'
+    # Format the message (the data is fetched when the event fires, so it's current)
+    message = (f"The current weather in {location} is {status} with a temperature of "
                f"{temperature_c}°C ({temperature_f}°F). Wind is blowing from the {wind_direction} at "
                f"{wind_speed_kph} kph ({wind_speed_mph} mph) with {humidity}% humidity.")
     # Log and send message
