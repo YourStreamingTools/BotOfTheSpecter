@@ -955,6 +955,16 @@ try {
                 list_view_mode ENUM('split','unified') DEFAULT 'split',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'generated_sounds' => "
+            CREATE TABLE IF NOT EXISTS generated_sounds (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                prompt VARCHAR(500) NOT NULL,
+                duration_seconds DECIMAL(4,1) DEFAULT NULL,
+                filename VARCHAR(255) DEFAULT NULL,
+                created_by VARCHAR(64) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_generated_sounds_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'user_socials' => "
             CREATE TABLE IF NOT EXISTS user_socials (
                 id INT PRIMARY KEY AUTO_INCREMENT,

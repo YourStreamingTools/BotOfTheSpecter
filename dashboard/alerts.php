@@ -14,6 +14,10 @@ include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 
+// "Make Your Sound" (ElevenLabs sound effects): each generation costs ElevenLabs credits.
+$soundGenDailyLimit = 10;   // generations per channel in any 24 hours
+$soundGenPromptMax = 300;   // characters
+
 // Per-category variant caps. A follow is a follow - no condition can
 // meaningfully split it, so 1 is the only sane number.
 $variantLimits = [
@@ -477,6 +481,131 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         }
         exit;
     }
+    if ($action === 'generate_alert_sound') {
+        require_once __DIR__ . '/includes/upload_helpers.php';
+        include __DIR__ . '/includes/storage_used.php';
+        $prompt = trim(preg_replace('/\s+/u', ' ', (string) ($_POST['prompt'] ?? '')));
+        if ($prompt === '' || mb_strlen($prompt) > $soundGenPromptMax) {
+            echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_prompt', ['count' => $soundGenPromptMax])]);
+            exit;
+        }
+        $duration = null; // null = ElevenLabs picks the length
+        $durationRaw = (string) ($_POST['duration'] ?? 'auto');
+        if ($durationRaw !== 'auto') {
+            $duration = round((float) $durationRaw, 1);
+            if ($duration < 0.5 || $duration > 30) {
+                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_duration')]);
+                exit;
+            }
+        }
+        $elevenlabs_api_key = '';
+        if (is_file('/var/www/config/elevenlabs.php')) {
+            include '/var/www/config/elevenlabs.php';
+        }
+        $elevenKey = trim((string) $elevenlabs_api_key);
+        if ($elevenKey === '') {
+            echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_unavailable')]);
+            exit;
+        }
+        if ($max_storage_size - $current_storage_used <= 0) {
+            echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_storage')]);
+            exit;
+        }
+        $genId = 0;
+        $tmp = null;
+        try {
+            // Reserve a slot before calling ElevenLabs so two quick clicks can't both slip under the limit.
+            $createdBy = (string) ($_SESSION['username'] ?? '');
+            $stmt = $db->prepare("INSERT INTO generated_sounds (prompt, duration_seconds, created_by) VALUES (?, ?, ?)");
+            $stmt->bind_param('sds', $prompt, $duration, $createdBy);
+            $stmt->execute();
+            $genId = (int) $stmt->insert_id;
+            $stmt->close();
+            $res = $db->query("SELECT COUNT(*) AS used FROM generated_sounds WHERE created_at > NOW() - INTERVAL 1 DAY");
+            $used = (int) ($res->fetch_assoc()['used'] ?? 0);
+            $res->free();
+            $releaseSlot = function () use ($db, &$genId) {
+                if ($genId > 0) {
+                    $del = $db->prepare("DELETE FROM generated_sounds WHERE id = ?");
+                    $del->bind_param('i', $genId);
+                    $del->execute();
+                    $del->close();
+                    $genId = 0;
+                }
+            };
+            if ($used > $soundGenDailyLimit) {
+                $releaseSlot();
+                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_limit', ['count' => $soundGenDailyLimit]), 'remaining' => 0]);
+                exit;
+            }
+            $body = ['text' => $prompt, 'model_id' => 'eleven_text_to_sound_v2'];
+            if ($duration !== null) {
+                $body['duration_seconds'] = $duration;
+            }
+            $tmp = tempnam(sys_get_temp_dir(), 'sfx');
+            $fh = fopen($tmp, 'wb');
+            $ch = curl_init('https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128');
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($body),
+                CURLOPT_HTTPHEADER => ['xi-api-key: ' . $elevenKey, 'Content-Type: application/json', 'Accept: audio/mpeg'],
+                CURLOPT_FILE => $fh,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 90,
+            ]);
+            $ok = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+            fclose($fh);
+            clearstatcache(true, $tmp);
+            if ($ok === false || $code !== 200 || filesize($tmp) === 0
+                || !upload_validate_extension_and_mime($tmp, 'mp3', ['mp3'])) {
+                $detail = $code !== 200 ? substr((string) @file_get_contents($tmp, false, null, 0, 300), 0, 300) : $curlErr;
+                error_log('alerts.php ElevenLabs sound generation failed (HTTP ' . $code . '): ' . $detail);
+                $releaseSlot();
+                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_failed')]);
+                exit;
+            }
+            if (filesize($tmp) > $max_storage_size - $current_storage_used) {
+                $releaseSlot();
+                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_storage')]);
+                exit;
+            }
+            if (!is_dir($media_path)) {
+                mkdir($media_path, 0755, true);
+            }
+            // Name the file after the first few words of the prompt.
+            $words = array_slice(preg_split('/\s+/u', strtolower($prompt)), 0, 6);
+            $safeName = upload_sanitize_filename(implode('-', $words), 'mp3');
+            $target = upload_unique_target($media_path, $safeName);
+            if (!@rename($tmp, $target['path'])) {
+                if (!@copy($tmp, $target['path'])) {
+                    $releaseSlot();
+                    echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_failed')]);
+                    exit;
+                }
+            }
+            @chmod($target['path'], 0644);
+            $stmt = $db->prepare("UPDATE generated_sounds SET filename = ? WHERE id = ?");
+            $stmt->bind_param('si', $target['name'], $genId);
+            $stmt->execute();
+            $stmt->close();
+            echo json_encode([
+                'success' => true,
+                'filename' => $target['name'],
+                'remaining' => max(0, $soundGenDailyLimit - $used),
+            ]);
+        } catch (mysqli_sql_exception $e) {
+            error_log('alerts.php generate_alert_sound: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_failed')]);
+        } finally {
+            if ($tmp !== null && is_file($tmp)) {
+                @unlink($tmp);
+            }
+        }
+        exit;
+    }
     if ($action === 'remove_alert_media') {
         $id = intval($_POST['id'] ?? 0);
         $field = $_POST['field'] ?? '';
@@ -548,6 +677,15 @@ $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-B
 $mediaBase = "https://media.botofthespecter.com/$username/";
 
 $browserSourceUrl = "https://overlay.botofthespecter.com/?code=" . urlencode($api_key);
+$soundGenRemaining = $soundGenDailyLimit;
+try {
+    if ($soundGenRes = $db->query("SELECT COUNT(*) AS used FROM generated_sounds WHERE created_at > NOW() - INTERVAL 1 DAY")) {
+        $soundGenRemaining = max(0, $soundGenDailyLimit - (int) ($soundGenRes->fetch_assoc()['used'] ?? 0));
+        $soundGenRes->free();
+    }
+} catch (mysqli_sql_exception $e) {
+    // generated_sounds is created by the per-user schema check; until then nothing has been used.
+}
 $alertCanvas = '1920x1080';
 $alertCanvasRes = @$db->query("SELECT canvas FROM twitch_alert_display WHERE id = 1");
 if ($alertCanvasRes && ($alertCanvasRow = $alertCanvasRes->fetch_assoc())) {
@@ -1017,6 +1155,9 @@ ob_start();
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="sound-upload-btn">
                                         <i class="fas fa-upload"></i> <?= t('alerts_upload') ?>
                                     </button>
+                                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="sound-make-btn">
+                                        <i class="fas fa-wand-magic-sparkles"></i> <?= t('alerts_make_sound') ?>
+                                    </button>
                                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" id="sound-remove-btn" style="display:none;">
                                         <i class="fas fa-times"></i> <?= t('alerts_remove') ?>
                                     </button>
@@ -1127,6 +1268,37 @@ ob_start();
         </div>
     </div>
 </div>
+<!-- "Make Your Sound": ElevenLabs sound effect generator; the result is saved to the media library and set on the alert -->
+<div class="sp-modal-backdrop" id="alerts-make-sound-modal" style="display:none;">
+    <div class="sp-modal alerts-make-sound-card" role="dialog" aria-modal="true" aria-labelledby="alerts-make-sound-title">
+        <header class="sp-modal-head">
+            <span class="sp-modal-title" id="alerts-make-sound-title"><?= t('alerts_make_sound_title') ?></span>
+            <button type="button" class="sp-modal-close" id="alerts-make-sound-close" aria-label="<?= htmlspecialchars(t('alerts_close')) ?>">&times;</button>
+        </header>
+        <div class="sp-modal-body">
+            <p class="alerts-help-text"><?= t('alerts_make_sound_help') ?></p>
+            <div class="alerts-form-group">
+                <label for="make-sound-prompt"><?= t('alerts_make_sound_prompt_label') ?></label>
+                <textarea class="sp-textarea" id="make-sound-prompt" rows="3" maxlength="<?= (int) $soundGenPromptMax ?>" placeholder="<?= htmlspecialchars(t('alerts_make_sound_prompt_placeholder')) ?>"></textarea>
+            </div>
+            <div class="alerts-form-group">
+                <label for="make-sound-duration"><?= t('alerts_make_sound_duration_label') ?></label>
+                <select class="sp-select" id="make-sound-duration">
+                    <option value="auto"><?= t('alerts_make_sound_duration_auto') ?></option>
+                    <?php foreach ([1, 2, 3, 5, 8, 10, 15, 20, 30] as $secs): ?>
+                    <option value="<?= $secs ?>"><?= t('alerts_make_sound_duration_seconds', ['count' => $secs]) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="alerts-make-sound-footer">
+                <span class="alerts-make-sound-remaining" id="make-sound-remaining"></span>
+                <button type="button" class="sp-btn sp-btn-primary" id="make-sound-generate">
+                    <i class="fas fa-wand-magic-sparkles"></i> <span><?= t('alerts_make_sound_generate') ?></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
@@ -1227,7 +1399,12 @@ $(document).ready(function() {
         chooseImage: <?php echo json_encode(t('alerts_choose_image')); ?>,
         chooseSound: <?php echo json_encode(t('alerts_choose_sound')); ?>,
         libraryAllFolders: <?php echo json_encode(t('alerts_library_all_folders')); ?>,
-        libraryNoFolder: <?php echo json_encode(t('alerts_library_no_folder')); ?>
+        libraryNoFolder: <?php echo json_encode(t('alerts_library_no_folder')); ?>,
+        makeSoundRemaining: <?php echo json_encode(t('alerts_make_sound_remaining')); ?>,
+        makeSoundGenerating: <?php echo json_encode(t('alerts_make_sound_generating')); ?>,
+        makeSoundGenerate: <?php echo json_encode(t('alerts_make_sound_generate')); ?>,
+        makeSoundFailedTitle: <?php echo json_encode(t('alerts_make_sound_failed_title')); ?>,
+        makeSoundSaved: <?php echo json_encode(t('alerts_make_sound_saved')); ?>
     };
     // Enable/disable-only categories - selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
@@ -2139,6 +2316,65 @@ $(document).ready(function() {
                     Swal.fire({ icon: 'error', title: i18n.uploadFailedTitle, text: resp.message });
                 }
             }
+        });
+    });
+    // "Make Your Sound": generate with ElevenLabs, saved to the library and set on this alert (Save changes to keep it)
+    var soundGenRemaining = <?php echo (int) $soundGenRemaining; ?>;
+    var soundGenBusy = false;
+    function renderSoundGenRemaining() {
+        $('#make-sound-remaining').text(i18n.makeSoundRemaining.replace(':count', soundGenRemaining));
+        $('#make-sound-generate').prop('disabled', soundGenBusy || soundGenRemaining <= 0);
+    }
+    function closeMakeSound() {
+        if (soundGenBusy) return;
+        $('#alerts-make-sound-modal').hide();
+    }
+    $('#sound-make-btn').on('click', function() {
+        if (!currentAlertId) return;
+        renderSoundGenRemaining();
+        $('#alerts-make-sound-modal').css('display', 'flex');
+        $('#make-sound-prompt').trigger('focus');
+    });
+    $('#alerts-make-sound-close').on('click', closeMakeSound);
+    $('#alerts-make-sound-modal').on('click', function(e) {
+        if (e.target === this) closeMakeSound();
+    });
+    $('#make-sound-generate').on('click', function() {
+        var prompt = $.trim($('#make-sound-prompt').val());
+        if (!currentAlertId || !prompt || soundGenBusy) return;
+        var alertId = currentAlertId;
+        var $btn = $(this);
+        soundGenBusy = true;
+        renderSoundGenRemaining();
+        $btn.find('span').text(i18n.makeSoundGenerating);
+        $btn.find('i').attr('class', 'fas fa-spinner fa-spin');
+        $.ajax({
+            url: '', type: 'POST', dataType: 'json', timeout: 120000,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            data: { action: 'generate_alert_sound', prompt: prompt, duration: $('#make-sound-duration').val() }
+        }).done(function(resp) {
+            if (resp && typeof resp.remaining === 'number') soundGenRemaining = resp.remaining;
+            if (resp && resp.success) {
+                if (librarySounds.indexOf(resp.filename) === -1) librarySounds.push(resp.filename);
+                if (alertsData[alertId]) {
+                    alertsData[alertId].alert_sound = resp.filename;
+                    if (alertId === currentAlertId) updateMediaPreview('sound', resp.filename);
+                    markDirty();
+                }
+                $('#make-sound-prompt').val('');
+                soundGenBusy = false;
+                closeMakeSound();
+                Swal.fire({ icon: 'success', title: i18n.makeSoundSaved, text: resp.filename, timer: 2500, showConfirmButton: false });
+            } else {
+                Swal.fire({ icon: 'error', title: i18n.makeSoundFailedTitle, text: (resp && resp.message) || '' });
+            }
+        }).fail(function() {
+            Swal.fire({ icon: 'error', title: i18n.makeSoundFailedTitle });
+        }).always(function() {
+            soundGenBusy = false;
+            $btn.find('span').text(i18n.makeSoundGenerate);
+            $btn.find('i').attr('class', 'fas fa-wand-magic-sparkles');
+            renderSoundGenRemaining();
         });
     });
     $('#sound-remove-btn').on('click', function() {
