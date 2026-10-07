@@ -4067,7 +4067,7 @@ class TwitchBot(commands.Bot):
                             if url_blocking:
                                 # Check if user is mod or streamer (bypass URL blocking for privileged users)
                                 is_privileged = False
-                                if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
+                                if messageAuthor.lower() in permitted_users and time.time() < permitted_users[messageAuthor.lower()]:
                                     is_privileged = True
                                 elif await command_permissions("mod", message.author):
                                     is_privileged = True
@@ -5889,9 +5889,10 @@ class TwitchBot(commands.Bot):
                         if not await check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         add_usage('permit', bucket_key, cooldown_bucket)
-                        permit_user = permit_user.lstrip('@')
+                        # Command arguments are plain text, so store the permit under the lowercase login the link filter looks up
+                        permit_user = (permit_user or '').lstrip('@').strip()
                         if permit_user:
-                            permitted_users[permit_user] = time.time() + 30
+                            permitted_users[permit_user.lower()] = time.time() + 30
                             await send_chat_message(f"{permit_user} is now permitted to post links for the next 30 seconds.")
                         else:
                             await send_chat_message("Please specify a user to permit.")
