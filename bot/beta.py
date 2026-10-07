@@ -17251,6 +17251,9 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                     alert_message = result.get("alert_message")
                 else:
                     alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
+                # Twitch leaves the gifter's total out when they don't share it (always for anonymous gifts) - drop the sentence that mentions it rather than saying "None"
+                if total_gifted is None:
+                    alert_message = re.sub(r'[^.!?]*\(total-gifted\)[^.!?]*[.!?]?', '', alert_message).strip()
                 alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
                 if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
                     if not anonymous:
