@@ -760,7 +760,7 @@ async def get_user_pronouns(username: str):
             return pronoun_str
     try:
         async with httpClientSession() as session:
-            async with session.get(f'https://api.pronouns.alejo.io/v1/users/{username_lower}', timeout=ClientTimeout(total=5)) as resp:
+            async with session.get(f'https://api.pronouns.alejo.io/v1/users/{quote(username_lower, safe="")}', timeout=ClientTimeout(total=5)) as resp:
                 if resp.status == 404:
                     _user_pronouns_cache[username_lower] = (None, now)
                     return None
@@ -5251,7 +5251,7 @@ class TwitchBot(commands.AutoBot):
                         if location:
                             async with httpClientSession() as session:
                                 response = await session.get(
-                                    f"https://api.botofthespecter.com/v2/weather?location={location}",
+                                    f"https://api.botofthespecter.com/v2/weather?location={quote(str(location), safe='')}",
                                     headers={"X-API-KEY": API_TOKEN}
                                 )
                                 result = await response.json()
@@ -6471,7 +6471,7 @@ class TwitchBot(commands.AutoBot):
                             return
             else:
                 # Use search for non-Spotify URL requests (including YouTube-extracted titles)
-                search = message_content.replace(" ", "%20")
+                search = quote(message_content, safe='')
                 search_url = f"https://api.spotify.com/v1/search?q={search}&type=track&limit=1"
                 async with httpClientSession() as search_session:
                     async with search_session.get(search_url, headers=headers) as response:
@@ -6505,7 +6505,7 @@ class TwitchBot(commands.AutoBot):
             artist_name = clean_request_artist(artist_name) or artist_name
             song_requests[song_id] = {"user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
             # Add to Spotify queue
-            request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
+            request_url = f"https://api.spotify.com/v1/me/player/queue?uri={quote(str(song_id), safe='')}"
             async with httpClientSession() as queue_session:
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
@@ -6660,7 +6660,7 @@ class TwitchBot(commands.AutoBot):
                         if device_id is None:
                             await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
                             return
-                next_url = f"https://api.spotify.com/v1/me/player/next?device_id={device_id}"
+                next_url = f"https://api.spotify.com/v1/me/player/next?device_id={quote(str(device_id), safe='')}"
                 async with session.post(next_url, headers=headers) as response:
                     if response.status in (200, 204):
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
@@ -13632,7 +13632,7 @@ def format_lurk_time(elapsed_time):
 # Function  to check if the user is a real user on Twitch
 async def is_valid_twitch_user(user_name):
     global CLIENT_ID, CHANNEL_AUTH
-    url = f"https://api.twitch.tv/helix/users?login={user_name}"
+    url = f"https://api.twitch.tv/helix/users?login={quote(str(user_name), safe='')}"
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -13653,7 +13653,7 @@ async def is_valid_twitch_user(user_name):
 async def get_display_name(user_id):
     global CLIENT_ID, CHANNEL_AUTH
     # Replace with actual method to get display name from Twitch API
-    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    url = f"https://api.twitch.tv/helix/users?id={quote(str(user_id), safe='')}"
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -13669,7 +13669,7 @@ async def get_display_name(user_id):
 # Fetch both the display name and avatar (profile image) for a user id in one Helix call. Used by the WALKON "sound + overlay" mode to show the joining viewer's picture and name.
 async def get_user_display_and_avatar(user_id):
     global CLIENT_ID, CHANNEL_AUTH
-    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    url = f"https://api.twitch.tv/helix/users?id={quote(str(user_id), safe='')}"
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -13911,7 +13911,7 @@ async def fetch_api_response(url, json_flag=False, return_json_obj=False):
 
 async def get_twitch_user_by_login(login_name):
     global CLIENT_ID, CHANNEL_AUTH
-    url = f"https://api.twitch.tv/helix/users?login={login_name}"
+    url = f"https://api.twitch.tv/helix/users?login={quote(str(login_name), safe='')}"
     headers = {
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
@@ -17200,7 +17200,7 @@ async def websocket_notice(
                         if not walkon_media_file:
                             for _stem in _walkon_stems:
                                 for ext in ['.mp3', '.mp4']:
-                                    media_url = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
+                                    media_url = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{quote(_stem)}{ext}"
                                     try:
                                         if await http_public_file_exists(media_url, session):
                                             walkon_media_file = f"{_stem}{ext}"
@@ -17218,7 +17218,7 @@ async def websocket_notice(
                             # Last resort: legacy walkons CDN URL
                             for _stem in _walkon_stems:
                                 for ext in ['.mp3', '.mp4']:
-                                    walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
+                                    walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{quote(_stem)}{ext}"
                                     try:
                                         if await http_public_file_exists(walkon_url, session):
                                             params['channel'] = CHANNEL_NAME
@@ -17260,7 +17260,7 @@ async def websocket_notice(
                         # Legacy walkons CDN probe
                         for _stem in _walkon_stems:
                             for ext in ['.mp3', '.mp4']:
-                                walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
+                                walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{quote(_stem)}{ext}"
                                 try:
                                     if await http_public_file_exists(walkon_url, session):
                                         params['channel'] = CHANNEL_NAME
@@ -17349,14 +17349,14 @@ async def websocket_notice(
                         params[_sk] = json.dumps(_sv) if isinstance(_sv, (dict, list)) else _sv
                 elif event == "SOUND_ALERT" and sound:
                     if MEDIA_MIGRATED:
-                        params['sound'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{sound}"
+                        params['sound'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{quote(sound)}"
                     else:
-                        params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
+                        params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{quote(sound)}"
                 elif event == "VIDEO_ALERT" and video:
                     if MEDIA_MIGRATED:
-                        params['video'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{video}"
+                        params['video'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{quote(video)}"
                     else:
-                        params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
+                        params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{quote(video)}"
                 elif event == "MODERATION":
                     if additional_data:
                         params.update(additional_data)
@@ -18121,7 +18121,7 @@ async def get_current_game():
 
 async def convert_currency(amount, from_currency, to_currency):
     global EXCHANGE_RATE_API_KEY
-    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{from_currency}/{to_currency}/{amount}"
+    url = f"https://v6.exchangerate-api.com/v6/{EXCHANGE_RATE_API_KEY}/pair/{quote(str(from_currency), safe='')}/{quote(str(to_currency), safe='')}/{quote(str(amount), safe='')}"
     try:
         async with httpClientSession() as session:
             async with session.get(url) as response:
