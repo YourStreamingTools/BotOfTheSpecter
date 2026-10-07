@@ -10172,11 +10172,10 @@ class TwitchBot(commands.AutoBot):
                             version_key = f'{SYSTEM.lower()}_version'
                             remote_version = data.get(version_key, '').strip()
                             if remote_version and remote_version != f"{VERSION}":
-                                remote_major, remote_minor, remote_patch = map(int, remote_version.split('.'))
-                                local_major, local_minor, local_patch = map(int, VERSION.split('.'))
-                                if remote_major > local_major or \
-                                        (remote_major == local_major and remote_minor > local_minor) or \
-                                        (remote_major == local_major and remote_minor == local_minor and remote_patch > local_patch):
+                                # Compare number by number so versions with two or four parts (e.g. 5.8 or 6.0.0.1) work too
+                                remote_parts = tuple(int(n) for n in re.findall(r'\d+', remote_version))
+                                local_parts = tuple(int(n) for n in re.findall(r'\d+', str(VERSION)))
+                                if remote_parts > local_parts:
                                     message = f"A new {SYSTEM.lower()} update (V{remote_version}) is available. Please head over to the website and restart the bot. You are currently running V{VERSION}."
                                 else:
                                     message = f"There is no {SYSTEM.lower()} update pending. You are currently running V{VERSION}."
