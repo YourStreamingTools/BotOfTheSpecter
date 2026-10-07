@@ -7949,11 +7949,11 @@ class TwitchBot(commands.AutoBot):
                 # Record usage right away so overlapping uses can't both pass the cooldown
                 add_usage('typos', bucket_key, cooldown_bucket)
                 chat_logger.info("Typos Command ran.")
-                if ctx.author.name.lower() == CHANNEL_NAME.lower():
+                target_user = (mentioned_username or ctx.author.name).lstrip('@').lower()
+                # The streamer can look up anyone; only their own count gets the joke
+                if target_user == CHANNEL_NAME.lower():
                     await send_chat_message(f"Dear Streamer, you can never have a typo in your own channel.")
                     return
-                mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
-                target_user = mentioned_username_lower.lstrip('@')
                 await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
                 result = await cursor.fetchone()
                 typo_count = result.get("typo_count") if result else 0
