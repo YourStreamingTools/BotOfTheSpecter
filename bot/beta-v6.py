@@ -8966,7 +8966,7 @@ class TwitchBot(commands.AutoBot):
                     for tid in completed_ids:
                         create_task(websocket_notice(event="TASK_DELETE", additional_data={
                             "channel_code": API_TOKEN,
-                            "owner": "user",
+                            "owner": owner,
                             "task_id": tid,
                             "user_id": user_id,
                             "user_name": user_name,
