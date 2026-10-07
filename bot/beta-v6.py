@@ -40,7 +40,6 @@ from streamlink import Streamlink
 import pytz as set_timezone
 from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
-from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
@@ -5696,25 +5695,20 @@ class TwitchBot(commands.AutoBot):
                         # Retrieve the blacklist from the joke_settings table
                         await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
                         blacklist_result = await cursor.fetchone()
-                        if blacklist_result:
-                            # Parse the blacklist
-                            blacklist = json.loads(blacklist_result.get("blacklist"))
-                            blacklist_lower = {cat.lower() for cat in blacklist}
-                            joke = await Jokes()
-                            while True:
-                                # Fetch a joke from the JokeAPI
-                                get_joke = await joke.get_joke()
-                                # Resolve the category and check against the blacklist
-                                category = get_joke["category"].lower()
-                                if category not in blacklist_lower:
-                                    break
-                            # Send the joke based on its type
-                            if get_joke["type"] == "single":
-                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
-                            else:
-                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
+                        # Parse the blacklist safely (default to empty list if missing or invalid)
+                        blacklist_json = blacklist_result.get("blacklist") if blacklist_result else None
+                        try:
+                            blacklist = json.loads(blacklist_json) if blacklist_json else []
+                        except Exception as e:
+                            chat_logger.error(f"Error parsing joke blacklist: {e}")
+                            blacklist = []
+                        joke_data, joke_error = await fetch_joke(blacklist)
+                        if joke_error:
+                            await send_chat_message(joke_error)
+                        elif joke_data.get("type") == "single":
+                            await send_chat_message(f"Here's a joke from {joke_data.get('category')}: {joke_data.get('joke')}")
                         else:
-                            await send_chat_message("Error: Could not fetch the blacklist settings.")
+                            await send_chat_message(f"Here's a joke from {joke_data.get('category')}: {joke_data.get('setup')} | {joke_data.get('delivery')}")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -20511,6 +20505,35 @@ def split_chat_message(message, limit=MAX_CHAT_MESSAGE_LENGTH):
     if remaining:
         parts.append(remaining)
     return parts
+
+# JokeAPI categories and content flags the dashboard joke blacklist maps onto (the dashboard uses its own category names)
+JOKE_CATEGORY_MAP = {'miscellaneous': 'Misc', 'coding': 'Programming', 'development': 'Programming', 'halloween': 'Spooky', 'pun': 'Pun', 'dark': 'Dark'}
+JOKE_CATEGORIES = ['Programming', 'Misc', 'Dark', 'Pun', 'Spooky', 'Christmas']
+JOKE_FLAGS = {'nsfw', 'religious', 'political', 'racist', 'sexist', 'explicit'}
+
+# Function to fetch a joke from JokeAPI with the channel's blacklist applied server-side; returns (joke, error_message)
+async def fetch_joke(blacklist):
+    blacklist_lower = {str(item).lower() for item in (blacklist or [])}
+    blocked = {JOKE_CATEGORY_MAP[item] for item in blacklist_lower if item in JOKE_CATEGORY_MAP}
+    categories = [category for category in JOKE_CATEGORIES if category not in blocked]
+    if not categories:
+        return None, "No joke categories are enabled for this channel."
+    params = {}
+    flags = sorted(blacklist_lower & JOKE_FLAGS)
+    if flags:
+        params['blacklistFlags'] = ','.join(flags)
+    url = f"https://v2.jokeapi.dev/joke/{','.join(categories)}"
+    for attempt in range(3):
+        try:
+            async with httpClientSession() as session:
+                async with session.get(url, params=params, timeout=ClientTimeout(total=10)) as response:
+                    data = await response.json(content_type=None)
+            if isinstance(data, dict) and not data.get('error'):
+                return data, None
+            api_logger.error(f"JokeAPI returned an error (attempt {attempt + 1}): {data}")
+        except Exception as e:
+            api_logger.error(f"JokeAPI request failed (attempt {attempt + 1}): {e}")
+    return None, "Couldn't fetch a joke right now. Please try again later."
 
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
