@@ -29,9 +29,9 @@ function modules_default_chat_alerts()
         'gift_subscription_alert' => 'Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!',
         'hype_train_start' => 'The Hype Train has started! Starting at level: (level)',
         'hype_train_end' => 'The Hype Train has ended at level (level)!',
-        'gift_paid_upgrade' => 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!',
+        'gift_paid_upgrade' => 'Thank you (user) for upgrading from a Gifted Sub to a paid subscription!',
         'prime_paid_upgrade' => 'Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!',
-        'pay_it_forward' => 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!'
+        'pay_it_forward' => 'Thank you (user) for paying it forward! They received a gift from (gifter) and gifted a subscription in return!'
     ];
 }
 

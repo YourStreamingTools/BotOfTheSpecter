@@ -1991,13 +1991,20 @@ try {
         async_log('Updated raid_ad_snooze_message to use the default message.');
     }
     // Ensure default options for new BETA chat alert types
-    if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'gift_paid_upgrade', 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'gift_paid_upgrade')") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'gift_paid_upgrade', 'Thank you (user) for upgrading from a Gifted Sub to a paid subscription!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'gift_paid_upgrade')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default gift_paid_upgrade chat alert ensured.');
+    }
+    // Twitch sends no tier for gift upgrades or pay it forward, so untouched old defaults drop the (tier) placeholder
+    if ($usrDBconn->query("UPDATE twitch_chat_alerts SET alert_message = 'Thank you (user) for upgrading from a Gifted Sub to a paid subscription!' WHERE alert_type = 'gift_paid_upgrade' AND alert_message = 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!'") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Removed (tier) from the default gift_paid_upgrade chat alert.');
+    }
+    if ($usrDBconn->query("UPDATE twitch_chat_alerts SET alert_message = 'Thank you (user) for paying it forward! They received a gift from (gifter) and gifted a subscription in return!' WHERE alert_type = 'pay_it_forward' AND alert_message = 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!'") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Removed (tier) from the default pay_it_forward chat alert.');
     }
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'prime_paid_upgrade', 'Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'prime_paid_upgrade')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default prime_paid_upgrade chat alert ensured.');
     }
-    if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'pay_it_forward', 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'pay_it_forward')") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'pay_it_forward', 'Thank you (user) for paying it forward! They received a gift from (gifter) and gifted a subscription in return!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'pay_it_forward')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default pay_it_forward chat alert ensured.');
     }
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'watch_streak', 'Congrats (user) on watching (value) consecutive streams!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'watch_streak')") === TRUE && $usrDBconn->affected_rows > 0) {
