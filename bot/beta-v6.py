@@ -7776,7 +7776,8 @@ class TwitchBot(commands.AutoBot):
                                         started_at_str = data['data'][0]['started_at']
                                         started_at = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
                                         uptime = time_right_now(timezone.utc) - started_at
-                                        hours, remainder = divmod(uptime.seconds, 3600)
+                                        # total_seconds keeps whole days (a 26 hour stream shows 26 hours, not 2)
+                                        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
                                         minutes, seconds = divmod(remainder, 60)
                                         await send_chat_message(resolve_builtin_chat_message(
                                             uptime_options, "uptime", "message",
