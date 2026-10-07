@@ -8606,7 +8606,7 @@ class TwitchBot(commands.AutoBot):
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
                     await cursor.execute(
-                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     demoted = await cursor.fetchone()
@@ -9068,7 +9068,7 @@ class TwitchBot(commands.AutoBot):
                     if arg.lower() == 'skip':
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
-                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                             (user_id, project)
                         )
                         active = await cursor.fetchone()
@@ -9102,7 +9102,7 @@ class TwitchBot(commands.AutoBot):
                         target_id = target.get('id')
                         target_title = target.get('title')
                         await cursor.execute(
-                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                             (user_id, project)
                         )
                         active = await cursor.fetchone()
@@ -9131,7 +9131,7 @@ class TwitchBot(commands.AutoBot):
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
                     await cursor.execute(
-                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     active = await cursor.fetchone()
@@ -12709,7 +12709,7 @@ async def user_project_exists(cursor, user_id, name):
 # Function to file a task into a target project: active slot if free, else backlog end
 async def file_task_into_project(cursor, user_id, task_id, target_project):
     await cursor.execute(
-        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
         (user_id, target_project)
     )
     target_active = await cursor.fetchone()
