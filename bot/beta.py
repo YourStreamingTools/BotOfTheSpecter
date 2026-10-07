@@ -6428,11 +6428,18 @@ class TwitchBot(commands.Bot):
                 await send_chat_message("Please provide a song title, artist, YouTube link, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://www.youtube.com/watch?v=... or !songrequest https://open.spotify.com/track/...")
                 return
             message_content = parts[1].strip()
+            # spotify.link short links aren't track IDs - follow them to the open.spotify.com link first
+            short_link = re.search(r'https?://spotify\.link/[a-zA-Z0-9]+', message_content)
+            if short_link:
+                resolved_link = await resolve_spotify_short_link(short_link.group(0))
+                if not resolved_link:
+                    await send_chat_message("Sorry, I couldn't open that Spotify short link. Please use the full open.spotify.com track link.")
+                    return
+                message_content = resolved_link
             # Spotify URL patterns - both track and album
             spotify_track_url_patterns = [
                 re.compile(r'https?://open\.spotify\.com/track/([a-zA-Z0-9]+)'),
                 re.compile(r'https?://open\.spotify\.com/intl-[a-z]{2}/track/([a-zA-Z0-9]+)'),
-                re.compile(r'https?://spotify\.link/([a-zA-Z0-9]+)'),  # Short links
                 re.compile(r'spotify:track:([a-zA-Z0-9]+)')
             ]
             spotify_album_url_patterns = [
@@ -13805,6 +13812,22 @@ def parse_twitch_schedule_time(iso_time):
             return datetime.strptime(str(iso_time)[:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
         except (ValueError, TypeError):
             return None
+
+# Function to follow a spotify.link short link to the open.spotify.com URL it points at (None when it can't be resolved)
+async def resolve_spotify_short_link(short_url):
+    try:
+        async with httpClientSession() as session:
+            async with session.get(short_url, allow_redirects=True, timeout=ClientTimeout(total=10), headers={"User-Agent": "Mozilla/5.0"}) as response:
+                final_url = str(response.url)
+                body = await response.text()
+    except Exception as e:
+        api_logger.error(f"[SONG REQUEST] Could not resolve Spotify short link {short_url}: {e}")
+        return None
+    if re.search(r'open\.spotify\.com/', final_url):
+        return final_url
+    # The short-link service may answer with an HTML page that carries the target URL instead of redirecting
+    match = re.search(r'https?://open\.spotify\.com/(?:intl-[a-z]{2}/)?(?:track|album)/[a-zA-Z0-9]+', body)
+    return match.group(0) if match else None
 
 # Function to format a schedule time in the streamer's timezone, adding the UTC time when that zone isn't UTC
 def format_schedule_time(local_time):
