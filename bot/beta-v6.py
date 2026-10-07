@@ -828,7 +828,7 @@ async def twitch_token_refresh():
 
 # Function to refresh Twitch token
 async def refresh_twitch_token(current_refresh_token):
-    global CHANNEL_AUTH, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET
+    global CHANNEL_AUTH, OAUTH_TOKEN, CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN
     url = 'https://id.twitch.tv/oauth2/token'
     body = {
         'grant_type': 'refresh_token',
@@ -842,6 +842,9 @@ async def refresh_twitch_token(current_refresh_token):
                 if response.status == 200:
                     response_json = await response.json()
                     new_access_token = response_json.get('access_token')
+                    # Twitch can hand back a new refresh token; keep using the newest one for the next refresh
+                    if response_json.get('refresh_token'):
+                        REFRESH_TOKEN = response_json.get('refresh_token')
                     expires_in = response_json.get('expires_in', 14400)  # Default to 4 hours if not provided
                     next_refresh_time = time.time() + expires_in - 300  # Refresh 5 minutes before expiration
                     if new_access_token:
