@@ -13518,7 +13518,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                         (old_task_id,)
                     )
                     safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
-                        "channel_code": API_TOKEN, "id": old_task_id, "owner": task_owner,
+                        "channel_code": API_TOKEN, "id": old_task_id, "task_id": old_task_id, "owner": task_owner,
                         "user_id": user_id, "user_name": user_name,
                     }))
             await cursor.execute(
@@ -13654,7 +13654,7 @@ async def cancel_user_pomo(user_id, user_name):
                         (old_task_id,)
                     )
                     safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
-                        "channel_code": API_TOKEN, "id": old_task_id, "owner": task_owner,
+                        "channel_code": API_TOKEN, "id": old_task_id, "task_id": old_task_id, "owner": task_owner,
                         "user_id": user_id, "user_name": user_name,
                     }))
             emit_pomo_event("USER_POMO_CANCEL", {
