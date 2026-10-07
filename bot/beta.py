@@ -7978,7 +7978,7 @@ class TwitchBot(commands.Bot):
                 await connection.close()
 
     @commands.command(name='marker')
-    async def marker_command(self, ctx, *, description: str):
+    async def marker_command(self, ctx, *, description: str = None):
         global stream_online, bot_owner
         connection = None
         connection = await mysql_connection()
@@ -8004,7 +8004,9 @@ class TwitchBot(commands.Bot):
                     if not stream_online:
                         await send_chat_message("Sorry, I can only create stream markers while the stream is online.")
                         return
-                    marker_description = description if description else f"Marker made by {ctx.author.name}"
+                    # No text gives a default description; Twitch caps marker descriptions at 140 characters
+                    marker_description = (description or "").strip() or f"Marker made by {ctx.author.name}"
+                    marker_description = marker_description[:140]
                     if await make_stream_marker(marker_description):
                         await send_chat_message(f"{ctx.author.name} created a stream marker.")
                         twitch_logger.info(f"[MARKER] A stream marker was created: {marker_description}.")
