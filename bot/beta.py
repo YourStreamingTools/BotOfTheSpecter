@@ -2797,9 +2797,10 @@ async def TASK_REWARD_TRIGGER(data):
             websocket_logger.warning(f"[TASK REWARD] TASK_REWARD_TRIGGER: points={points} for user {user_name}, skipping reward")
             return
         # Award points using the existing points system
-        result = await manage_user_points(user_id, user_name, "credit", points)
+        # The dashboard already paid this reward (it is the single payer), so only read the balance for the announcement
+        result = await manage_user_points(user_id, user_name, "get")
         if result["success"]:
-            websocket_logger.info(f"[TASK REWARD] TASK_REWARD_TRIGGER: awarded {points} points to {user_name} (task: {task_id})")
+            websocket_logger.info(f"[TASK REWARD] TASK_REWARD_TRIGGER: announcing {points} points reward for {user_name} (task: {task_id})")
             # Announce in Twitch chat
             connection = None
             try:

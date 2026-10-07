@@ -2704,9 +2704,10 @@ async def TASK_REWARD_TRIGGER(data):
         if points <= 0:
             websocket_logger.warning(f"TASK_REWARD_TRIGGER: points={points} for user {user_name}, skipping reward")
             return
-        result = await manage_user_points(user_id, user_name, "credit", points)
+        # The dashboard already paid this reward (it is the single payer), so only read the balance for the announcement
+        result = await manage_user_points(user_id, user_name, "get")
         if result["success"]:
-            websocket_logger.info(f"TASK_REWARD_TRIGGER: awarded {points} points to {user_name} (task: {task_id})")
+            websocket_logger.info(f"TASK_REWARD_TRIGGER: announcing {points} points reward for {user_name} (task: {task_id})")
             connection = None
             point_name = "points"
             try:

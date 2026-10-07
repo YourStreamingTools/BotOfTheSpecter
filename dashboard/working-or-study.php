@@ -2071,7 +2071,8 @@ ob_start();
                 chMarkStatus(id, 'user', 'completed');
                 chSocket.emit('TASK_COMPLETE', {
                     channel_code: chApiKey, task_id: t.id, user_id: t.user_id,
-                    user_name: t.user_name, title: t.title, reward_points: t.reward_points,
+                    // Only announce points the dashboard actually paid; 0 means already rewarded or not paid yet
+                    user_name: t.user_name, title: t.title, reward_points: res.reward?.awarded ? res.reward.points_awarded : 0,
                     require_approval: requireApproval ? 1 : 0, owner: 'user',
                 });
                 chShowToast(wsLang.taskMarkedComplete.replace(':user', t.user_name));
@@ -2096,7 +2097,8 @@ ob_start();
                 chUpdateApproval(id, 'approved');
                 chSocket.emit('TASK_APPROVE', {
                     channel_code: chApiKey, task_id: t.id, user_id: t.user_id,
-                    user_name: t.user_name, title: t.title, reward_points: t.reward_points,
+                    // Only announce points the dashboard actually paid; 0 means already rewarded
+                    user_name: t.user_name, title: t.title, reward_points: res.reward?.awarded ? res.reward.points_awarded : 0,
                 });
                 chShowToast(wsLang.taskAwarded.replace(':user', t.user_name));
                 if (res.reward?.awarded) {
