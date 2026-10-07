@@ -8817,52 +8817,53 @@ class TwitchBot(commands.Bot):
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
                     owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
-                    # !done <id> or !done <id>;<id2> - complete specific task(s) by database id. If the completed task was the active one, the next backlog item is promoted.
+                    # !done <n> or !done <n>;<n2> - complete the viewer's open task(s) by task number. If a completed task was active, the next backlog item in its project is promoted.
                     if arg and all(p.strip().isdigit() for p in arg.split(';') if p.strip()):
                         raw_parts = [p.strip() for p in arg.split(';') if p.strip()]
-                        task_ids = list(dict.fromkeys(int(p) for p in raw_parts))  # dedupe, preserve order
-                        if not task_ids:
+                        positions = list(dict.fromkeys(int(p) for p in raw_parts))  # dedupe, preserve order
+                        if not positions:
                             return
-                        project = await resolve_active_project(cursor, user_id)
                         completed_titles = []
                         total_awarded = 0
                         total_new = None
                         any_pending = False
-                        promoted_active = False
-                        for tid in task_ids:
+                        promoted_projects = set()
+                        for pos in positions:
                             await cursor.execute(
-                                "SELECT id, title, status, task_type, reward_points FROM user_tasks WHERE user_id = %s AND id = %s LIMIT 1",
-                                (user_id, tid)
+                                "SELECT id, title, status, reward_points, project FROM user_tasks "
+                                "WHERE user_id = %s AND backlog_position = %s AND task_type = 'task' AND status IN ('active', 'pending') LIMIT 1",
+                                (user_id, pos)
                             )
                             target = await cursor.fetchone()
                             if not target:
-                                await send_chat_message(f"@{user_name} no task with ID {tid} found.")
+                                await send_chat_message(f"@{user_name} no open task #{pos} found. Use !mytasks to see your list.")
                                 continue
-                            was_active = str(target.get('status') or '').lower() == 'active' and str(target.get('task_type') or '').lower() == 'task'
+                            was_active = str(target.get('status') or '').lower() == 'active'
                             target_id = target.get('id')
                             target_title = target.get('title')
+                            task_project = target.get('project')
                             award_points, new_total, pending = await complete_task_with_reward(cursor, target, user_id, user_name)
                             completed_titles.append(target_title)
                             total_awarded += award_points
                             total_new = new_total
                             if pending:
                                 any_pending = True
-                            emit_task_complete(target_id, user_id, user_name, target_title, project, owner=owner)
+                            emit_task_complete(target_id, user_id, user_name, target_title, task_project, owner=owner)
                             if award_points > 0:
                                 safe_create_task(websocket_notice(event="TASK_REWARD_CONFIRM", additional_data={
                                     "channel_code": API_TOKEN, "task_id": target_id, "user_id": user_id,
                                     "user_name": user_name, "points_awarded": award_points, "new_total": new_total,
                                 }))
-                            # Promote backlog head if the completed task was active
-                            if was_active and not promoted_active:
-                                promoted_active = True
-                                promoted = await promote_backlog_head(cursor, user_id, project)
+                            # Promote the backlog head of the completed task's project if it was the active one
+                            if was_active and task_project not in promoted_projects:
+                                promoted_projects.add(task_project)
+                                promoted = await promote_backlog_head(cursor, user_id, task_project)
                                 if promoted:
                                     emit_task_update({
                                         "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
                                         "title": promoted.get('title'), "status": "active",
                                         "backlog_position": promoted.get('backlog_position'),
-                                        "project": project, "owner": owner
+                                        "project": task_project, "owner": owner
                                     }, owner=owner)
                         if not completed_titles:
                             return
@@ -8922,7 +8923,7 @@ class TwitchBot(commands.Bot):
                             "backlog_position": promoted.get('backlog_position'),
                             "project": project, "owner": owner
                         }, owner=owner)
-                        await send_chat_message(f"@{user_name} {msg} Now active: #{promoted.get('id')} \"{promoted.get('title')}\".")
+                        await send_chat_message(f"@{user_name} {msg} Now active task #{promoted.get('backlog_position')}: \"{promoted.get('title')}\".")
                     else:
                         await send_chat_message(f"@{user_name} {msg} Backlog is now empty.")
         except Exception as e:

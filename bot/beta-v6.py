@@ -8685,51 +8685,68 @@ class TwitchBot(commands.AutoBot):
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
                     owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
+                    # !done <n> or !done <n>;<n2> - complete the viewer's open task(s) by task number. If a completed task was active, the next backlog item in its project is promoted.
                     if arg and all(p.strip().isdigit() for p in arg.split(';') if p.strip()):
                         raw_parts = [p.strip() for p in arg.split(';') if p.strip()]
-                        indices = sorted(list(set(int(p) for p in raw_parts)), reverse=True)
-                        if not indices:
+                        positions = list(dict.fromkeys(int(p) for p in raw_parts))  # dedupe, preserve order
+                        if not positions:
                             return
-                        project = await resolve_active_project(cursor, user_id)
                         completed_titles = []
                         total_awarded = 0
                         total_new = None
                         any_pending = False
-                        for n in indices:
+                        promoted_projects = set()
+                        for pos in positions:
                             await cursor.execute(
-                                "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND backlog_position = %s AND project <=> %s LIMIT 1",
-                                (user_id, n, project)
+                                "SELECT id, title, status, reward_points, project FROM user_tasks "
+                                "WHERE user_id = %s AND backlog_position = %s AND task_type = 'task' AND status IN ('active', 'pending') LIMIT 1",
+                                (user_id, pos)
                             )
                             target = await cursor.fetchone()
                             if not target:
+                                await send_chat_message(f"@{user_name} no open task #{pos} found. Use !mytasks to see your list.")
                                 continue
+                            was_active = str(target.get('status') or '').lower() == 'active'
                             target_id = target.get('id')
                             target_title = target.get('title')
+                            task_project = target.get('project')
                             award_points, new_total, pending = await complete_task_with_reward(cursor, target, user_id, user_name)
                             completed_titles.append(target_title)
                             total_awarded += award_points
                             total_new = new_total
                             if pending:
                                 any_pending = True
-                            create_task(websocket_notice(event="TASK_REMOVED", additional_data={
-                                "channel_code": API_TOKEN,
-                                "id": target_id
-                            }))
+                            emit_task_complete(target_id, user_id, user_name, target_title, task_project, owner=owner)
+                            if award_points > 0:
+                                safe_create_task(websocket_notice(event="TASK_REWARD_CONFIRM", additional_data={
+                                    "channel_code": API_TOKEN, "task_id": target_id, "user_id": user_id,
+                                    "user_name": user_name, "points_awarded": award_points, "new_total": new_total,
+                                }))
+                            # Promote the backlog head of the completed task's project if it was the active one
+                            if was_active and task_project not in promoted_projects:
+                                promoted_projects.add(task_project)
+                                promoted = await promote_backlog_head(cursor, user_id, task_project)
+                                if promoted:
+                                    emit_task_update({
+                                        "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                                        "title": promoted.get('title'), "status": "active",
+                                        "backlog_position": promoted.get('backlog_position'),
+                                        "project": task_project, "owner": owner
+                                    }, owner=owner)
                         if not completed_titles:
-                            await send_chat_message(f"@{user_name} no backlog items matched. Use !backlog to see your list.")
                             return
-                        titles_str = ", ".join(f'"{t}"' for t in reversed(completed_titles))
+                        titles_str = ", ".join(f'"{t}"' for t in completed_titles)
                         msg = f"Completed {len(completed_titles)} task(s): {titles_str}."
                         if total_awarded > 0:
                             msg += f" +{total_awarded} pts! (Total: {total_new})"
                         if any_pending:
-                            msg += f" (Some rewards pending approval)"
+                            msg += " (Some rewards pending approval)"
                         await send_chat_message(f"@{user_name} {msg}")
                         return
                     if arg.lower() == 'next':
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
-                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                             (user_id, project)
                         )
                         active = await cursor.fetchone()
@@ -8751,7 +8768,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                        "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
@@ -8762,7 +8779,17 @@ class TwitchBot(commands.AutoBot):
                     task_title = task.get('title')
                     award_points, new_total, pending = await complete_task_with_reward(cursor, task, user_id, user_name)
                     msg = emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project, owner=owner)
-                    await send_chat_message(f"@{user_name} {msg}")
+                    promoted = await promote_backlog_head(cursor, user_id, project)
+                    if promoted:
+                        emit_task_update({
+                            "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                            "title": promoted.get('title'), "status": "active",
+                            "backlog_position": promoted.get('backlog_position'),
+                            "project": project, "owner": owner
+                        }, owner=owner)
+                        await send_chat_message(f"@{user_name} {msg} Now active task #{promoted.get('backlog_position')}: \"{promoted.get('title')}\".")
+                    else:
+                        await send_chat_message(f"@{user_name} {msg} Backlog is now empty.")
         except Exception as e:
             chat_logger.error(f"[DONE] Error in done_command: {e}")
             await send_chat_message("An error occurred while completing your task.")
