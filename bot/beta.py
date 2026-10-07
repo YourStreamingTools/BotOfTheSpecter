@@ -3673,6 +3673,8 @@ class TwitchBot(commands.Bot):
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
         looped_tasks["midnight"] = create_task(midnight())
+        # Pick up a subathon that was running before the restart (exits straight away when none is)
+        start_looped_task("subathon_countdown", subathon_countdown)
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
         looped_tasks["pet_low_stat_watch"] = create_task(pet_low_stat_watch())
@@ -19119,7 +19121,7 @@ async def start_subathon(ctx):
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes, remaining_seconds) VALUES (%s, %s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0, 0))
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
-                    safe_create_task(subathon_countdown())
+                    start_looped_task("subathon_countdown", subathon_countdown)
                     # Send websocket notice - end_timestamp_ms lets the overlay tick against an absolute target so it doesn't accumulate setInterval drift.
                     additional_data = {
                         'starting_minutes': starting_minutes,
@@ -19196,7 +19198,7 @@ async def resume_subathon(ctx):
                 await connection.commit()
                 resumed_minutes = stored_seconds // 60
                 await send_chat_message(f"Subathon resumed with {resumed_minutes} minutes remaining!")
-                safe_create_task(subathon_countdown())
+                start_looped_task("subathon_countdown", subathon_countdown)
                 # Send websocket notice
                 additional_data = {
                     'remaining_minutes': resumed_minutes,
