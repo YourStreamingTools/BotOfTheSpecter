@@ -19256,7 +19256,7 @@ async def make_stream_marker(description: str):
                     response_text = await marker_response.text()
                     twitch_logger.error(f"Failed to create stream marker: HTTP {marker_response.status} - {response_text}")
                     return False
-    except ClientTimeout as e:
+    except asyncioTimeoutError as e:
         twitch_logger.error(f"Timeout creating stream marker: {e}")
         return False
     except aiohttpClientError as e:
