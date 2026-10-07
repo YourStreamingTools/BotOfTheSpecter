@@ -2208,13 +2208,15 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
         timeout_seconds = 0
         try:
             # If explicit credentials were passed use them directly
+            # The secondary Specter presence always uses the shared Specter token, read fresh each attempt
+            use_specter = override_nick == "botofthespecter" and not override_token
             if override_nick and override_token:
                 irc_token = override_token
                 irc_nick = override_nick
-            elif SELF_MODE:
+            elif SELF_MODE and not use_specter:
                 irc_token = CHANNEL_AUTH
                 irc_nick = BOT_USERNAME.lower()
-            elif CUSTOM_MODE:
+            elif CUSTOM_MODE and not use_specter:
                 creds = await get_current_custom_credentials()
                 if not creds:
                     bot_logger.error("[IRC PRESENCE] IRC Presence: Could not get custom bot credentials, retrying in 60s")
@@ -2270,8 +2272,8 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     bot_logger.error("[IRC PRESENCE] IRC Presence: Timed out waiting for auth response, reconnecting...")
                     break
                 if not line_bytes:
-                    bot_logger.warning("[IRC PRESENCE] IRC Presence: Server closed connection during auth - giving up.")
-                    return
+                    bot_logger.warning("[IRC PRESENCE] IRC Presence: Server closed connection during auth, reconnecting...")
+                    break
                 line = line_bytes.decode("utf-8", errors="replace").rstrip("\r\n")
                 if "NOTICE * :Login authentication failed" in line or "NOTICE * :Improperly formatted auth" in line:
                     bot_logger.error(f"[IRC PRESENCE] IRC Presence: Auth failed - {line}. Will refresh token on next attempt.")
@@ -3665,8 +3667,9 @@ class TwitchBot(commands.Bot):
             except Exception as _e:
                 system_logger.error(f"[BOT READY] Failed to fetch Specter IRC token from DB: {_e}")
             if specter_irc_token:
+                # No token passed: the presence loop re-reads the Specter token on every reconnect, so a rotated token is picked up
                 looped_tasks["twitch_irc_presence_specter"] = create_task(
-                    twitch_irc_presence(override_nick="botofthespecter", override_token=specter_irc_token)
+                    twitch_irc_presence(override_nick="botofthespecter")
                 )
             else:
                 system_logger.warning("[BOT READY] No Specter IRC token found in DB; skipping secondary IRC presence")
