@@ -16247,6 +16247,8 @@ async def shazam_song_info():
         # Record stream audio
         random_file_name = str(random.randint(10000000, 99999999))
         working_dir = "/home/botofthespecter/logs/songs"
+        # The folder may not exist yet; without it the recording can't be saved and Shazam reports the stream as unavailable
+        os.makedirs(working_dir, exist_ok=True)
         stream_recording_file = os.path.join(working_dir, f"{random_file_name}.acc")
         raw_recording_file = os.path.join(working_dir, f"{random_file_name}.raw")
         outfile = os.path.join(working_dir, f"{random_file_name}.acc")
