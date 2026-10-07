@@ -8939,7 +8939,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("rename",))
                 result = await cursor.fetchone()
                 if result:
@@ -8978,14 +8980,10 @@ class TwitchBot(commands.Bot):
                     task_id = task.get('id')
                     await cursor.execute("UPDATE user_tasks SET title = %s WHERE id = %s", (new_title, task_id))
                     await send_chat_message(f"@{user_name} task renamed to \"{new_title}\".")
-                    safe_create_task(websocket_notice(event="TASK_UPDATE", additional_data={
-                        "channel_code": API_TOKEN,
-                        "owner": "user",
-                        "task": {
-                            "id": task_id, "user_id": user_id, "user_name": user_name,
-                            "title": new_title, "status": "active", "project": project, "owner": "user"
-                        }
-                    }))
+                    emit_task_update({
+                        "id": task_id, "user_id": user_id, "user_name": user_name,
+                        "title": new_title, "status": "active", "project": project, "owner": owner
+                    }, owner=owner)
         except Exception as e:
             chat_logger.error(f"[RENAME] Error in rename_command: {e}")
             await send_chat_message("An error occurred while renaming your task.")
@@ -8999,7 +8997,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("remove",))
                 result = await cursor.fetchone()
                 if result:
@@ -9021,7 +9021,7 @@ class TwitchBot(commands.Bot):
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
@@ -9035,15 +9035,25 @@ class TwitchBot(commands.Bot):
                         "UPDATE user_tasks SET status = 'rejected', approval_status = 'rejected' WHERE id = %s",
                         (task_id,)
                     )
-                    await send_chat_message(f"@{user_name} removed your task \"{task_title}\".")
                     safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
                         "channel_code": API_TOKEN,
-                        "owner": "user",
+                        "owner": owner,
                         "task_id": task_id,
                         "user_id": user_id,
                         "user_name": user_name,
                         "project": project,
                     }))
+                    promoted = await promote_backlog_head(cursor, user_id, project)
+                    if promoted:
+                        emit_task_update({
+                            "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                            "title": promoted.get('title'), "status": "active",
+                            "backlog_position": promoted.get('backlog_position'),
+                            "project": project, "owner": owner
+                        }, owner=owner)
+                        await send_chat_message(f"@{user_name} removed your task \"{task_title}\". Now active task #{promoted.get('backlog_position')}: \"{promoted.get('title')}\".")
+                    else:
+                        await send_chat_message(f"@{user_name} removed your task \"{task_title}\".")
         except Exception as e:
             chat_logger.error(f"[REMOVE] Error in remove_command: {e}")
             await send_chat_message("An error occurred while removing your task.")
