@@ -18853,24 +18853,28 @@ async def get_subathon_state():
 
 # Function to run at midnight each night
 async def midnight():
-    # Get the timezone once outside the loop
-    connection = None
-    try:
-        connection = await mysql_handler.get_connection()
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT timezone FROM profile")
-            result = await cursor.fetchone()
-            if result and result.get("timezone"):
-                timezone = result.get("timezone")
-                tz = resolve_profile_timezone(timezone)
-            else:
-                # Default to UTC if no timezone is set
-                bot_logger.info("No timezone set for the user. Defaulting to UTC.")
-                tz = set_timezone.UTC  # Set to UTC
-        while True:
+    # Runs for the bot's whole life. The timezone is re-read every 10 minutes (so a dashboard change applies) on a short-lived connection, and an error in one check no longer stops the loop.
+    tz = set_timezone.UTC
+    tz_loaded_at = None
+    while True:
+        try:
+            if tz_loaded_at is None or time.monotonic() - tz_loaded_at >= 600:
+                connection = None
+                try:
+                    connection = await mysql_handler.get_connection()
+                    async with connection.cursor(DictCursor) as cursor:
+                        await cursor.execute("SELECT timezone FROM profile")
+                        result = await cursor.fetchone()
+                finally:
+                    if connection:
+                        await connection.release()
+                if tz_loaded_at is None and not (result and result.get("timezone")):
+                    bot_logger.info("No timezone set for the user. Defaulting to UTC.")
+                tz = resolve_profile_timezone(result.get("timezone") if result else None)
+                tz_loaded_at = time.monotonic()
             # Get the current time in the user's timezone
             current_time = time_right_now(tz)
-            # Check if it's exactly midnight (00:00:00)
+            # Check if it's midnight (00:00)
             if current_time.hour == 0 and current_time.minute == 0:
                 # Reload the .env file at midnight
                 await reload_env_vars()
@@ -18883,14 +18887,11 @@ async def midnight():
                     await send_chat_message(message)
                 # Sleep for 120 seconds to avoid sending the message multiple times
                 await sleep(120)
-            else:
-                # Sleep for 10 seconds before checking again
-                await sleep(10)
-    except Exception as e:
-        bot_logger.error(f"An error occurred in midnight function: {str(e)}")
-    finally:
-        if connection:
-            await connection.release()
+                continue
+        except Exception as e:
+            bot_logger.error(f"An error occurred in midnight function: {e}")
+        # Sleep for 10 seconds before checking again
+        await sleep(10)
 
 async def reload_env_vars():
     # Load in all the globals
