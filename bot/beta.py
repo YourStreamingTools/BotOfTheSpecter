@@ -10271,8 +10271,12 @@ class TwitchBot(commands.Bot):
                 add_usage('schedule', bucket_key, cooldown_bucket)
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
-                timezone = timezone_row["timezone"] if timezone_row else 'UTC'
-                tz = pytz_timezone(timezone)
+                tz_name = timezone_row.get("timezone") if timezone_row else None
+                # No timezone set on the profile (or an unknown one) falls back to UTC
+                try:
+                    tz = pytz_timezone(tz_name) if tz_name else set_timezone.UTC
+                except Exception:
+                    tz = set_timezone.UTC
                 current_time = time_right_now(tz)
                 headers = {
                     'Client-ID': CLIENT_ID,
@@ -10303,9 +10307,9 @@ class TwitchBot(commands.Bot):
                                                 if start_time_utc:
                                                     start_time = start_time_utc.astimezone(tz)
                                                     if (start_time - current_time).days <= 2:
-                                                        await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
+                                                        await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} at {format_schedule_time(vacation_end)}. My next stream is on {start_time.strftime('%A, %d %B %Y')} at {format_schedule_time(start_time)}.")
                                                         return
-                                            await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
+                                            await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} at {format_schedule_time(vacation_end)}. No streams during this time!")
                                             return
                                 next_stream, cancelled_local, _ = pick_next_schedule_stream(segments, current_time, tz)
                                 if cancelled_local:
@@ -10320,7 +10324,7 @@ class TwitchBot(commands.Bot):
                                     minutes = (seconds % 3600) // 60
                                     seconds = (seconds % 60)
                                     time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
-                                    await send_chat_message(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
+                                    await send_chat_message(f"The next stream will be on {start_date_utc} at {format_schedule_time(start_time)}, which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                                 else:
                                     await send_chat_message(f"There are no upcoming streams scheduled.")
                             else:
@@ -13802,6 +13806,13 @@ def parse_twitch_schedule_time(iso_time):
             return datetime.strptime(str(iso_time)[:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
         except (ValueError, TypeError):
             return None
+
+# Function to format a schedule time in the streamer's timezone, adding the UTC time when that zone isn't UTC
+def format_schedule_time(local_time):
+    label = local_time.strftime('%H:%M %Z')
+    if local_time.utcoffset() != timedelta(0):
+        label += f" ({local_time.astimezone(timezone.utc).strftime('%H:%M')} UTC)"
+    return label
 
 # Function to pick the next upcoming Twitch schedule segment, ignoring cancelled slots that were replaced the same local day
 def pick_next_schedule_stream(segments, current_time, tz, min_start=None):
