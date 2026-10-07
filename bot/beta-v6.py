@@ -6746,7 +6746,8 @@ class TwitchBot(commands.AutoBot):
                                 song_list.append(f"...and {queue_length - 3} more songs in the queue.")
                             # Send the queue to chat
                             if song_list:
-                                await send_chat_message(f"Upcoming Songs:\n" + "\n".join(song_list))
+                                # Chat shows one line per message, so join the entries with separators rather than newlines
+                                await send_chat_message("Upcoming Songs: " + " | ".join(song_list))
                             else:
                                 await send_chat_message("The queue is empty right now. Add some songs!")
                         else:
