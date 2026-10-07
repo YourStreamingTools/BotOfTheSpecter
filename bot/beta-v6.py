@@ -17515,7 +17515,7 @@ async def websocket_notice(
                     else:
                         websocket_logger.error(f"Event '{event}' requires additional parameters.")
                         return
-                elif event in ["MOD_GRANTED", "VIP_GRANTED", "FIRST_CHAT"]:
+                elif event in ["MOD_GRANTED", "VIP_GRANTED", "VIP_ADDED", "FIRST_CHAT"]:
                     if user:
                         params['user'] = user
                     if additional_data:

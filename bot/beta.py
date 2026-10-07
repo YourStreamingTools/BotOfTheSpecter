@@ -17836,7 +17836,15 @@ async def websocket_notice(
                     else:
                         websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters.")
                         return
-                elif event in ["MOD_GRANTED", "VIP_GRANTED", "FIRST_CHAT"]:
+                elif event in [
+                    "TWITCH_HYPE_TRAIN", "TWITCH_CHARITY", "TWITCH_GIFT_SUB",
+                    "TWITCH_GOAL_BEGIN", "TWITCH_GOAL_PROGRESS", "TWITCH_GOAL_END",
+                    "SPECTER_TIMER_CONTROL", "SPECTER_SETTINGS_UPDATE",
+                ]:
+                    # Alert-overlay and timer events carry everything in additional_data (these used to fall through to "not recognized" and were never sent)
+                    if additional_data:
+                        params.update(additional_data)
+                elif event in ["MOD_GRANTED", "VIP_GRANTED", "VIP_ADDED", "FIRST_CHAT"]:
                     if user:
                         params['user'] = user
                     if additional_data:
