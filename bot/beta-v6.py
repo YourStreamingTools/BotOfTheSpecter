@@ -1577,9 +1577,13 @@ async def process_twitch_eventsub_message(message):
                         ))
                     elif notice_type == "pay_it_forward":
                         pay_it_forward_data = event_data.get("pay_it_forward", {})
+                        # Twitch sends no sub_tier for pay it forward, so processing falls back to Tier 1 (the default chat line doesn't name a tier)
                         tier = pay_it_forward_data.get("sub_tier")
-                        tier_name = tier_mapping.get(tier, tier)
-                        gifter_user_name = pay_it_forward_data.get("gifter_user_name")
+                        tier_name = tier_mapping.get(tier, tier) or "Tier 1"
+                        if pay_it_forward_data.get("gifter_is_anonymous"):
+                            gifter_user_name = "an anonymous gifter"
+                        else:
+                            gifter_user_name = pay_it_forward_data.get("gifter_user_name")
                         # Fetch pay it forward message from database
                         await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("pay_it_forward",))
                         result = await cursor.fetchone()
@@ -1587,14 +1591,13 @@ async def process_twitch_eventsub_message(message):
                             pif_message = result.get("alert_message")
                         else:
                             if gifter_user_name:
-                                pif_message = "Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!"
+                                pif_message = "Thank you (user) for paying it forward! They received a gift from (gifter) and gifted a subscription in return!"
                             else:
-                                pif_message = "Thank you (user) for paying it forward with a (tier) subscription!"
+                                pif_message = "Thank you (user) for paying it forward with a gifted subscription!"
                         # Replace placeholders
-                        pif_message = pif_message.replace("(user)", event_data['chatter_user_name'])
+                        pif_message = pif_message.replace("(user)", event_data.get('chatter_user_name') or "")
                         pif_message = pif_message.replace("(tier)", tier_name)
-                        if gifter_user_name:
-                            pif_message = pif_message.replace("(gifter)", gifter_user_name)
+                        pif_message = pif_message.replace("(gifter)", gifter_user_name or "an anonymous gifter")
                         await send_chat_message(pif_message)
                         # Process the gift subscription (skip alert since we already sent custom message)
                         create_task(process_giftsub_event(
@@ -1608,17 +1611,18 @@ async def process_twitch_eventsub_message(message):
                         event_logger.info(f"Pay it forward: {event_data['chatter_user_name']} paid forward a {tier_name} subscription (received from {gifter_user_name})")
                     elif notice_type == "gift_paid_upgrade":
                         gift_paid_upgrade_data = event_data.get("gift_paid_upgrade", {})
+                        # Twitch sends no sub_tier for a gifted sub upgraded to paid, so processing falls back to Tier 1 (the default chat line doesn't name a tier)
                         tier = gift_paid_upgrade_data.get("sub_tier")
-                        tier_name = tier_mapping.get(tier, tier)
+                        tier_name = tier_mapping.get(tier, tier) or "Tier 1"
                         # Fetch upgrade message from database
                         await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_paid_upgrade",))
                         result = await cursor.fetchone()
                         if result and result.get("alert_message"):
                             upgrade_message = result.get("alert_message")
                         else:
-                            upgrade_message = "Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!"
+                            upgrade_message = "Thank you (user) for upgrading from a Gifted Sub to a paid subscription!"
                         # Replace placeholders
-                        upgrade_message = upgrade_message.replace("(user)", event_data['chatter_user_name'])
+                        upgrade_message = upgrade_message.replace("(user)", event_data.get('chatter_user_name') or "")
                         upgrade_message = upgrade_message.replace("(tier)", tier_name)
                         await send_chat_message(upgrade_message)
                         # Process the subscription data
