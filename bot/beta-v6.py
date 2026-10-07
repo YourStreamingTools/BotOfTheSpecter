@@ -13921,21 +13921,10 @@ async def get_twitch_user_by_login(login_name):
     return None, None
 
 async def send_long_chat_message(message):
+    # send_chat_message splits anything over the 500-character limit itself
     if message is None:
         return
-    if len(message) <= MAX_CHAT_MESSAGE_LENGTH:
-        await send_chat_message(message)
-        return
-    remaining = message
-    while remaining:
-        if len(remaining) <= MAX_CHAT_MESSAGE_LENGTH:
-            await send_chat_message(remaining)
-            return
-        split_at = remaining.rfind(' ', 0, MAX_CHAT_MESSAGE_LENGTH)
-        if split_at <= 0:
-            split_at = MAX_CHAT_MESSAGE_LENGTH
-        await send_chat_message(remaining[:split_at])
-        remaining = remaining[split_at:].lstrip()
+    await send_chat_message(message)
 
 def extract_customapi_placeholders(text: str):
     placeholders = []
@@ -20507,14 +20496,36 @@ async def clear_temporary_vips():
         if connection:
             await connection.release()
 
+# Function to split a chat message into parts that fit Twitch's 500-character limit, breaking at the last space where possible
+def split_chat_message(message, limit=MAX_CHAT_MESSAGE_LENGTH):
+    parts = []
+    remaining = message
+    while len(remaining) > limit:
+        split_at = remaining.rfind(' ', 0, limit)
+        if split_at <= 0:
+            split_at = limit
+        parts.append(remaining[:split_at])
+        remaining = remaining[split_at:].lstrip()
+    if remaining:
+        parts.append(remaining)
+    return parts
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     global CLIENT_ID, CHANNEL_ID, CHANNEL_AUTH, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
     if not message:
         return False
-    if len(message) > 500:
-        chat_logger.error(f"Message too long: {len(message)} characters (max 500)")
-        return False
+    # Messages over the limit are sent in parts instead of being dropped; only the first part is a threaded reply
+    if len(message) > MAX_CHAT_MESSAGE_LENGTH:
+        parts = split_chat_message(message)
+        chat_logger.info(f"Message is {len(message)} characters; sending it in {len(parts)} parts")
+        sent_all = True
+        for index, part in enumerate(parts):
+            if index:
+                await sleep(0.5)
+            sent = await send_chat_message(part, for_source_only, reply_parent_message_id if index == 0 else None)
+            sent_all = sent_all and bool(sent)
+        return sent_all
     if SELF_MODE:
         sender_id = CHANNEL_ID
         access_token = CHANNEL_AUTH
