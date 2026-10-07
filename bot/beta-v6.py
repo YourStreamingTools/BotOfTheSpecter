@@ -10583,6 +10583,7 @@ class TwitchBot(commands.AutoBot):
                     user_points = 0
                 else:
                     user_points = user_data.get("points")
+                starting_points = user_points
                 # Define the payouts for each icon
                 slot_payouts = {
                     "🍒": 10,
@@ -10608,7 +10609,8 @@ class TwitchBot(commands.AutoBot):
                     user_points = max(0, user_points - loss_penalty)
                     message = f"{ctx.author.name}, {''.join(result)} Better luck next time. You lost {loss_penalty} points."
                 # Update user's points in the database
-                await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                # Apply only this game's change, so points earned from chat in the meantime aren't overwritten
+                await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
                 await connection.commit()
                 await send_chat_message(message)
         except GeneratorExit:
@@ -10735,6 +10737,7 @@ class TwitchBot(commands.AutoBot):
                     user_points = 0
                 else:
                     user_points = user_data.get("points")
+                starting_points = user_points
                 outcomes = [
                     "and survives!",
                     "and gets shot!"
@@ -10747,7 +10750,8 @@ class TwitchBot(commands.AutoBot):
                     user_points = max(0, user_points - penalty)
                     message += f" Lost {penalty} points for hospital bills. Current points: {user_points}"
                     # Update user's points in the database
-                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                    # Apply only this game's change, so points earned from chat in the meantime aren't overwritten
+                    await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
                     await connection.commit()
                 await send_chat_message(message)
         except Exception as e:
@@ -10882,6 +10886,7 @@ class TwitchBot(commands.AutoBot):
                     user_points = 0
                 else:
                     user_points = user_data.get("points")
+                starting_points = user_points
                 # Check if user has enough points (broadcaster has unlimited points)
                 is_broadcaster = ctx.author.is_broadcaster
                 if not is_broadcaster and user_points < bet_amount:
@@ -10921,7 +10926,8 @@ class TwitchBot(commands.AutoBot):
                     return
                 # Update user's points in the database (skip for broadcaster)
                 if not is_broadcaster:
-                    await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
+                    # Apply only this game's change, so points earned from chat in the meantime aren't overwritten
+                    await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
                     await connection.commit()
                 await send_chat_message(message)
         except Exception as e:
