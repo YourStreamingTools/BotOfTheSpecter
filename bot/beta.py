@@ -5617,8 +5617,14 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(f"Please use the format: Location,Country (e.g., 'NewYork,US' or 'Sydney,AU')")
                                 chat_logger.info(f"[TIME] Invalid time format provided: '{timezone}' - missing country code")
                                 return
-                            geolocator = Nominatim(user_agent="BotOfTheSpecter")
-                            location_data = geolocator.geocode(timezone, addressdetails=True)
+                            # The geocode lookup is blocking network I/O, so it runs in a worker thread with a 5 second limit
+                            geolocator = Nominatim(user_agent="BotOfTheSpecter", timeout=5)
+                            try:
+                                location_data = await asyncio.to_thread(geolocator.geocode, timezone, addressdetails=True)
+                            except Exception as geo_err:
+                                chat_logger.error(f"[TIME] Location lookup failed for '{timezone}': {geo_err}")
+                                await send_chat_message("The location lookup is busy right now, please try again shortly.")
+                                return
                             if not location_data:
                                 await send_chat_message(f"Could not find the location '{timezone}'. Please use the format: Location,Country (e.g., 'California,US' or 'Sydney,AU')")
                                 chat_logger.info(f"[TIME] Could not find the time location that you requested: '{timezone}'")
@@ -6459,29 +6465,30 @@ class TwitchBot(commands.Bot):
                         'extractaudio': False,
                         'skip_download': True,
                         'cookiefile': '/home/botofthespecter/ytdl-cookies.txt',
+                        'socket_timeout': 15,
                     }
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        info = ydl.extract_info(message_content, download=False)
-                        video_title = info.get('title', '')
-                        if not video_title:
-                            await send_chat_message("Could not extract title from the YouTube video.")
-                            return
-                        # Clean up the title for better Spotify search results Remove common YouTube suffixes and prefixes
-                        cleanup_patterns = [
-                            r'\s*\[.*?\]\s*',  # Remove [Official Video], [Lyrics], etc.
-                            r'\s*\(.*?\)\s*',  # Remove (Official Video), (Lyrics), etc.
-                            r'\s*-\s*(Official|Music|Lyric|Audio).*$' ,  # Remove - Official Video, etc.
-                            r'\s*\|\s*.*$',  # Remove everything after |
-                            r'\s*(HD|4K|1080p|720p).*$' ,  # Remove quality indicators
-                            r'\s*(feat\.|ft\.|featuring)',  # Normalize featuring
-                        ]
-                        cleaned_title = video_title
-                        for pattern in cleanup_patterns:
-                            cleaned_title = re.sub(pattern, '', cleaned_title, flags=re.IGNORECASE)
-                        cleaned_title = cleaned_title.strip()
-                        # Use the cleaned title for Spotify search
-                        message_content = cleaned_title
-                        api_logger.info(f"[SONG REQUEST] YouTube title extracted: '{video_title}' -> cleaned: '{cleaned_title}'")
+                    # yt-dlp is blocking network I/O, so it runs in a worker thread with a time limit
+                    info = await asyncio_wait_for(asyncio.to_thread(ytdlp_extract_info, message_content, ydl_opts), timeout=20)
+                    video_title = info.get('title', '')
+                    if not video_title:
+                        await send_chat_message("Could not extract title from the YouTube video.")
+                        return
+                    # Clean up the title for better Spotify search results Remove common YouTube suffixes and prefixes
+                    cleanup_patterns = [
+                        r'\s*\[.*?\]\s*',  # Remove [Official Video], [Lyrics], etc.
+                        r'\s*\(.*?\)\s*',  # Remove (Official Video), (Lyrics), etc.
+                        r'\s*-\s*(Official|Music|Lyric|Audio).*$' ,  # Remove - Official Video, etc.
+                        r'\s*\|\s*.*$',  # Remove everything after |
+                        r'\s*(HD|4K|1080p|720p).*$' ,  # Remove quality indicators
+                        r'\s*(feat\.|ft\.|featuring)',  # Normalize featuring
+                    ]
+                    cleaned_title = video_title
+                    for pattern in cleanup_patterns:
+                        cleaned_title = re.sub(pattern, '', cleaned_title, flags=re.IGNORECASE)
+                    cleaned_title = cleaned_title.strip()
+                    # Use the cleaned title for Spotify search
+                    message_content = cleaned_title
+                    api_logger.info(f"[SONG REQUEST] YouTube title extracted: '{video_title}' -> cleaned: '{cleaned_title}'")
                 except Exception as e:
                     api_logger.error(f"[SONG REQUEST] Error extracting YouTube video info: {e}")
                     await send_chat_message("Sorry, I couldn't extract information from that YouTube link. Please try a different link or provide the song title manually.")
@@ -7447,8 +7454,12 @@ class TwitchBot(commands.Bot):
                             if len(message.strip()) < 5:
                                 await send_chat_message("The provided message is too short for reliable translation.")
                                 return
-                            translate_message = translator(source='auto', target='en').translate(text=message)
+                            # The translator makes a blocking HTTP call, so it runs in a worker thread with a time limit
+                            translate_message = await asyncio_wait_for(asyncio.to_thread(translator(source='auto', target='en').translate, text=message), timeout=10)
                             await send_chat_message(f"Translation: {translate_message}")
+                        except asyncioTimeoutError:
+                            chat_logger.error(f"[TRANSLATE] Translation timed out for: {message[:100]}")
+                            await send_chat_message("Translation timed out, please try again.")
                         except AttributeError as ae:
                             chat_logger.error(f"[TRANSLATE] AttributeError: {ae}")
                             await send_chat_message("An error occurred while detecting the language.")
@@ -16495,26 +16506,40 @@ async def convert_to_raw_audio(in_file, out_file):
         api_logger.error(f"[TTS] An error occurred while converting audio: {e}")
         return False
 
+# Function to look up a video's info with yt-dlp (blocking, so callers run it with asyncio.to_thread)
+def ytdlp_extract_info(url, ydl_opts):
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(url, download=False)
+
+# Function to record a short clip of the live stream (blocking Streamlink I/O, so it runs in a worker thread)
+def record_stream_blocking(outfile):
+    session = Streamlink()
+    session.set_option("http-headers", {"Authorization": f"OAuth {TWITCH_GQL}"})
+    session.set_option("stream-timeout", 20)
+    streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}")
+    if len(streams) == 0 or "worst" not in streams.keys():
+        return False
+    fd = streams["worst"].open()
+    data = b''
+    max_bytes = 200 * 1024
+    try:
+        while len(data) <= max_bytes:
+            piece = fd.read(1024)
+            if not piece:
+                break
+            data += piece
+    finally:
+        fd.close()
+    with open(outfile, "wb") as file:
+        file.write(data)
+    return os.path.exists(outfile)
+
 async def record_stream(outfile):
     try:
-        session = Streamlink()
-        session.set_option("http-headers", {"Authorization": f"OAuth {TWITCH_GQL}"})
-        streams = session.streams(f"https://twitch.tv/{CHANNEL_NAME}")
-        if len(streams) == 0 or "worst" not in streams.keys():
-            return False
-        stream_obj = streams["worst"]
-        fd = stream_obj.open()
-        chunk = 1024
-        num_bytes = 0
-        data = b''
-        max_bytes = 200
-        while num_bytes <= max_bytes * 1024:
-            data += fd.read(chunk)
-            num_bytes += chunk
-        fd.close()
-        with open(outfile, "wb") as file:
-            file.write(data)
-        return os.path.exists(outfile)
+        return await asyncio_wait_for(asyncio.to_thread(record_stream_blocking, outfile), timeout=30)
+    except asyncioTimeoutError:
+        api_logger.error(f"[RECORDING] Recording the stream timed out after 30 seconds")
+        return False
     except Exception as e:
         api_logger.error(f"[RECORDING] An error occurred while recording stream: {e}")
         return False
