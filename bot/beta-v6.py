@@ -6791,7 +6791,7 @@ class TwitchBot(commands.AutoBot):
                 else:
                     await send_chat_message("Usage: !hug @username")
                     return
-                if mentioned_username == ctx.author.name:
+                if mentioned_username.lower() == ctx.author.name.lower():
                     await send_chat_message("You can't hug yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
@@ -6820,7 +6820,7 @@ class TwitchBot(commands.AutoBot):
                         hug_options, "hug", "message",
                         {"(target)": mentioned_username, "(user)": ctx.author.name, "(count)": hug_count},
                     ))
-                    if mentioned_username == BOT_USERNAME:
+                    if mentioned_username.lower() == BOT_USERNAME.lower():
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "hug")
                 else:
@@ -6866,7 +6866,7 @@ class TwitchBot(commands.AutoBot):
                 else:
                     await send_chat_message("Usage: !highfive @username")
                     return
-                if mentioned_username == ctx.author.name:
+                if mentioned_username.lower() == ctx.author.name.lower():
                     await send_chat_message("You can't high-five yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
@@ -6895,7 +6895,7 @@ class TwitchBot(commands.AutoBot):
                         highfive_options, "highfive", "message",
                         {"(target)": mentioned_username, "(user)": ctx.author.name, "(count)": highfive_count},
                     ))
-                    if mentioned_username == BOT_USERNAME:
+                    if mentioned_username.lower() == BOT_USERNAME.lower():
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "highfive")
                 else:
@@ -6941,7 +6941,7 @@ class TwitchBot(commands.AutoBot):
                 else:
                     await send_chat_message("Usage: !kiss @username")
                     return
-                if mentioned_username == ctx.author.name:
+                if mentioned_username.lower() == ctx.author.name.lower():
                     await send_chat_message("You can't kiss yourself.")
                     return
                 # Check if the mentioned username is valid on Twitch
@@ -6970,7 +6970,7 @@ class TwitchBot(commands.AutoBot):
                         kiss_options, "kiss", "message",
                         {"(target)": mentioned_username, "(user)": ctx.author.name, "(count)": kiss_count},
                     ))
-                    if mentioned_username == BOT_USERNAME:
+                    if mentioned_username.lower() == BOT_USERNAME.lower():
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "kiss")
                 else:
