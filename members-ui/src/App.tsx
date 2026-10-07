@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchSession, type MembersSession } from './api'
 import { applyTheme, readTheme, type ThemeName } from './theme'
 import SearchPage from './pages/SearchPage'
-import ChannelPage from './pages/ChannelPage'
+import ChannelPage, { type TabId } from './pages/ChannelPage'
 import FreeGamesPage from './pages/FreeGamesPage'
 import StorePage from './pages/StorePage'
 
@@ -26,7 +26,7 @@ const RESERVED = new Set([
 type View =
   | { name: 'search' }
   | { name: 'freegames' }
-  | { name: 'channel'; user: string }
+  | { name: 'channel'; user: string; tab?: TabId }
   | { name: 'store'; user: string }
 
 function currentView(): View {
@@ -38,6 +38,10 @@ function currentView(): View {
   if (parts[0] === 'freegames.php') return { name: 'freegames' }
   if (parts.length >= 2 && parts[1].toLowerCase() === 'store') {
     return { name: 'store', user: parts[0].toLowerCase() }
+  }
+  // /{channel}/commands opens the channel page on its Built-in Commands tab (linked from !commands in chat)
+  if (parts.length >= 2 && parts[1].toLowerCase() === 'commands' && !RESERVED.has(parts[0].toLowerCase())) {
+    return { name: 'channel', user: parts[0].toLowerCase(), tab: 'builtinCommands' }
   }
   if (RESERVED.has(parts[0].toLowerCase())) return { name: 'search' }
   return { name: 'channel', user: parts[0].toLowerCase() }
@@ -180,7 +184,7 @@ export default function App() {
           <main className="sp-content">
             {view.name === 'search' && <SearchPage />}
             {view.name === 'freegames' && <FreeGamesPage />}
-            {view.name === 'channel' && <ChannelPage username={view.user} />}
+            {view.name === 'channel' && <ChannelPage username={view.user} initialTab={view.tab} />}
             {view.name === 'store' && <StorePage channel={view.user} />}
           </main>
           <footer className="sp-footer">

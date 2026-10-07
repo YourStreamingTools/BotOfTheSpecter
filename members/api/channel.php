@@ -149,7 +149,34 @@ foreach ($commands as &$cmd) {
 }
 unset($cmd);
 
-$lurkers = members_fetch_all($db, 'lurk_times', 'SELECT user_id, start_time FROM lurk_times');
+// Enabled built-in commands, with descriptions and usage from the shared builtin_commands.json
+$builtinInfo = [];
+$builtinJson = @file_get_contents(dirname(__DIR__, 2) . '/api/builtin_commands.json');
+if ($builtinJson !== false) {
+    $decodedBuiltin = json_decode($builtinJson, true);
+    $builtinInfo = is_array($decodedBuiltin['commands'] ?? null) ? $decodedBuiltin['commands'] : [];
+}
+$builtinCommands = [];
+foreach (members_fetch_all($db, 'builtin_commands', 'SELECT command, status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands ORDER BY command ASC') as $row) {
+    if (($row['status'] ?? '') !== 'Enabled') {
+        continue;
+    }
+    $name = (string) ($row['command'] ?? '');
+    $info = is_array($builtinInfo[$name] ?? null) ? $builtinInfo[$name] : [];
+    $syntax = $info['syntax'] ?? ('!' . $name);
+    $builtinCommands[] = [
+        'command' => $name,
+        'description' => (string) ($info['description'] ?? ''),
+        'syntax' => is_array($syntax) ? array_values(array_map('strval', $syntax)) : [(string) $syntax],
+        'aliases' => is_array($info['aliases'] ?? null) ? array_values(array_map('strval', $info['aliases'])) : [],
+        'permission' => (string) ($row['permission'] ?? 'everyone'),
+        'cooldown_rate' => (int) ($row['cooldown_rate'] ?? 0),
+        'cooldown_time' => (int) ($row['cooldown_time'] ?? 0),
+        'cooldown_bucket' => (string) ($row['cooldown_bucket'] ?? 'default'),
+    ];
+}
+
+$lurkers =members_fetch_all($db, 'lurk_times', 'SELECT user_id, start_time FROM lurk_times');
 $lurkIds = array_column($lurkers, 'user_id');
 $lurkNames = members_resolve_twitch_usernames($lurkIds);
 foreach ($lurkers as &$row) {
@@ -166,6 +193,7 @@ $payload = [
     'profile_image' => $profileImage,
     'viewer_display_name' => $viewerDisplay,
     'commands' => $commands,
+    'builtin_commands' => $builtinCommands,
     'lurkers' => $lurkers,
     'typos' => members_fetch_all($db, 'user_typos', 'SELECT username, typo_count FROM user_typos ORDER BY typo_count DESC'),
     'game_deaths' => members_fetch_all($db, 'game_deaths', 'SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC'),

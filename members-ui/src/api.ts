@@ -19,6 +19,17 @@ export type ChannelCommand = {
   permission: string
 }
 
+export type BuiltinCommand = {
+  command: string
+  description: string
+  syntax: string[]
+  aliases: string[]
+  permission: string
+  cooldown_rate: number
+  cooldown_time: number
+  cooldown_bucket: string
+}
+
 export type ChannelLurker = {
   user_id: string
   start_time: string
@@ -42,6 +53,7 @@ export type ChannelData = {
   viewer_display_name: string
   memorial?: MemorialData
   commands?: ChannelCommand[]
+  builtin_commands?: BuiltinCommand[]
   lurkers?: ChannelLurker[]
   typos?: Array<{ username: string; typo_count: number }>
   game_deaths?: Array<{ game_name: string; death_count: number }>

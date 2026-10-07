@@ -4870,17 +4870,9 @@ class TwitchBot(commands.AutoBot):
                         if not await check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         add_usage('commands', bucket_key, cooldown_bucket)
-                        # If the user is a mod, include both mod_commands and builtin_commands
-                        is_mod = await command_permissions("mod", ctx.author)
-                        if is_mod:
-                            mod_commands_list = ", ".join(sorted(f"!{command}" for command in mod_commands))
-                            await send_chat_message(f"Moderator commands: {mod_commands_list}")
-                        # Include builtin commands for both mod and normal users
-                        builtin_commands_list = ", ".join(sorted(f"!{command}" for command in builtin_commands))
-                        await send_chat_message(f"General commands: {builtin_commands_list}")
-                        # Custom commands link
-                        custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
-                        await send_chat_message(custom_response_message)
+                        # Built-in and custom commands are listed on the channel's members pages (a chat list runs past the 500-character limit)
+                        members_url = f"https://members.botofthespecter.com/{CHANNEL_NAME}"
+                        await send_chat_message(f"Built-in commands: {members_url}/commands | Custom commands: {members_url}/")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
