@@ -1202,29 +1202,29 @@ async def connect_to_tipping_services():
 
 async def streamelements_connection_manager():
     global streamelements_token
-    max_retries = 5
-    base_delay = 1  # Start with 1 second delay
-    max_delay = 60  # Maximum delay of 60 seconds
-    long_delay = 300  # 5 minutes for extended failures
-    while True:  # Keep trying indefinitely
-        for attempt in range(max_retries):
-            try:
-                event_logger.info(f"Attempting to connect to StreamElements (attempt {attempt + 1}/{max_retries})")
-                await connect_to_streamelements()
-                # If we get here, connection was successful and maintained
-                event_logger.info("StreamElements connection maintained successfully")
-                return  # Exit the function if connection is successful and stays connected
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    # Calculate delay with exponential backoff
-                    delay = min(base_delay * (2 ** attempt), max_delay)
-                    event_logger.warning(f"StreamElements connection failed: {e}. Retrying in {delay} seconds...")
-                    await sleep(delay)
-                else:
-                    event_logger.error(f"Failed to connect to StreamElements after {max_retries} attempts: {e}")
-        # If we've exhausted all retries, wait longer before trying the whole cycle again
-        event_logger.info(f"StreamElements connection cycle completed. Waiting {long_delay} seconds before retrying...")
-        await sleep(long_delay)
+    # Reconnect whenever the socket ends - including after an "unauthorized" disconnect - re-reading the token each time so a refreshed one is picked up. Backoff 5s doubling to 5 min, reset after a connection that lasted 5 min.
+    delay = 5
+    while streamelements_token:
+        connected_at = time.monotonic()
+        try:
+            event_logger.info("Connecting to StreamElements")
+            await connect_to_streamelements()
+        except Exception as e:
+            event_logger.error(f"StreamElements connection failed: {e}")
+        if time.monotonic() - connected_at >= 300:
+            delay = 5
+        event_logger.info(f"Reconnecting to StreamElements in {delay} seconds")
+        await sleep(delay)
+        delay = min(delay * 2, 300)
+        try:
+            async with await mysql_handler.get_connection(db_name="website") as connection:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+                    se_result = await cursor.fetchone()
+            streamelements_token = se_result.get('access_token') if se_result else None
+        except Exception as e:
+            event_logger.error(f"Could not reload the StreamElements token, reusing the current one: {e}")
+    event_logger.info("No StreamElements token configured, StreamElements connection stopped")
 
 async def connect_to_streamelements():
     global streamelements_token
