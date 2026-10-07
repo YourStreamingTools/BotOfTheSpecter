@@ -3791,7 +3791,7 @@ class TwitchBot(commands.AutoBot):
                     tz_result = await cursor.fetchone()
                     if tz_result and tz_result.get("timezone"):
                         timezone = tz_result.get("timezone")
-                        tz = pytz_timezone(timezone)
+                        tz = resolve_profile_timezone(timezone)
                         chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
                     else:
                         tz = set_timezone.UTC
@@ -3887,32 +3887,15 @@ class TwitchBot(commands.AutoBot):
                                         days_left = (event_date - current_date).days
                                         # If days_left is negative, try next year
                                         if days_left < 0:
-                                            next_year_date = event_date.replace(year=event_date.year + 1)
+                                            next_year_date = same_day_next_year(event_date)
                                             days_left = (next_year_date - current_date).days
                                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
                                 # Handle (timeuntil.)
                                 if '(timeuntil.' in response:
-                                    # Try first for full date-time format
                                     get_datetime = re.search(r'\(timeuntil\.(\d{4}-\d{2}-\d{2}(?:-\d{1,2}-\d{2})?)\)', response)
                                     if get_datetime:
                                         datetime_str = get_datetime.group(1)
-                                        # Check if time components are included
-                                        if '-' in datetime_str[10:]:  # Full date-time format
-                                            event_datetime = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
-                                        else:  # Date only format, default to midnight
-                                            event_datetime = datetime.strptime(datetime_str + "-00-00", "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
-                                        current_datetime = time_right_now(tz)
-                                        time_left = event_datetime - current_datetime
-                                        # If time_left is negative, try next year
-                                        if time_left.days < 0:
-                                            event_datetime = event_datetime.replace(year=event_datetime.year + 1)
-                                            time_left = event_datetime - current_datetime
-                                        days_left = time_left.days
-                                        hours_left, remainder = divmod(time_left.seconds, 3600)
-                                        minutes_left, _ = divmod(remainder, 60)
-                                        time_left_str = f"{days_left} days, {hours_left} hours, and {minutes_left} minutes"
-                                        # Replace the original placeholder with the calculated time
-                                        response = response.replace(f"(timeuntil.{datetime_str})", time_left_str)
+                                        response = response.replace(f"(timeuntil.{datetime_str})", format_time_until(datetime_str, tz))
                                 # Handle (user) and (author)
                                 if '(user)' in response:
                                     user_mention = re.search(r'@(\w+)', messageContent)
@@ -5653,7 +5636,7 @@ class TwitchBot(commands.AutoBot):
                             result = await cursor.fetchone()
                             if result and result.get("timezone"):
                                 timezone = result.get("timezone")
-                                tz = pytz_timezone(timezone)
+                                tz = resolve_profile_timezone(timezone)
                                 chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
                                 current_time = time_right_now(tz)
                                 time_format_date = current_time.strftime("%B %d, %Y")
@@ -13591,6 +13574,39 @@ def format_schedule_time(local_time):
         label += f" ({local_time.astimezone(timezone.utc).strftime('%H:%M')} UTC)"
     return label
 
+# Function to turn the profile's timezone name into a pytz zone; an empty or unknown name falls back to UTC
+def resolve_profile_timezone(tz_name):
+    if not tz_name:
+        return set_timezone.UTC
+    try:
+        return pytz_timezone(tz_name)
+    except Exception:
+        bot_logger.warning(f"Unknown profile timezone {tz_name!r}, using UTC")
+        return set_timezone.UTC
+
+# Function to move a date or date-time to the same day next year (29 Feb becomes 28 Feb when next year isn't a leap year)
+def same_day_next_year(value):
+    try:
+        return value.replace(year=value.year + 1)
+    except ValueError:
+        return value.replace(year=value.year + 1, day=28)
+
+# Function to format the time left until a (timeuntil.) value ("YYYY-MM-DD" or "YYYY-MM-DD-HH-MM") in the streamer's timezone; past dates roll to next year
+def format_time_until(datetime_str, tz):
+    if '-' in datetime_str[10:]:
+        naive = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M")
+    else:
+        naive = datetime.strptime(datetime_str, "%Y-%m-%d")
+    current_datetime = time_right_now(tz)
+    # localize applies the zone's real offset (incl. daylight saving); replace(tzinfo=) would use pytz's old local mean time
+    event_datetime = tz.localize(naive)
+    if event_datetime < current_datetime:
+        event_datetime = tz.localize(same_day_next_year(naive))
+    time_left = event_datetime - current_datetime
+    hours_left, remainder = divmod(time_left.seconds, 3600)
+    minutes_left, _ = divmod(remainder, 60)
+    return f"{time_left.days} days, {hours_left} hours, and {minutes_left} minutes"
+
 # Function to pick the next upcoming Twitch schedule segment, ignoring cancelled slots that were replaced the same local day
 def pick_next_schedule_stream(segments, current_time, tz, min_start=None):
     upcoming = []
@@ -14151,7 +14167,7 @@ async def process_dynamic_variables(
             tz_result = await cursor.fetchone()
             if tz_result and tz_result.get("timezone"):
                 timezone = tz_result.get("timezone")
-                tz = pytz_timezone(timezone)
+                tz = resolve_profile_timezone(timezone)
             else:
                 tz = set_timezone.UTC
             many_options_enabled = False
@@ -14263,7 +14279,7 @@ async def process_dynamic_variables(
                         current_date = time_right_now(tz).date()
                         days_left = (event_date - current_date).days
                         if days_left < 0:
-                            next_year_date = event_date.replace(year=event_date.year + 1)
+                            next_year_date = same_day_next_year(event_date)
                             days_left = (next_year_date - current_date).days
                         response = response.replace(f"(daysuntil.{date_str})", str(days_left))
                 # Handle (timeuntil.)
@@ -14271,20 +14287,7 @@ async def process_dynamic_variables(
                     get_datetime = re.search(r'\(timeuntil\.(\d{4}-\d{2}-\d{2}(?:-\d{1,2}-\d{2})?)\)', response)
                     if get_datetime:
                         datetime_str = get_datetime.group(1)
-                        if '-' in datetime_str[10:]:
-                            event_datetime = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
-                        else:
-                            event_datetime = datetime.strptime(datetime_str + "-00-00", "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
-                        current_datetime = time_right_now(tz)
-                        time_left = event_datetime - current_datetime
-                        if time_left.days < 0:
-                            event_datetime = event_datetime.replace(year=event_datetime.year + 1)
-                            time_left = event_datetime - current_datetime
-                        days_left = time_left.days
-                        hours_left, remainder = divmod(time_left.seconds, 3600)
-                        minutes_left, _ = divmod(remainder, 60)
-                        time_left_str = f"{days_left} days, {hours_left} hours, and {minutes_left} minutes"
-                        response = response.replace(f"(timeuntil.{datetime_str})", time_left_str)
+                        response = response.replace(f"(timeuntil.{datetime_str})", format_time_until(datetime_str, tz))
                 # Handle (user) and (author)
                 if '(user)' in response:
                     response = response.replace('(user)', user)
@@ -18813,7 +18816,7 @@ async def midnight():
             result = await cursor.fetchone()
             if result and result.get("timezone"):
                 timezone = result.get("timezone")
-                tz = pytz_timezone(timezone)
+                tz = resolve_profile_timezone(timezone)
             else:
                 # Default to UTC if no timezone is set
                 bot_logger.info("No timezone set for the user. Defaulting to UTC.")
