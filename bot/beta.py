@@ -12985,7 +12985,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         return f"that task is already in \"{target}\"."
     if selector == 'now':
         await cursor.execute(
-            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
             (user_id, source_project)
         )
         task = await cursor.fetchone()
@@ -13012,7 +13012,9 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
     if selector.isdigit():
         n = int(selector)
         await cursor.execute(
-            "SELECT id, title FROM user_tasks WHERE user_id = %s AND backlog_position = %s AND project <=> %s LIMIT 1",
+            # Only open tasks (not timer rows or finished/rejected ones)
+            "SELECT id, title, status FROM user_tasks WHERE user_id = %s AND backlog_position = %s AND project <=> %s "
+            "AND task_type = 'task' AND status IN ('active', 'pending') LIMIT 1",
             (user_id, n, source_project)
         )
         task = await cursor.fetchone()
@@ -13023,13 +13025,21 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         await register_user_project(cursor, user_id, user_name, target)
         new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
         await renumber_project_backlog(cursor, user_id, source_project)
+        # Moving the active task frees this project's active slot, so the backlog head takes over (same as move now)
+        promoted = await promote_backlog_head(cursor, user_id, source_project) if task.get('status') == 'active' else None
         emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
         emit_task_update({
             "id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
             "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner,
         }, owner=task_owner)
+        if promoted:
+            emit_task_update({
+                "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                "title": promoted.get('title'), "status": "active", "project": source_project, "owner": task_owner,
+            }, owner=task_owner)
         placed = f"is now active task #{new_pos} in \"{target}\"" if new_status == 'active' else f"queued as task #{new_pos} in \"{target}\""
-        return f"moved \"{title}\" - it {placed}."
+        follow_up = f" Now working on \"{promoted.get('title')}\"." if promoted else ""
+        return f"moved \"{title}\" - it {placed}.{follow_up}"
     return "usage: !project move <n|now> <project name>"
 
 # Function handling !project rename <old> | <new>; returns the chat reply (no @user prefix)
