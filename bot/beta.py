@@ -9890,6 +9890,7 @@ class TwitchBot(commands.Bot):
                 ignored_result = await cursor.fetchone()
                 if ignored_result:
                     await send_chat_message("Deaths are not counted for this game.")
+                    return
                 chat_logger.info("[DEATHS] Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
