@@ -8479,6 +8479,9 @@ class TwitchBot(commands.Bot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('steam', bucket_key, cooldown_bucket)
+            if not current_game or str(current_game).strip().lower() == "unknown":
+                await send_chat_message("There's no game set for the stream right now, so I can't check Steam.")
+                return
             steam_api_url = "https://api.botofthespecter.com/api/steamapplist"
             async with httpClientSession(timeout=ClientTimeout(total=15)) as session:
                 async with session.get(steam_api_url) as response:
