@@ -15,7 +15,7 @@ from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, deque
 
 # Third-party imports
 import pytz as set_timezone
@@ -221,7 +221,9 @@ _cv_cmd_author_id: ContextVar[str] = ContextVar('_cv_cmd_author_id', default='')
 _cv_cmd_user_msg: ContextVar[str] = ContextVar('_cv_cmd_user_msg', default='')
 BOT_HOME_CHANNEL_NAME = 'botofthespecter'
 BOT_HOME_AI_HISTORY_DIR = '/home/botofthespecter/ai/bot-channel-chat-history'
-AD_BREAK_CHAT_DIR = '/home/botofthespecter/ai/ad_break_chat'
+# Recent chat kept in memory for AI ad-break messages; cleared at stream start and after each AI ad message
+AD_BREAK_CHAT_MAX_LINES = 300
+ad_break_chat_history = deque(maxlen=AD_BREAK_CHAT_MAX_LINES)
 # Max allowed characters per chat message; reserve room for possible prefixes like @username
 MAX_CHAT_MESSAGE_LENGTH = 500
 SSH_USERNAME = os.getenv('SSH_USERNAME')
@@ -1428,36 +1430,8 @@ async def process_twitch_eventsub_message(message):
             message_text = event_data["message"]["text"]
             is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
             # Capture chat for AI Ad Breaks
-            try:
-                is_auto_message = False
-                auto_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
-                if message_text in auto_messages:
-                    is_auto_message = True
-                if not is_auto_message and not is_bot_message:
-                    Path(AD_BREAK_CHAT_DIR).mkdir(parents=True, exist_ok=True)
-                    chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-                    chat_entry = {
-                        "user": chatter_user_name,
-                        "message": message_text,
-                        "timestamp": time.time()
-                    }
-                    current_chat = []
-                    if chat_file.exists():
-                        try:
-                            with chat_file.open('r', encoding='utf-8') as f:
-                                content = f.read()
-                                if content:
-                                    current_chat = json.loads(content)
-                        except json.JSONDecodeError:
-                            # If file is corrupted, start fresh
-                            current_chat = []
-                        except Exception as e:
-                            event_logger.error(f"[EVENTSUB] Error reading ad break chat log: {e}")
-                    current_chat.append(chat_entry)
-                    with chat_file.open('w', encoding='utf-8') as f:
-                        json.dump(current_chat, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                event_logger.error(f"[EVENTSUB] Error logging chat for ad break: {e}")
+            if not is_bot_message:
+                record_ad_break_chat(chatter_user_name, message_text)
             if not is_bot_message:
                 safe_create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text, event_data))
             return
@@ -20146,13 +20120,19 @@ def reset_ad_notice_state_for_session(session_started_at, source=""):
     api_logger.info(f"[ADS] Reset ad-notice state for session {session_key} ({source})")
     return True
 
+# Function to remember a chat line for AI ad-break messages (timed messages are skipped)
+def record_ad_break_chat(user_name, message_text):
+    if not message_text:
+        return
+    timed_messages = {m.get('message') for m in active_timed_messages.values() if m.get('message')}
+    if message_text in timed_messages:
+        return
+    ad_break_chat_history.append({"user": user_name, "message": message_text, "timestamp": time.time()})
+
 def clear_ad_break_chat_history(context=""):
     try:
-        chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-        if chat_file.exists():
-            with chat_file.open('w', encoding='utf-8') as f:
-                json.dump([], f)
-            if context:
+        ad_break_chat_history.clear()
+        if context:
                 event_logger.info(f"[ADS] Cleared ad break chat history ({context})")
     except Exception as e:
         event_logger.error(f"[ADS] Error clearing ad break chat history ({context or 'unknown'}): {e}")
@@ -20461,25 +20441,12 @@ async def handle_ad_break_start(duration_seconds, started_at=None):
     finally:
         if connection:
             await connection.close()
-    chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-    chat_history = []
-    if chat_file.exists():
-        try:
-            with chat_file.open('r', encoding='utf-8') as f:
-                content = f.read()
-                if content:
-                    chat_history = json.loads(content)
-                    # Filter out only timed messages for AI context (keep command responses)
-                    timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
-                    chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
-                    # Limit AI context to current stream session only
-                    if stream_session_started_at > 0:
-                        chat_history = [
-                            entry for entry in chat_history
-                            if isinstance(entry.get('timestamp'), (int, float)) and entry['timestamp'] >= stream_session_started_at
-                        ]
-        except Exception as e:
-            event_logger.error(f"[ADS] Error reading ad break chat history: {e}")
+    # Filter out only timed messages for AI context (keep command responses)
+    timed_messages = {m.get('message') for m in active_timed_messages.values() if m.get('message')}
+    chat_history = [entry for entry in ad_break_chat_history if entry.get('message', '') not in timed_messages]
+    # Limit AI context to current stream session only
+    if stream_session_started_at > 0:
+        chat_history = [entry for entry in chat_history if entry['timestamp'] >= stream_session_started_at]
     # 2. Send immediate plain-text start notice, then optionally follow with AI message
     enable_ai = settings.get('enable_ai_ad_breaks', 0)
     premium_tier = await check_premium_feature(CHANNEL_NAME)
