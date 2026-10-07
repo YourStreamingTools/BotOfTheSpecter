@@ -17061,7 +17061,8 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             event_logger.debug(f"[SUB EVENT] Existing subscription: {existing_subscription}")
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription["sub_plan"], existing_subscription["months"]
-                new_months = db_months + event_months
+                # Twitch sends the cumulative month count, so keep the larger number instead of adding (5 stored + a 6-month resub is 6, not 11)
+                new_months = max(int(db_months or 0), int(event_months or 0))
                 if existing_sub_plan != sub_plan:
                     await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, new_months, user_id))
                     event_logger.info(f"[SUB EVENT] Updated subscription plan for user_id: {user_id} to {sub_plan} with {new_months} months")
@@ -17101,6 +17102,10 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                 if sub_add_time > 0:
                     await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages (skip for upgrades since they send their own message)
+            # Upgrades send their own chat line, so they skip the alert but still need these set for the code below
+            alert_message = ""
+            send_shoutout = False
+            shoutout_message = None
             if not is_upgrade:
                 await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
                 result = await cursor.fetchone()
@@ -17180,7 +17185,8 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             event_logger.debug(f"[SUB MESSAGE] Existing subscription: {existing_subscription}")
             if existing_subscription:
                 existing_sub_plan, db_months = existing_subscription["sub_plan"], existing_subscription["months"]
-                new_months = db_months + event_months
+                # Twitch sends the cumulative month count, so keep the larger number instead of adding (5 stored + a 6-month resub is 6, not 11)
+                new_months = max(int(db_months or 0), int(event_months or 0))
                 if existing_sub_plan != sub_plan:
                     await cursor.execute('UPDATE subscription_data SET sub_plan = %s, months = %s WHERE user_id = %s', (sub_plan, new_months, user_id))
                     event_logger.info(f"[SUB MESSAGE] Updated subscription plan for user_id: {user_id} to {sub_plan} with {new_months} months")
@@ -17220,6 +17226,10 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 if sub_add_time > 0:
                     await addtime_subathon(CHANNEL_NAME, sub_add_time)  # Call to add time based on subscriptions
             # Send notification messages (skip for upgrades since they send their own message)
+            # Upgrades send their own chat line, so they skip the alert but still need these set for the code below
+            alert_message = ""
+            send_shoutout = False
+            shoutout_message = None
             if not is_upgrade:
                 await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("subscription_alert",))
                 result = await cursor.fetchone()
