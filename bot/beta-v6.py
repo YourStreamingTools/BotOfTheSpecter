@@ -3589,6 +3589,8 @@ class TwitchBot(commands.AutoBot):
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
         looped_tasks["midnight"] = create_task(midnight())
+        # Pick up a subathon that was running before the restart (exits straight away when none is)
+        start_looped_task("subathon_countdown", subathon_countdown)
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
         looped_tasks["pet_low_stat_watch"] = create_task(pet_low_stat_watch())
@@ -18659,7 +18661,7 @@ async def start_subathon(ctx):
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
-                    create_task(subathon_countdown())
+                    start_looped_task("subathon_countdown", subathon_countdown)
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
                     create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
@@ -18722,7 +18724,7 @@ async def resume_subathon(ctx):
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
                 await send_chat_message(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
-                create_task(subathon_countdown())
+                start_looped_task("subathon_countdown", subathon_countdown)
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
                 create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
@@ -18780,6 +18782,7 @@ async def subathon_countdown():
                 finally:
                     if connection:
                         await connection.release()
+                create_task(websocket_notice(event="SUBATHON_STOP"))
                 break
         elif not subathon_state or subathon_state["paused"]:
             break
