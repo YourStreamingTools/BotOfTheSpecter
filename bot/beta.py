@@ -6716,7 +6716,8 @@ class TwitchBot(commands.Bot):
                 else:
                     bucket_key, cooldown_bucket = 'mod', 'mods'
             parts = ctx.message.content.split(" ", 1)
-            if len(parts) < 2 or not parts[1].strip().isdigit():
+            # Positions start at 1 (position 0 would become OFFSET -1, which MySQL rejects)
+            if len(parts) < 2 or not parts[1].strip().isdigit() or int(parts[1].strip()) < 1:
                 await send_chat_message("Usage: !removesong <position>  (see !songqueue for positions)")
                 return
             position = int(parts[1].strip())
