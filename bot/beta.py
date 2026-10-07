@@ -13062,9 +13062,9 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
         return "usage: !project delete <project name>"
     if not await user_project_exists(cursor, user_id, name):
         return f"you have no project named \"{name}\"."
-    # Open tasks are NEVER deleted - they fall back to the default project. The default's active slot wins: the deleted project's active task only becomes the default active task when that slot is free, otherwise it queues.
+    # Open tasks are NEVER deleted - they fall back to the default project and keep their task numbers. The default's active slot wins: the deleted project's active task only becomes the default active task when that slot is free, otherwise it queues.
     await cursor.execute(
-        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project IS NULL LIMIT 1",
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project IS NULL LIMIT 1",
         (user_id,)
     )
     default_has_active = bool(await cursor.fetchone())
@@ -13074,26 +13074,19 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
         (user_id, name)
     )
     open_tasks = await cursor.fetchall()
-    await cursor.execute(
-        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project IS NULL",
-        (user_id,)
-    )
-    row = await cursor.fetchone()
-    next_pos = int((row.get('max_pos') if row else 0) or 0) + 1
     moved = 0
     for task in open_tasks:
         if task.get('status') == 'active' and not default_has_active:
             await cursor.execute(
-                "UPDATE user_tasks SET project = NULL, backlog_position = NULL WHERE id = %s",
+                "UPDATE user_tasks SET project = NULL WHERE id = %s",
                 (task.get('id'),)
             )
             default_has_active = True
         else:
             await cursor.execute(
-                "UPDATE user_tasks SET project = NULL, status = 'pending', backlog_position = %s WHERE id = %s",
-                (next_pos, task.get('id'))
+                "UPDATE user_tasks SET project = NULL, status = 'pending' WHERE id = %s",
+                (task.get('id'),)
             )
-            next_pos += 1
         moved += 1
     # Completed/rejected history just merges into the default scope.
     await cursor.execute(
