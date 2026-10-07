@@ -10018,7 +10018,8 @@ class TwitchBot(commands.AutoBot):
                         async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
                             if response.status == 200:
                                 data = await response.json()
-                                if data['total'] > 0:
+                                # total is the channel's follower count even when filtered by user_id, so check the user's own row
+                                if data.get('data'):
                                     followed_at_str = data['data'][0]['followed_at']
                                     followed_at = datetime.strptime(followed_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
                                     followage = time_right_now(timezone.utc) - followed_at
