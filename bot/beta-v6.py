@@ -19310,19 +19310,28 @@ async def fetch_active_users():
         "Client-ID": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}"
     }
-    url = f"https://api.twitch.tv/helix/chat/chatters?broadcaster_id={CHANNEL_ID}&moderator_id={CHANNEL_ID}"
+    url = "https://api.twitch.tv/helix/chat/chatters"
+    users = []
+    cursor = None
     async with httpClientSession() as session:
         try:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
+            # Get Chatters returns at most 1000 per page; follow the cursor so big chats are fully counted
+            while True:
+                params = {"broadcaster_id": CHANNEL_ID, "moderator_id": CHANNEL_ID, "first": "1000"}
+                if cursor:
+                    params["after"] = cursor
+                async with session.get(url, headers=headers, params=params) as response:
+                    if response.status != 200:
+                        bot_logger.error(f"Failed to fetch active users: {response.status} {await response.text()}")
+                        return users
                     data = await response.json()
-                    return data.get("data", [])
-                else:
-                    bot_logger.error(f"Failed to fetch active users: {response.status} {await response.text()}")
-                    return []
+                users.extend(data.get("data", []))
+                cursor = (data.get("pagination") or {}).get("cursor")
+                if not cursor:
+                    return users
         except Exception as e:
             bot_logger.error(f"Error fetching active users: {e}")
-            return []
+            return users
 
 # Function to add time in the database
 async def track_watch_time(active_users):
