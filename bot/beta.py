@@ -1428,13 +1428,15 @@ async def process_twitch_eventsub_message(message):
                 return
             chatter_user_id = event_data["chatter_user_id"]
             chatter_user_name = event_data["chatter_user_name"]
+            # chatter_user_name is the display name (can differ from the login, e.g. non-Latin names); commands, permissions and stored names use the login
+            chatter_user_login = event_data.get("chatter_user_login") or chatter_user_name
             message_text = event_data["message"]["text"]
-            is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
+            is_bot_message = (chatter_user_login or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
             # Capture chat for AI Ad Breaks
             if not is_bot_message:
                 record_ad_break_chat(chatter_user_name, message_text)
             if not is_bot_message:
-                safe_create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text, event_data))
+                safe_create_task(process_chat_message_event(chatter_user_id, chatter_user_login, message_text, event_data))
             return
         if not event_type:
             return
