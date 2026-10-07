@@ -9304,27 +9304,35 @@ class TwitchBot(commands.AutoBot):
                     created = []
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
-                    for title in reversed(titles):
+                    # Make room at the front: shift the numbered rows up, then fill #1..#n in the order typed.
+                    # The streamer's table also holds dashboard-added tasks without a user_id, so shift the whole table for them.
+                    if owner == "streamer":
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
-                            (user_id,)
+                            "UPDATE user_tasks SET backlog_position = backlog_position + %s WHERE backlog_position IS NOT NULL ORDER BY backlog_position DESC",
+                            (len(titles),)
                         )
-                        max_row = await cursor.fetchone()
-                        pos = int(max_row.get('max_pos') or 0) + 1
+                    else:
+                        await cursor.execute(
+                            "UPDATE user_tasks SET backlog_position = backlog_position + %s WHERE user_id = %s AND backlog_position IS NOT NULL ORDER BY backlog_position DESC",
+                            (len(titles), user_id)
+                        )
+                    for pos, title in enumerate(titles, start=1):
                         await cursor.execute(
                             "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
                             "VALUES (%s, %s, %s, 'pending', 'auto', %s, %s, %s)",
                             (user_id, user_name, title, reward_points, pos, project)
                         )
-                        created.append((cursor.lastrowid, title))
-                    for cid, ctitle in created:
-                        emit_task_create({"id": cid, "user_id": user_id, "user_name": user_name,
-                                          "title": ctitle, "status": "pending", "approval_status": "auto",
-                                          "reward_points": reward_points, "project": project, "owner": owner}, owner=owner)
+                        created.append((cursor.lastrowid, title, pos))
+                    for cid, ctitle, cpos in created:
+                        emit_task_create({
+                            "id": cid, "user_id": user_id, "user_name": user_name,
+                            "title": ctitle, "status": "pending", "approval_status": "auto",
+                            "reward_points": reward_points, "backlog_position": cpos, "project": project, "owner": owner
+                        }, owner=owner)
                     if len(titles) == 1:
                         await send_chat_message(f"@{user_name} queued \"{titles[0]}\" next at #1.")
                     else:
-                        await send_chat_message(f"@{user_name} queued {len(titles)} tasks at the front of your backlog.")
+                        await send_chat_message(f"@{user_name} queued {len(titles)} tasks at the front of your backlog as #1-#{len(titles)}.")
         except Exception as e:
             chat_logger.error(f"[SOON] Error in soon_command: {e}")
             await send_chat_message("An error occurred while queueing your task.")
