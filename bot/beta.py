@@ -14105,7 +14105,8 @@ async def command_permissions(setting, user):
                     if subscriptions:
                         for subscription in subscriptions:
                             tier = subscription['tier']
-                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000") or user.is_mod:
+                            # Higher tiers count too: a Tier 3 sub can use Tier 2 commands
+                            if int(tier or 0) >= (2000 if setting == "t2-sub" else 3000) or user.is_mod:
                                 if user.is_mod:
                                     chat_logger.info(f"[PERMISSIONS] Command Permission checked, {user.name} is a Moderator")
                                 else:
