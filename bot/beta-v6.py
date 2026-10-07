@@ -9228,8 +9228,9 @@ class TwitchBot(commands.AutoBot):
                     reward_points = await task_default_reward(cursor)
                     for title in titles:
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status IN ('pending', 'active') AND project <=> %s",
-                            (user_id, project)
+                            # Task numbers are per viewer across every project (same sequence as !task), so take the highest number they have anywhere
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
+                            (user_id,)
                         )
                         max_row = await cursor.fetchone()
                         pos = int(max_row.get('max_pos') or 0) + 1
@@ -9366,7 +9367,7 @@ class TwitchBot(commands.AutoBot):
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT backlog_position, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
+                        "SELECT backlog_position, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND task_type = 'task' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
                         (user_id, project)
                     )
                     rows = await cursor.fetchall()
