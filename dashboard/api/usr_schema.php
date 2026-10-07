@@ -1,45 +1,26 @@
 <?php
-// Returns schema console messages collected after layout finishes the HTML response.
+// Returns the per-user schema check result once layout.php has run it after sending the page.
+// ?since=<unix time> - only a check finished at or after this time counts (the page's render time).
 require_once '/var/www/lib/session_bootstrap.php';
 require_once '/var/www/lib/require_auth_ajax.php';
+require_once __DIR__ . '/../includes/usr_schema_marker.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 $username = (string) ($_SESSION['username'] ?? '');
-$ok = (string) ($_SESSION['usr_schema_ok'] ?? '');
-$logs = $_SESSION['usr_schema_console'] ?? null;
-$peek = isset($_GET['peek']);
-
-if (is_array($logs)) {
-    if (!$peek) {
-        unset($_SESSION['usr_schema_console']);
-    }
-    session_write_close();
-    echo json_encode([
-        'ok' => true,
-        'pending' => false,
-        'skipped' => false,
-        'logs' => $logs,
-    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
 session_write_close();
 
-if ($username !== '' && $ok === $username) {
-    echo json_encode([
-        'ok' => true,
-        'pending' => false,
-        'skipped' => true,
-        'logs' => [],
-    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
-}
+$since = isset($_GET['since']) ? (int) $_GET['since'] : 0;
+$marker = $username !== '' ? usr_schema_marker_read($username) : null;
+// A successful check counts whenever it ran (another tab may have finished it first); a failed one only if it is from this page.
+$finished = $marker !== null
+    && ($marker['fingerprint'] ?? '') === usr_schema_marker_fingerprint()
+    && (!empty($marker['ok']) || (int) ($marker['checked_at'] ?? 0) >= $since);
 
 echo json_encode([
     'ok' => true,
-    'pending' => true,
+    'pending' => !$finished,
     'skipped' => false,
-    'logs' => [],
+    'logs' => $finished && is_array($marker['logs'] ?? null) ? $marker['logs'] : [],
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

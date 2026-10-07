@@ -208,7 +208,8 @@ if ($isLoggedIn) {
         "use strict";
         var API = 'https://api.botofthespecter.com';
         var CODE = <?php echo json_encode($_SESSION['api_key'] ?? ''); ?>;
-        var SCHEMA_PENDING = <?php echo json_encode(!empty($_SESSION['username']) && (empty($_SESSION['usr_schema_ok']) || (string) $_SESSION['usr_schema_ok'] !== (string) $_SESSION['username'])); ?>;
+        var SCHEMA_PENDING = <?php require_once __DIR__ . '/includes/usr_schema_marker.php'; echo json_encode(!empty($_SESSION['username']) && !usr_schema_marker_is_current((string) $_SESSION['username'])); ?>;
+        var SCHEMA_SINCE = <?php echo time(); ?>;
         var I18N = {
             live: <?php echo json_encode(t('dashboard_js_live')); ?>,
             offline: <?php echo json_encode(t('dashboard_js_offline')); ?>,
@@ -687,7 +688,7 @@ if ($isLoggedIn) {
                 var abortTimer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 2500);
                 var opts = { credentials: 'same-origin', cache: 'no-store' };
                 if (ctrl) opts.signal = ctrl.signal;
-                fetch('/api/usr_schema.php?peek=1', opts)
+                fetch('/api/usr_schema.php?since=' + SCHEMA_SINCE, opts)
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (d) {
                         clearTimeout(abortTimer);
