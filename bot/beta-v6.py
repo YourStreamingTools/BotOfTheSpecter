@@ -1888,11 +1888,9 @@ async def process_twitch_eventsub_message(message):
                         user_name = timeout_info.get("user_name", "Unknown User")
                         reason = timeout_info.get("reason", "No reason provided")
                         expires_at_str = timeout_info.get("expires_at")
-                        if expires_at_str:
-                            expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
-                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-                        else:
-                            expires_at_formatted = "No expiration time provided"
+                        # Twitch timestamps may carry fractional seconds, which a fixed strptime format rejects
+                        expires_at = parse_twitch_schedule_time(expires_at_str)
+                        expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC") if expires_at else "No expiration time provided"
                         event_logger.info(f"User {user_name} timed out by {moderator_user_name} for: {reason}. Expires at: {expires_at_formatted}")
                     elif action == "untimeout":
                         untimeout_info = event_data.get("untimeout", {})
@@ -1960,11 +1958,9 @@ async def process_twitch_eventsub_message(message):
                         user_name = shared_timeout_info.get("user_name", "Unknown User")
                         reason = shared_timeout_info.get("reason", "No reason provided")
                         expires_at_str = shared_timeout_info.get("expires_at")
-                        if expires_at_str:
-                            expires_at = datetime.strptime(expires_at_str, "%Y-%m-%dT%H:%M:%SZ")
-                            expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-                        else:
-                            expires_at_formatted = "No expiration time provided"
+                        # Twitch timestamps may carry fractional seconds, which a fixed strptime format rejects
+                        expires_at = parse_twitch_schedule_time(expires_at_str)
+                        expires_at_formatted = expires_at.strftime("%Y-%m-%d %H:%M:%S UTC") if expires_at else "No expiration time provided"
                         source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
                         event_logger.info(f"User {user_name} timed out in shared chat by {moderator_user_name} from {source_broadcaster} for: {reason}. Expires at: {expires_at_formatted}")
                     elif action == "shared_chat_untimeout":
@@ -2077,6 +2073,7 @@ async def process_twitch_eventsub_message(message):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             create_task(deny_automod_message(messageHoldID))
                             create_task(ban_user(messageAuthor, messageAuthorID))
+                            break
                 # User Message Hold Event
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"Got a User Message Hold in Chat: {event_data}")
@@ -2090,6 +2087,7 @@ async def process_twitch_eventsub_message(message):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             create_task(deny_automod_message(messageHoldID))
                             create_task(ban_user(messageAuthor, messageAuthorID))
+                            break
                 # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
                     spam_pattern = await get_spam_patterns()
@@ -2118,6 +2116,7 @@ async def process_twitch_eventsub_message(message):
                         if pattern.search(messageContent):
                             twitch_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
                             create_task(ban_user(messageAuthor, messageAuthorID))
+                            break
                 elif event_type == "channel.shoutout.create" or event_type == "channel.shoutout.receive":
                     if event_type == "channel.shoutout.create":
                         global shoutout_user
