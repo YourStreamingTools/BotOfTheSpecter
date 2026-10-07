@@ -210,10 +210,11 @@ try {
             }
             if ($event === "SOUND_ALERT") {
                 $soundBase = $isMigrated ? 'media.botofthespecter.com' : 'soundalerts.botofthespecter.com';
-                $params['sound'] = "https://$soundBase/" . $channelName . "/" . $_POST['sound'];
+                // File names can contain spaces, # or ?, so each path segment is URL-encoded
+                $params['sound'] = "https://$soundBase/" . $channelName . "/" . implode('/', array_map('rawurlencode', explode('/', (string) $_POST['sound'])));
             } else {
                 $videoBase = $isMigrated ? 'media.botofthespecter.com' : 'videoalerts.botofthespecter.com';
-                $params['video'] = "https://$videoBase/" . $channelName . "/" . $_POST['video'];
+                $params['video'] = "https://$videoBase/" . $channelName . "/" . implode('/', array_map('rawurlencode', explode('/', (string) $_POST['video'])));
             }
         } else {
             $response['message'] = "Event '$event' requires additional parameters or is not recognized.";
