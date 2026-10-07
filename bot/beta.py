@@ -16439,11 +16439,14 @@ async def get_spotify_current_song():
             if response.status == 200:
                 data = await response.json()
                 # Extract song name, artist if Spotify is currently playing
-                is_playing = data["is_playing"]
-                if is_playing:
-                    song_id = data["item"]["uri"]
-                    song_name = data["item"]["name"]
-                    artist_name = ", ".join([artist["name"] for artist in data["item"]["artists"]])
+                is_playing = data.get("is_playing")
+                # During an ad the item is null; a podcast episode has a show instead of artists
+                item = data.get("item")
+                if is_playing and item:
+                    song_id = item.get("uri")
+                    song_name = item.get("name")
+                    artists = item.get("artists") or ([{"name": item["show"].get("name")}] if item.get("show") else [])
+                    artist_name = ", ".join(artist.get("name") or "" for artist in artists) or "Unknown artist"
                     api_logger.info(f"[SPOTIFY] The current song from Spotify is: {song_name} by {artist_name}")
                     return song_name, artist_name, song_id, None  # Return song name, artist name, song id and no error
                 else:
