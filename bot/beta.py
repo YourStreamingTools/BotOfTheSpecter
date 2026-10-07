@@ -15493,6 +15493,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
             await connection.close()
 
 # Function to get the last stream category for a user to shoutout
+# Returns (game_name, broadcaster_login); either can be None
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
     global CLIENT_ID, CHANNEL_AUTH
     headers = {
@@ -15508,18 +15509,19 @@ async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
                 data = await response.json()
                 if data.get("data"):
                     game_name = data["data"][0].get("game_name")
+                    login = data["data"][0].get("broadcaster_login")
                     if game_name:
                         twitch_logger.info(f"[SHOUTOUT] Got game for {user_to_shoutout}: {game_name}.")
-                        return game_name
+                        return game_name, login
                     else:
                         api_logger.error(f"[SHOUTOUT] Game name not found in Twitch API response for {user_to_shoutout}.")
-                        return None
+                        return None, login
                 else:
                     api_logger.error(f"[SHOUTOUT] Empty response data from Twitch API for {user_to_shoutout}.")
-                    return None
+                    return None, None
             else:
                 api_logger.error(f"[SHOUTOUT] Failed to get game for {user_to_shoutout}. Status code: {response.status}")
-                return None
+                return None, None
 
 # Function to process JSON requests
 async def fetch_json(url, headers=None):
@@ -21439,36 +21441,12 @@ async def send_long_chat_message(message):
 
 # Function to generate shoutout message with game info
 async def get_shoutout_message(user_id, user_name, action="command"):
-    game = await get_latest_stream_game(user_id, user_name)
-    # For raids, we know the user was just streaming, so always include game info
-    if action == "raid":
-        if game:
-            shoutout_message = (
-                f"Hey, huge shoutout to @{user_name}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_name} where they were playing: {game}"
-            )
-        else:
-            # Fallback if game fetch fails for raid
-            shoutout_message = (
-                f"Hey, huge shoutout to @{user_name}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_name}"
-            )
-    else:
-        # For other actions, check if game exists before including it
-        if game:
-            shoutout_message = (
-                f"Hey, huge shoutout to @{user_name}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_name} where they were playing: {game}"
-            )
-        else:
-            shoutout_message = (
-                f"Hey, huge shoutout to @{user_name}! "
-                f"You should go give them a follow over at "
-                f"https://www.twitch.tv/{user_name}"
-            )
+    game, login = await get_latest_stream_game(user_id, user_name)
+    # The channel link needs the login - user_name is often the display name, which breaks the URL for non-Latin names
+    channel_url = f"https://www.twitch.tv/{login or user_name}"
+    shoutout_message = f"Hey, huge shoutout to @{user_name}! You should go give them a follow over at {channel_url}"
+    if game:
+        shoutout_message += f" where they were playing: {game}"
     return shoutout_message
 
 # Function to manage user points
