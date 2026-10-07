@@ -161,7 +161,7 @@
 			"syntax": "!rename Finish chapter 2 instead"
 		},
 		"remove": {
-			"description": "Removes your current active task from the Working & Study overlay.",
+			"description": "Removes your current active task from the Working & Study overlay and makes the next item in your backlog active.",
 			"syntax": "!remove"
 		},
 		"mytasks": {
