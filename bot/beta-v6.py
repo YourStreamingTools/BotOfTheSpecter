@@ -6631,29 +6631,15 @@ class TwitchBot(commands.AutoBot):
                 device_id = None
                 async with session.get(device_url, headers=headers) as response:
                     if response.status != 200:
-                        active_devices = await response.json()
-                        current_active_devices = active_devices.get("devices", [])
-                        if not current_active_devices:
-                            await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
-                            return
-                        for device in current_active_devices:
-                            if device.get("is_active"):
-                                device_id = device["id"]
-                                break
-                        if device_id is None:
-                            await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
-                            return
-                    else:
-                        # If status is 200, still need to parse devices
-                        active_devices = await response.json()
-                        current_active_devices = active_devices.get("devices", [])
-                        for device in current_active_devices:
-                            if device.get("is_active"):
-                                device_id = device["id"]
-                                break
-                        if device_id is None:
-                            await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
-                            return
+                        api_logger.error(f"Spotify devices request returned response code: {response.status}")
+                        error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
+                        await send_chat_message(f"Sorry, I couldn't skip the song. {error_message}")
+                        return
+                    active_devices = await response.json()
+                device_id = next((device["id"] for device in active_devices.get("devices", []) if device.get("is_active")), None)
+                if device_id is None:
+                    await send_chat_message("No active Spotify devices found. Please make sure you have an active device playing Spotify.")
+                    return
                 next_url = f"https://api.spotify.com/v1/me/player/next?device_id={quote(str(device_id), safe='')}"
                 async with session.post(next_url, headers=headers) as response:
                     if response.status in (200, 204):
