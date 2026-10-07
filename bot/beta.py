@@ -21019,14 +21019,36 @@ def _save_bot_reply_to_ai_history(bot_message: str) -> None:
     except Exception as e:
         api_logger.debug(f"[AI] Failed to save bot reply to AI history for {author_id}: {e}")
 
+# Function to split a chat message into parts that fit Twitch's 500-character limit, breaking at the last space where possible
+def split_chat_message(message, limit=MAX_CHAT_MESSAGE_LENGTH):
+    parts = []
+    remaining = message
+    while len(remaining) > limit:
+        split_at = remaining.rfind(' ', 0, limit)
+        if split_at <= 0:
+            split_at = limit
+        parts.append(remaining[:split_at])
+        remaining = remaining[split_at:].lstrip()
+    if remaining:
+        parts.append(remaining)
+    return parts
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     global CLIENT_ID, CHANNEL_ID, CHANNEL_AUTH, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
     if not message:
         return False
-    if len(message) > 500:
-        chat_logger.error(f"[SEND MESSAGE] Message too long: {len(message)} characters (max 500)")
-        return False
+    # Messages over the limit are sent in parts instead of being dropped; only the first part is a threaded reply
+    if len(message) > MAX_CHAT_MESSAGE_LENGTH:
+        parts = split_chat_message(message)
+        chat_logger.info(f"[SEND MESSAGE] Message is {len(message)} characters; sending it in {len(parts)} parts")
+        sent_all = True
+        for index, part in enumerate(parts):
+            if index:
+                await sleep(0.5)
+            sent = await send_chat_message(part, for_source_only, reply_parent_message_id if index == 0 else None)
+            sent_all = sent_all and bool(sent)
+        return sent_all
     # Determine credentials based on mode
     if SELF_MODE:
         sender_id = CHANNEL_ID
@@ -21179,23 +21201,10 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     return False
 
 async def send_long_chat_message(message):
-    if len(message) <= MAX_CHAT_MESSAGE_LENGTH:
-        await send_chat_message(message)
+    # send_chat_message splits anything over the 500-character limit itself
+    if message is None:
         return
-    remaining = message
-    while remaining:
-        if len(remaining) <= MAX_CHAT_MESSAGE_LENGTH:
-            await send_chat_message(remaining)
-            break
-        # Back-track to the last space within the limit
-        split_at = remaining.rfind(' ', 0, MAX_CHAT_MESSAGE_LENGTH)
-        if split_at <= 0:
-            # No space found; force-split at the limit
-            split_at = MAX_CHAT_MESSAGE_LENGTH
-        await send_chat_message(remaining[:split_at])
-        remaining = remaining[split_at:].lstrip()
-        if remaining:
-            await sleep(0.5)
+    await send_chat_message(message)
 
 # Function to generate shoutout message with game info
 async def get_shoutout_message(user_id, user_name, action="command"):
