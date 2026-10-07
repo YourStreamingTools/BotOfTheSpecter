@@ -3,8 +3,9 @@ import { fetchChannel, type ChannelData } from '../api'
 import MemorialPage from './MemorialPage'
 import { cooldownColor, formatDateTime, formatLurkDuration, formatWatchTime, PERMISSION_LABELS } from '../format'
 
-type TabId =
+export type TabId =
   | 'customCommands'
+  | 'builtinCommands'
   | 'lurkers'
   | 'typos'
   | 'deaths'
@@ -20,6 +21,7 @@ type TabId =
 
 const TABS: Array<{ id: TabId; icon: string; label: string }> = [
   { id: 'customCommands', icon: 'fa-terminal', label: 'Custom Commands' },
+  { id: 'builtinCommands', icon: 'fa-robot', label: 'Built-in Commands' },
   { id: 'lurkers', icon: 'fa-eye-slash', label: 'Lurkers' },
   { id: 'typos', icon: 'fa-keyboard', label: 'Typo Counts' },
   { id: 'deaths', icon: 'fa-skull', label: 'Deaths' },
@@ -34,21 +36,21 @@ const TABS: Array<{ id: TabId; icon: string; label: string }> = [
   { id: 'todos', icon: 'fa-check-square', label: 'To-Do' },
 ]
 
-export default function ChannelPage({ username }: { username: string }) {
+export default function ChannelPage({ username, initialTab = 'customCommands' }: { username: string; initialTab?: TabId }) {
   const [data, setData] = useState<ChannelData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<TabId>('customCommands')
+  const [tab, setTab] = useState<TabId>(initialTab)
   const [rewardFilter, setRewardFilter] = useState('All')
 
   useEffect(() => {
     setData(null)
     setError(null)
-    setTab('customCommands')
+    setTab(initialTab)
     setRewardFilter('All')
     fetchChannel(username)
       .then((d) => setData(d))
       .catch(() => setError('Unable to load this channel.'))
-  }, [username])
+  }, [username, initialTab])
 
   if (error) {
     return (
@@ -234,6 +236,19 @@ function buildTable(data: ChannelData, tab: TabId, rewardFilter: string): TableV
         }),
       }
     }
+    case 'builtinCommands': {
+      const rows = data.builtin_commands || []
+      return {
+        title: 'Built-in Commands',
+        totals: `${rows.length} built-in commands enabled in this channel`,
+        headers: ['Command', 'Description', 'Usage', 'Permission', 'Cooldown'],
+        rows: rows.map((item) => {
+          const [permLabel] = PERMISSION_LABELS[item.permission] || [item.permission, '']
+          const aliases = item.aliases.length ? ' (also ' + item.aliases.map((a) => '!' + a).join(', ') + ')' : ''
+          return ['!' + item.command + aliases, item.description, item.syntax.join('  ·  '), permLabel, formatBuiltinCooldown(item)]
+        }),
+      }
+    }
     case 'lurkers': {
       const rows = [...(data.lurkers || [])].sort(
         (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
@@ -332,6 +347,15 @@ function buildTable(data: ChannelData, tab: TabId, rewardFilter: string): TableV
   }
 }
 
+function formatBuiltinCooldown(item: { cooldown_rate: number; cooldown_time: number; cooldown_bucket: string }): string {
+  if (item.cooldown_rate <= 0 || item.cooldown_time <= 0) return 'None'
+  const base = item.cooldown_rate === 1 ? `${item.cooldown_time}s` : `${item.cooldown_rate} uses per ${item.cooldown_time}s`
+  const bucket = (item.cooldown_bucket || 'default').toLowerCase()
+  if (bucket === 'user') return base + ' per viewer'
+  if (bucket === 'mod' || bucket === 'mods') return base + ' (mods share)'
+  return base + ' (shared)'
+}
+
 function cellClass(tab: TabId, col: number, value: string | number): string | undefined {
   if (tab === 'customCommands' && col === 2) return String(value) === 'Enabled' ? 'text-success' : 'text-danger'
   if (tab === 'lurkers' && col === 1) return 'text-success'
@@ -347,7 +371,7 @@ function cellStyle(tab: TabId, col: number, value: string | number): { color?: s
     const n = parseInt(String(value), 10)
     return { color: cooldownColor(Number.isNaN(n) ? 0 : n), fontWeight: 600 }
   }
-  if (tab === 'customCommands' && col === 4) {
+  if ((tab === 'customCommands' && col === 4) || (tab === 'builtinCommands' && col === 3)) {
     const found = Object.values(PERMISSION_LABELS).find(([label]) => label === String(value))
     return found ? { color: found[1], fontWeight: 600 } : {}
   }

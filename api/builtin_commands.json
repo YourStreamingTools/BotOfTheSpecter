@@ -1,7 +1,7 @@
 {
 	"commands": {
 		"commands": {
-			"description": "Lists all enabled built-in and custom commands active in your channel.",
+			"description": "Posts links to the channel's Built-in Commands and Custom Commands pages on the members site.",
 			"aliases": ["cmds"],
 			"syntax": "!commands"
 		},
