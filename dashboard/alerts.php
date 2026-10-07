@@ -171,9 +171,21 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
         $libraryImages = [];
         $librarySounds = [];
         if (isset($media_path) && is_string($media_path) && $media_path !== '' && is_dir($media_path)) {
-            foreach (scandir($media_path) as $f) {
-                if ($f === '.' || $f === '..') continue;
-                if (!is_file($media_path . '/' . $f)) continue;
+            // Media library folders are one level deep (managed on media.php); nested files are listed as "folder/file.ext".
+            $libraryEntries = [];
+            foreach (scandir($media_path) as $entry) {
+                if ($entry === '.' || $entry === '..') continue;
+                $full = $media_path . '/' . $entry;
+                if (is_file($full)) {
+                    $libraryEntries[] = $entry;
+                } elseif (is_dir($full)) {
+                    foreach (scandir($full) as $sub) {
+                        if ($sub === '.' || $sub === '..') continue;
+                        if (is_file($full . '/' . $sub)) $libraryEntries[] = $entry . '/' . $sub;
+                    }
+                }
+            }
+            foreach ($libraryEntries as $f) {
                 $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
                 if (in_array($ext, $libraryImageExts, true)) $libraryImages[] = $f;
                 elseif (in_array($ext, $librarySoundExts, true)) $librarySounds[] = $f;
@@ -1101,10 +1113,16 @@ ob_start();
         </header>
         <div class="sp-modal-body">
             <p class="alerts-help-text"><?= t('alerts_library_modal_help') ?></p>
-            <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="<?= htmlspecialchars(t('alerts_search_files')) ?>">
+            <div class="alerts-library-filters">
+                <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="<?= htmlspecialchars(t('alerts_search_files')) ?>">
+                <select class="sp-select alerts-library-folder" id="alerts-library-folder" aria-label="<?= htmlspecialchars(t('alerts_library_folder_label')) ?>" style="display:none;"></select>
+            </div>
             <div class="alerts-library-grid" id="alerts-library-grid" aria-busy="true"></div>
             <div class="alerts-library-empty" id="alerts-library-empty" style="display:none;">
                 <?= t('alerts_library_empty') ?>
+            </div>
+            <div class="alerts-library-empty" id="alerts-library-no-match" style="display:none;">
+                <?= t('alerts_library_no_match') ?>
             </div>
         </div>
     </div>
@@ -1207,7 +1225,9 @@ $(document).ready(function() {
         editMultipleTitle: <?php echo json_encode(t('alerts_edit_multiple_title')); ?>,
         editMultipleText: <?php echo json_encode(t('alerts_edit_multiple_text')); ?>,
         chooseImage: <?php echo json_encode(t('alerts_choose_image')); ?>,
-        chooseSound: <?php echo json_encode(t('alerts_choose_sound')); ?>
+        chooseSound: <?php echo json_encode(t('alerts_choose_sound')); ?>,
+        libraryAllFolders: <?php echo json_encode(t('alerts_library_all_folders')); ?>,
+        libraryNoFolder: <?php echo json_encode(t('alerts_library_no_folder')); ?>
     };
     // Enable/disable-only categories - selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
@@ -2302,6 +2322,47 @@ $(document).ready(function() {
     });
     var libraryMode = null; // 'image' | 'sound'
     var libraryFirstPaintDone = false;
+    var LIBRARY_ROOT_FOLDER = '/'; // folder filter value for files that are not in a folder
+    var libraryFolderFilter = ''; // '' = all folders; kept between opens so repeat picks stay in place
+    function libraryFolderOf(f) {
+        var i = f.lastIndexOf('/');
+        return i === -1 ? '' : f.slice(0, i);
+    }
+    function libraryBaseName(f) {
+        return f.slice(f.lastIndexOf('/') + 1);
+    }
+    function libraryFileUrl(f) {
+        return mediaBase + f.split('/').map(encodeURIComponent).join('/');
+    }
+    function currentLibraryFiles() {
+        return libraryMode === 'image' ? libraryImages : librarySounds;
+    }
+    // Fill the folder dropdown from the current file list; hidden when nothing is in a folder.
+    function buildLibraryFolderOptions(files) {
+        var select = $('#alerts-library-folder');
+        var counts = {}, rootCount = 0;
+        files.forEach(function(f) {
+            var folder = libraryFolderOf(f);
+            if (folder === '') rootCount++;
+            else counts[folder] = (counts[folder] || 0) + 1;
+        });
+        var names = Object.keys(counts).sort(function(a, b) {
+            return a.toLowerCase().localeCompare(b.toLowerCase());
+        });
+        if (libraryFolderFilter === LIBRARY_ROOT_FOLDER ? rootCount === 0 : (libraryFolderFilter !== '' && !counts[libraryFolderFilter])) {
+            libraryFolderFilter = '';
+        }
+        select.empty();
+        select.append($('<option>').val('').text(i18n.libraryAllFolders + ' (' + files.length + ')'));
+        if (rootCount > 0) {
+            select.append($('<option>').val(LIBRARY_ROOT_FOLDER).text(i18n.libraryNoFolder + ' (' + rootCount + ')'));
+        }
+        names.forEach(function(name) {
+            select.append($('<option>').val(name).text(name + ' (' + counts[name] + ')'));
+        });
+        select.val(libraryFolderFilter);
+        select.toggle(names.length > 0);
+    }
     function setBusy(el, busy) {
         if (!el || !el.length) return;
         if (busy) el.attr('aria-busy', 'true');
@@ -2325,6 +2386,7 @@ $(document).ready(function() {
         $('#alerts-library-modal-title').text(mode === 'image' ? i18n.chooseImage : i18n.chooseSound);
         $('#alerts-library-search').val('');
         $('#alerts-library-empty').hide();
+        $('#alerts-library-no-match').hide();
         var grid = $('#alerts-library-grid');
         setBusy(grid, true);
         grid.html(skeletonLibraryGridHtml(8));
@@ -2336,6 +2398,7 @@ $(document).ready(function() {
                 return;
             }
             var files = mode === 'image' ? libraryImages : librarySounds;
+            buildLibraryFolderOptions(files);
             renderLibrary(files, '');
         }
         // Yield a frame so the square-thumb skeletons paint before building media DOM.
@@ -2354,21 +2417,29 @@ $(document).ready(function() {
     }
     function renderLibrary(files, search) {
         var grid = $('#alerts-library-grid');
+        var needle = (search || '').toLowerCase();
         var filtered = files.filter(function(f) {
-            return !search || f.toLowerCase().indexOf(search.toLowerCase()) !== -1;
+            var folder = libraryFolderOf(f);
+            if (libraryFolderFilter === LIBRARY_ROOT_FOLDER && folder !== '') return false;
+            if (libraryFolderFilter !== '' && libraryFolderFilter !== LIBRARY_ROOT_FOLDER && folder !== libraryFolderFilter) return false;
+            return !needle || f.toLowerCase().indexOf(needle) !== -1;
         });
         if (filtered.length === 0) {
             grid.empty();
             // Only show empty after first open attempt completes (never during skeleton).
             libraryFirstPaintDone = true;
             setBusy(grid, false);
-            $('#alerts-library-empty').show();
+            // An empty library gets the upload hint; a filter with no hits says so instead.
+            $('#alerts-library-empty').toggle(files.length === 0);
+            $('#alerts-library-no-match').toggle(files.length > 0);
             return;
         }
         $('#alerts-library-empty').hide();
+        $('#alerts-library-no-match').hide();
         var html = filtered.map(function(f) {
             var ext = f.split('.').pop().toLowerCase();
-            var url = mediaBase + f;
+            var url = libraryFileUrl(f);
+            var folder = libraryFolderOf(f);
             var thumb = '';
             if (libraryMode === 'image') {
                 thumb = ext === 'webm'
@@ -2377,9 +2448,10 @@ $(document).ready(function() {
             } else {
                 thumb = '<div class="alerts-library-sound-thumb"><i class="fas fa-music"></i></div>';
             }
-            return '<button type="button" class="alerts-library-item" data-file="' + escapeHtml(f) + '">'
+            return '<button type="button" class="alerts-library-item" data-file="' + escapeHtml(f) + '" title="' + escapeHtml(f) + '">'
                 +    '<div class="alerts-library-thumb">' + thumb + '</div>'
-                +    '<div class="alerts-library-name">' + escapeHtml(f) + '</div>'
+                +    '<div class="alerts-library-name">' + escapeHtml(libraryBaseName(f)) + '</div>'
+                +    (folder !== '' ? '<div class="alerts-library-folder-tag"><i class="fas fa-folder"></i> ' + escapeHtml(folder) + '</div>' : '')
                 +  '</button>';
         }).join('');
         grid.html(html);
@@ -2400,8 +2472,12 @@ $(document).ready(function() {
     });
     $('#alerts-library-search').on('input', function() {
         if (!libraryListReady || libraryListFailed) return;
-        var files = libraryMode === 'image' ? libraryImages : librarySounds;
-        renderLibrary(files, this.value);
+        renderLibrary(currentLibraryFiles(), this.value);
+    });
+    $('#alerts-library-folder').on('change', function() {
+        if (!libraryListReady || libraryListFailed) return;
+        libraryFolderFilter = this.value;
+        renderLibrary(currentLibraryFiles(), $('#alerts-library-search').val());
     });
     $(document).on('click', '.alerts-library-item', function() {
         if (!currentAlertId || !libraryMode) return;
