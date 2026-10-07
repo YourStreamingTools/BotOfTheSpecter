@@ -18678,8 +18678,8 @@ async def convert_currency(amount, from_currency, to_currency):
 
 # Channel Point Rewards Proccessing
 async def process_channel_point_rewards(event_data, event_type):
-    connection = await mysql_connection()
-    async with connection.cursor(DictCursor) as cursor:
+    # async with closes the connection afterwards (it was left open after every redemption)
+    async with await mysql_connection() as connection, connection.cursor(DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
             user_id = event_data["user_id"]
