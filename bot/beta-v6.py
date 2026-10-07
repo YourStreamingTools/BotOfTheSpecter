@@ -10977,7 +10977,8 @@ class TwitchBot(commands.AutoBot):
                     if len(args) == 3 and any(args[0].startswith(symbol) for symbol in startwitch):
                         # Handle currency conversion
                         amount_str = args[0]
-                        amount = float(amount_str[1:])
+                        # Strip the whole currency symbol (some, like R$, are two characters) and any thousands commas
+                        amount = float(re.sub(r'^[^\d.]+', '', amount_str).replace(',', ''))
                         from_currency = args[1].upper()
                         to_currency = args[2].upper()
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
