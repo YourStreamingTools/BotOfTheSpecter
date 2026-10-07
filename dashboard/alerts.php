@@ -15,8 +15,25 @@ include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk 
 session_write_close();
 
 // "Make Your Sound" (ElevenLabs sound effects): each generation costs ElevenLabs credits.
-$soundGenDailyLimit = 10;   // generations per channel in any 24 hours
 $soundGenPromptMax = 300;   // characters
+// Generations allowed in any 24 hours by plan: free 10, Tier 1 20, Tier 2 30, Tier 3 40, beta (and the 4000 beta tier) 40.
+function alerts_sound_gen_limit($betaAccess, $tier)
+{
+    if ($betaAccess) {
+        return 40;
+    }
+    switch ((string) $tier) {
+        case '4000':
+        case '3000':
+            return 40;
+        case '2000':
+            return 30;
+        case '1000':
+            return 20;
+        default:
+            return 10;
+    }
+}
 
 // Per-category variant caps. A follow is a follow - no condition can
 // meaningfully split it, so 1 is the only sane number.
@@ -511,99 +528,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_storage')]);
             exit;
         }
+        $soundGenDailyLimit = alerts_sound_gen_limit(!empty($betaAccess), $tier ?? 'None');
         $genId = 0;
         $tmp = null;
+        $response = ['success' => false, 'message' => t('alerts_make_sound_err_failed')];
+        // Every exit path below leaves through the do/while so finally always removes the temp file
+        // (exit inside try skips finally).
         try {
-            // Reserve a slot before calling ElevenLabs so two quick clicks can't both slip under the limit.
-            $createdBy = (string) ($_SESSION['username'] ?? '');
-            $stmt = $db->prepare("INSERT INTO generated_sounds (prompt, duration_seconds, created_by) VALUES (?, ?, ?)");
-            $stmt->bind_param('sds', $prompt, $duration, $createdBy);
-            $stmt->execute();
-            $genId = (int) $stmt->insert_id;
-            $stmt->close();
-            $res = $db->query("SELECT COUNT(*) AS used FROM generated_sounds WHERE created_at > NOW() - INTERVAL 1 DAY");
-            $used = (int) ($res->fetch_assoc()['used'] ?? 0);
-            $res->free();
-            $releaseSlot = function () use ($db, &$genId) {
-                if ($genId > 0) {
-                    $del = $db->prepare("DELETE FROM generated_sounds WHERE id = ?");
-                    $del->bind_param('i', $genId);
-                    $del->execute();
-                    $del->close();
-                    $genId = 0;
-                }
-            };
-            if ($used > $soundGenDailyLimit) {
-                $releaseSlot();
-                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_limit', ['count' => $soundGenDailyLimit]), 'remaining' => 0]);
-                exit;
-            }
-            $body = ['text' => $prompt, 'model_id' => 'eleven_text_to_sound_v2'];
-            if ($duration !== null) {
-                $body['duration_seconds'] = $duration;
-            }
-            $tmp = tempnam(sys_get_temp_dir(), 'sfx');
-            $fh = fopen($tmp, 'wb');
-            $ch = curl_init('https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($body),
-                CURLOPT_HTTPHEADER => ['xi-api-key: ' . $elevenKey, 'Content-Type: application/json', 'Accept: audio/mpeg'],
-                CURLOPT_FILE => $fh,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_TIMEOUT => 90,
-            ]);
-            $ok = curl_exec($ch);
-            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlErr = curl_error($ch);
-            curl_close($ch);
-            fclose($fh);
-            clearstatcache(true, $tmp);
-            if ($ok === false || $code !== 200 || filesize($tmp) === 0
-                || !upload_validate_extension_and_mime($tmp, 'mp3', ['mp3'])) {
-                $detail = $code !== 200 ? substr((string) @file_get_contents($tmp, false, null, 0, 300), 0, 300) : $curlErr;
-                error_log('alerts.php ElevenLabs sound generation failed (HTTP ' . $code . '): ' . $detail);
-                $releaseSlot();
-                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_failed')]);
-                exit;
-            }
-            if (filesize($tmp) > $max_storage_size - $current_storage_used) {
-                $releaseSlot();
-                echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_storage')]);
-                exit;
-            }
-            if (!is_dir($media_path)) {
-                mkdir($media_path, 0755, true);
-            }
-            // Name the file after the first few words of the prompt.
-            $words = array_slice(preg_split('/\s+/u', strtolower($prompt)), 0, 6);
-            $safeName = upload_sanitize_filename(implode('-', $words), 'mp3');
-            $target = upload_unique_target($media_path, $safeName);
-            if (!@rename($tmp, $target['path'])) {
-                if (!@copy($tmp, $target['path'])) {
+            do {
+                // Reserve a slot before calling ElevenLabs so two quick clicks can't both slip under the limit.
+                $createdBy = (string) ($_SESSION['username'] ?? '');
+                $stmt = $db->prepare("INSERT INTO generated_sounds (prompt, duration_seconds, created_by) VALUES (?, ?, ?)");
+                $stmt->bind_param('sds', $prompt, $duration, $createdBy);
+                $stmt->execute();
+                $genId = (int) $stmt->insert_id;
+                $stmt->close();
+                $res = $db->query("SELECT COUNT(*) AS used FROM generated_sounds WHERE created_at > NOW() - INTERVAL 1 DAY");
+                $used = (int) ($res->fetch_assoc()['used'] ?? 0);
+                $res->free();
+                // Only hand a slot back when ElevenLabs produced nothing (nothing was charged).
+                $releaseSlot = function () use ($db, &$genId) {
+                    if ($genId > 0) {
+                        $del = $db->prepare("DELETE FROM generated_sounds WHERE id = ?");
+                        $del->bind_param('i', $genId);
+                        $del->execute();
+                        $del->close();
+                        $genId = 0;
+                    }
+                };
+                if ($used > $soundGenDailyLimit) {
                     $releaseSlot();
-                    echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_failed')]);
-                    exit;
+                    $response = ['success' => false, 'message' => t('alerts_make_sound_err_limit', ['count' => $soundGenDailyLimit]), 'remaining' => 0];
+                    break;
                 }
-            }
-            @chmod($target['path'], 0644);
-            $stmt = $db->prepare("UPDATE generated_sounds SET filename = ? WHERE id = ?");
-            $stmt->bind_param('si', $target['name'], $genId);
-            $stmt->execute();
-            $stmt->close();
-            echo json_encode([
-                'success' => true,
-                'filename' => $target['name'],
-                'remaining' => max(0, $soundGenDailyLimit - $used),
-            ]);
+                $remaining = max(0, $soundGenDailyLimit - $used);
+                $body = ['text' => $prompt, 'model_id' => 'eleven_text_to_sound_v2'];
+                if ($duration !== null) {
+                    $body['duration_seconds'] = $duration;
+                }
+                $tmp = tempnam(sys_get_temp_dir(), 'sfx');
+                $fh = fopen($tmp, 'wb');
+                $ch = curl_init('https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128');
+                curl_setopt_array($ch, [
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => json_encode($body),
+                    CURLOPT_HTTPHEADER => ['xi-api-key: ' . $elevenKey, 'Content-Type: application/json', 'Accept: audio/mpeg'],
+                    CURLOPT_FILE => $fh,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_TIMEOUT => 90,
+                ]);
+                $ok = curl_exec($ch);
+                $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlErr = curl_error($ch);
+                curl_close($ch);
+                fclose($fh);
+                clearstatcache(true, $tmp);
+                if ($ok === false || $code !== 200) {
+                    $detail = $code !== 200 ? substr((string) @file_get_contents($tmp, false, null, 0, 300), 0, 300) : $curlErr;
+                    error_log('alerts.php ElevenLabs sound generation failed (HTTP ' . $code . '): ' . $detail);
+                    $releaseSlot();
+                    $response = ['success' => false, 'message' => t('alerts_make_sound_err_failed'), 'remaining' => $remaining + 1];
+                    break;
+                }
+                // From here ElevenLabs has charged for the sound, so the slot stays used whatever happens.
+                if (filesize($tmp) === 0 || !upload_validate_extension_and_mime($tmp, 'mp3', ['mp3'])) {
+                    error_log('alerts.php ElevenLabs returned HTTP 200 but not a usable MP3 (' . filesize($tmp) . ' bytes)');
+                    $response = ['success' => false, 'message' => t('alerts_make_sound_err_failed'), 'remaining' => $remaining];
+                    break;
+                }
+                if (filesize($tmp) > $max_storage_size - $current_storage_used) {
+                    $response = ['success' => false, 'message' => t('alerts_make_sound_err_storage'), 'remaining' => $remaining];
+                    break;
+                }
+                if (!is_dir($media_path)) {
+                    mkdir($media_path, 0755, true);
+                }
+                // Name the file after the first few words of the prompt.
+                $words = array_slice(preg_split('/\s+/u', mb_strtolower($prompt)), 0, 6);
+                $safeName = upload_sanitize_filename(implode('-', $words), 'mp3');
+                $target = upload_unique_target($media_path, $safeName);
+                if (!@rename($tmp, $target['path']) && !@copy($tmp, $target['path'])) {
+                    error_log('alerts.php could not save generated sound to ' . $target['path']);
+                    $response = ['success' => false, 'message' => t('alerts_make_sound_err_failed'), 'remaining' => $remaining];
+                    break;
+                }
+                @chmod($target['path'], 0644);
+                $stmt = $db->prepare("UPDATE generated_sounds SET filename = ? WHERE id = ?");
+                $stmt->bind_param('si', $target['name'], $genId);
+                $stmt->execute();
+                $stmt->close();
+                $response = ['success' => true, 'filename' => $target['name'], 'remaining' => $remaining];
+            } while (false);
         } catch (mysqli_sql_exception $e) {
             error_log('alerts.php generate_alert_sound: ' . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => t('alerts_make_sound_err_failed')]);
+            $response = ['success' => false, 'message' => t('alerts_make_sound_err_failed')];
         } finally {
             if ($tmp !== null && is_file($tmp)) {
                 @unlink($tmp);
             }
         }
+        echo json_encode($response);
         exit;
     }
     if ($action === 'remove_alert_media') {
@@ -677,6 +701,7 @@ $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-B
 $mediaBase = "https://media.botofthespecter.com/$username/";
 
 $browserSourceUrl = "https://overlay.botofthespecter.com/?code=" . urlencode($api_key);
+$soundGenDailyLimit = alerts_sound_gen_limit(!empty($betaAccess), $_SESSION['tier'] ?? 'None');
 $soundGenRemaining = $soundGenDailyLimit;
 try {
     if ($soundGenRes = $db->query("SELECT COUNT(*) AS used FROM generated_sounds WHERE created_at > NOW() - INTERVAL 1 DAY")) {
@@ -1155,13 +1180,13 @@ ob_start();
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="sound-upload-btn">
                                         <i class="fas fa-upload"></i> <?= t('alerts_upload') ?>
                                     </button>
-                                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="sound-make-btn">
-                                        <i class="fas fa-wand-magic-sparkles"></i> <?= t('alerts_make_sound') ?>
-                                    </button>
                                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" id="sound-remove-btn" style="display:none;">
                                         <i class="fas fa-times"></i> <?= t('alerts_remove') ?>
                                     </button>
                                 </div>
+                                <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm alerts-make-sound-btn" id="sound-make-btn">
+                                    <i class="fas fa-wand-magic-sparkles"></i> <?= t('alerts_make_sound') ?>
+                                </button>
                                 <input type="file" id="sound-file-input" accept=".mp3">
                             </div>
                         </div>
