@@ -67,7 +67,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.24"
+VERSION = "5.7.25"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8762,7 +8762,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months)
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
-            subscriber_points = int(settings.get('point_amount_subscriber', 0))
+            subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
             event_logger.debug(f"Subscriber points after multiplier: {subscriber_points}")
@@ -8851,7 +8851,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
-            subscriber_points = int(settings.get('point_amount_subscriber', 0))
+            subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
             event_logger.debug(f"Subscriber points after multiplier: {subscriber_points}")
