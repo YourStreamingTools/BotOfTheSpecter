@@ -15960,7 +15960,9 @@ async def timed_message():
             await update_timed_messages()
             chat_logger.info("[TIMED MESSAGE] Successfully updated timed messages")
             # Start the periodic checker
-            if "timed_message_checker" not in looped_tasks:
+            # Recreate the checker when it's missing or finished (it exits while the stream is briefly offline)
+            checker = looped_tasks.get("timed_message_checker")
+            if checker is None or checker.done():
                 looped_tasks["timed_message_checker"] = create_task(periodic_message_checker())
                 chat_logger.info("[TIMED MESSAGE] Created periodic message checker task")
         except Exception as e:
@@ -15994,8 +15996,6 @@ async def update_timed_messages():
             # Fetch all enabled messages
             await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger, trigger_type, scheduled_time FROM timed_messages WHERE status = 1")
             current_messages = await cursor.fetchall()
-            if not current_messages:
-                return
             # Convert to dictionary for easy lookup
             current_message_dict = {row["id"]: row for row in current_messages}
             current_message_ids = set(current_message_dict.keys())
@@ -16019,6 +16019,12 @@ async def update_timed_messages():
             for message_id in existing_message_ids:
                 current_row = current_message_dict[message_id]
                 active_row = active_timed_messages[message_id]
+                task = message_tasks.get(message_id)
+                if task is not None and task.done():
+                    await stop_timed_message(message_id)
+                    await start_timed_message(message_id, current_row)
+                    chat_logger.info(f"[TIMED MESSAGE] Restarted timed message ID: {message_id} (its task had stopped)")
+                    continue
                 # Check if message content or settings have changed
                 if (current_row["message"] != active_row["message"] or
                     current_row["interval_count"] != active_row["interval_count"] or
