@@ -2758,7 +2758,8 @@ async def SYSTEM_UPDATE(data):
                     # Select appropriate version based on SYSTEM variable
                     if SYSTEM == "BETA":
                         latest_version = version_data.get("beta_version")
-                    elif SYSTEM == "V6":
+                    # Custom-mode bots run this same v6 code
+                    elif SYSTEM in ("V6", "CUSTOM"):
                         latest_version = version_data.get("v6_version") or version_data.get("beta_version")
                     elif SYSTEM == "STABLE":
                         latest_version = version_data.get("stable_version")
@@ -10171,7 +10172,8 @@ class TwitchBot(commands.AutoBot):
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
                         if response.status == 200:
                             data = await response.json()
-                            version_key = f'{SYSTEM.lower()}_version'
+                            # Custom-mode bots run this same v6 code, so they follow the v6 version
+                            version_key = 'v6_version' if SYSTEM in ('V6', 'CUSTOM') else f'{SYSTEM.lower()}_version'
                             remote_version = data.get(version_key, '').strip()
                             if remote_version and remote_version != f"{VERSION}":
                                 # Compare number by number so versions with two or four parts (e.g. 5.8 or 6.0.0.1) work too
