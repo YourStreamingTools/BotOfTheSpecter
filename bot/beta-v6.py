@@ -9505,7 +9505,7 @@ class TwitchBot(commands.AutoBot):
                         (user_name, user_id)
                     )
                     await cursor.execute(
-                        "SELECT p.name, COALESCE(SUM(CASE WHEN t.status IN ('active','pending') THEN 1 ELSE 0 END), 0) AS open_count "
+                        "SELECT p.name, COALESCE(SUM(CASE WHEN t.status IN ('active','pending') AND t.task_type = 'task' THEN 1 ELSE 0 END), 0) AS open_count "
                         "FROM user_projects p "
                         "LEFT JOIN user_tasks t ON t.user_id = p.user_id AND t.project = p.name "
                         "WHERE p.user_id = %s GROUP BY p.name ORDER BY p.name ASC",
