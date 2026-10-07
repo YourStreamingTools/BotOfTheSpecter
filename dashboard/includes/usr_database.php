@@ -962,8 +962,12 @@ try {
                 duration_seconds DECIMAL(4,1) DEFAULT NULL,
                 filename VARCHAR(255) DEFAULT NULL,
                 created_by VARCHAR(64) DEFAULT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'done',
+                error_message VARCHAR(100) DEFAULT NULL,
+                refunded TINYINT(1) NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_generated_sounds_created (created_at)
+                INDEX idx_generated_sounds_created (created_at),
+                INDEX idx_generated_sounds_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'user_socials' => "
             CREATE TABLE IF NOT EXISTS user_socials (
