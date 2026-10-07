@@ -6187,9 +6187,11 @@ class TwitchBot(commands.Bot):
                             await send_chat_message("Stream titles cannot be blank. You must provide a title for the stream.")
                             return
                         # Update the stream title
-                        await trigger_twitch_title_update(title)
                         twitch_logger.info(f'[SET TITLE] Setting stream title to: {title}')
-                        await send_chat_message(f'Stream title updated to: {title}')
+                        if await trigger_twitch_title_update(title):
+                            await send_chat_message(f'Stream title updated to: {title}')
+                        else:
+                            await send_chat_message("Twitch didn't accept that title. Titles can be up to 140 characters - please try again.")
                     else:
                         await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
@@ -15077,8 +15079,9 @@ async def trigger_twitch_title_update(new_title):
         async with session.patch(url, headers=headers, json=params) as response:
             if response.status in (200, 204):
                 twitch_logger.info(f'[SET TITLE] Stream title updated to: {new_title}')
-            else:
-                twitch_logger.error(f'[SET TITLE] Failed to update stream title (HTTP {response.status}): {await response.text()}')
+                return True
+            twitch_logger.error(f'[SET TITLE] Failed to update stream title (HTTP {response.status}): {await response.text()}')
+            return False
 
 # Function to update the current stream category
 async def update_twitch_game(game_name: str):
