@@ -9327,7 +9327,7 @@ class TwitchBot(commands.Bot):
                         (user_id, user_name, first_title, reward_points, next_pos, project)
                     )
                     active_id = cursor.lastrowid
-                    created.append((active_id, first_title, 'active', None))
+                    created.append((active_id, first_title, 'active', next_pos))
                     for extra in titles[1:]:
                         next_pos += 1
                         pos = next_pos
