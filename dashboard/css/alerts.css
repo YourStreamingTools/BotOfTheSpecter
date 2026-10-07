@@ -942,6 +942,20 @@
     margin-bottom: 8px;
     word-break: break-all;
 }
+/* Shown while a just-uploaded file is still syncing to storage (see the media retry in alerts.php). */
+.alerts-media-pending {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+.alerts-media-preview .is-media-pending {
+    display: none;
+}
+.alerts-media-preview:has(.is-media-pending) .alerts-media-pending {
+    display: inline-flex;
+}
 .alerts-media-actions {
     display: flex;
     gap: 8px;
@@ -1141,6 +1155,17 @@
     flex-wrap: wrap;
     gap: 10px;
     margin-top: 4px;
+}
+.alerts-make-sound-progress .sp-progress-row {
+    margin-bottom: 6px;
+}
+.alerts-make-sound-progress .sp-progress-fill {
+    transition: width 0.25s linear;
+}
+.alerts-make-sound-wait {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: 0 0 12px;
 }
 .alerts-make-sound-remaining {
     color: var(--text-muted);
