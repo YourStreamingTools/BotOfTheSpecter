@@ -14759,15 +14759,22 @@ def safe_math(expr: str):
     if not re.match(r'^[0-9+\-*/\s]+$', expr):
         return "Error"
     tokens = re.findall(r'\d+|[+\-*/]', expr)
-    result = int(tokens[0])
-    i = 1
-    while i < len(tokens) - 1:
-        op = tokens[i]
-        num = int(tokens[i+1])
-        if op not in allowed_ops:
-            return "Error"
+    # Must alternate number, operator, number ... ending on a number
+    if not tokens or len(tokens) % 2 == 0 or any(not t.isdigit() for t in tokens[0::2]) or any(t not in allowed_ops for t in tokens[1::2]):
+        return "Error"
+    # Usual precedence: do * and / first, then + and - left to right (so 2+3*4 is 14, not 20)
+    terms = [int(tokens[0])]
+    signs = []
+    for i in range(1, len(tokens), 2):
+        op, num = tokens[i], int(tokens[i + 1])
+        if op in ('*', '/'):
+            terms[-1] = allowed_ops[op](terms[-1], num)
+        else:
+            signs.append(op)
+            terms.append(num)
+    result = terms[0]
+    for op, num in zip(signs, terms[1:]):
         result = allowed_ops[op](result, num)
-        i += 2
     return result
 
 # Function to update custom counts
