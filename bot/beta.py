@@ -16610,14 +16610,15 @@ async def shazam_detect_song(raw_audio_b64):
                 # Check requests remaining for the API
                 if "x-ratelimit-requests-remaining" in response.headers:
                     requests_left = response.headers['x-ratelimit-requests-remaining']
-                    file_path = "/var/www/api/shazam.txt"
-                    with open(file_path, 'w') as file:
-                        file.write(requests_left)
+                    # The count is tracked in website.api_counts (the old /var/www/api/shazam.txt path doesn't exist on the bot server, and the failed write threw away every result)
                     api_logger.info(f"[SHAZAM] There are {requests_left} requests lefts for the song command.")
-                    connection = await mysql_connection(db_name="website")
-                    async with connection.cursor(DictCursor) as cursor:
-                        await cursor.execute("UPDATE api_counts SET count=%s WHERE type=%s", (requests_left, "shazam"))
-                        await connection.commit()
+                    try:
+                        async with await mysql_connection(db_name="website") as connection:
+                            async with connection.cursor(DictCursor) as cursor:
+                                await cursor.execute("UPDATE api_counts SET count=%s WHERE type=%s", (requests_left, "shazam"))
+                                await connection.commit()
+                    except Exception as count_err:
+                        api_logger.error(f"[SHAZAM] Could not save the Shazam request count: {count_err}")
                     if int(requests_left) == 0:
                         return {"error": "Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."}
                 return await response.json()
