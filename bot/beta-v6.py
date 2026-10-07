@@ -4290,6 +4290,12 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
+            # Release this per-message connection (it was never handed back, so every chat line leaked one)
+            if connection:
+                try:
+                    await connection.release()
+                except Exception:
+                    pass
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
             await handle_chat_message(messageAuthor, messageContent)
