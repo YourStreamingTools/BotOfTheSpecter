@@ -11558,20 +11558,10 @@ class TwitchBot(commands.AutoBot):
                         division = None
                     if division:
                         prize = prize_pool.get(division, 0)
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                        user_points = await cursor.fetchone()
-                        if user_points:
-                            current_points = user_points["points"]
-                            new_points = current_points + prize
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
-                        else:
-                            # If no points record exists, set to prize
-                            await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
-                        await connection.commit()
-                        # Retrieve updated points
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                        total_points_data = await cursor.fetchone()
-                        total_points = total_points_data["points"] if total_points_data else prize
+                        # Paid by Twitch user id (the old name-only insert failed for winners without a points row and stopped the draw)
+                        total_points = await credit_lotto_prize(user_name, prize)
+                        if total_points is None:
+                            total_points = "unknown"
                         # Send message about the win
                         message = f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}"
                         await send_chat_message(message)
@@ -15720,14 +15710,8 @@ async def perform_lotto_draw(announce_empty=True):
                     division = None
                 if division:
                     prize = prize_pool.get(division, 0)
-                    await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                    user_points = await cursor.fetchone()
-                    if user_points:
-                        new_points = user_points["points"] + prize
-                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
-                    else:
-                        await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
-                    await connection.commit()
+                    # Paid by Twitch user id (the old name-only insert failed for winners without a points row and stopped the draw)
+                    await credit_lotto_prize(user_name, prize)
                     division_winners.setdefault(division, []).append(user_name)
                 await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                 await connection.commit()
@@ -18556,6 +18540,18 @@ async def generate_user_lotto_numbers(user_name):
     finally:
         if connection:
             await connection.release()
+
+# Function to pay a lotto prize; bot_points is keyed by Twitch user_id, so a winner with no points row yet needs their id looked up. Returns the new total, or None if it couldn't be paid.
+async def credit_lotto_prize(user_name, prize):
+    winner_id, _ = await get_twitch_user_by_login(user_name)
+    if not winner_id:
+        bot_logger.error(f"Could not find Twitch user {user_name} to pay a lotto prize of {prize}")
+        return None
+    result = await manage_user_points(winner_id, user_name, "credit", prize)
+    if not result.get("success"):
+        bot_logger.error(f"Could not pay lotto prize to {user_name}: {result.get('error')}")
+        return None
+    return result.get("points")
 
 async def tell_fortune():
     url = "https://api.botofthespecter.com/v2/fortune"
