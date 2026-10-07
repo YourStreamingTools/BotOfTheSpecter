@@ -371,6 +371,7 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
 
     $currentSettings = 'False';
     $termBlockingSettings = 'False';
+    $banMonitoredUsers = 'False';
     $blockFirstMessageCommands = 'False';
     $blockFirstMessageCommandMode = 'all';
     $blockFirstMessageSelectedCommands = [];
@@ -379,12 +380,13 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
     $wordReplaceFrequency = 30;
     $wordReplaceRate = 10;
     $wordReplaceCooldown = 30;
-    $getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands, word_replace_enabled, word_replace_word, word_replace_frequency, word_replace_rate, word_replace_cooldown FROM protection LIMIT 1");
+    $getProtection = $db->query("SELECT url_blocking, term_blocking, ban_monitored_users, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands, word_replace_enabled, word_replace_word, word_replace_frequency, word_replace_rate, word_replace_cooldown FROM protection LIMIT 1");
     if ($getProtection) {
         $settings = $getProtection->fetch_assoc();
         if ($settings) {
             $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
             $termBlockingSettings = isset($settings['term_blocking']) ? $settings['term_blocking'] : 'False';
+            $banMonitoredUsers = isset($settings['ban_monitored_users']) ? $settings['ban_monitored_users'] : 'False';
             $blockFirstMessageCommands = isset($settings['block_first_message_commands']) ? $settings['block_first_message_commands'] : 'False';
             $blockFirstMessageCommandMode = isset($settings['block_first_message_command_mode']) && $settings['block_first_message_command_mode'] === 'selected' ? 'selected' : 'all';
             $selectedCommandsRaw = isset($settings['block_first_message_selected_commands']) ? $settings['block_first_message_selected_commands'] : '[]';
@@ -464,6 +466,7 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
         'protection' => [
             'url_blocking' => $currentSettings,
             'term_blocking' => $termBlockingSettings,
+            'ban_monitored_users' => $banMonitoredUsers,
             'block_first_message_commands' => $blockFirstMessageCommands,
             'block_first_message_command_mode' => $blockFirstMessageCommandMode,
             'block_first_message_selected_commands' => $blockFirstMessageSelectedCommands,
@@ -1140,6 +1143,40 @@ ob_start();
                                                 </tbody>
                                             </table>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Monitored Users Section -->
+                        <div class="module-container" style="margin-top:2rem;">
+                            <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
+                                <i class="fas fa-user-secret" style="color:var(--amber);"></i>
+                                <?= t('protection_monitored_users_title') ?>
+                            </h2>
+                            <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
+                                <p style="margin-bottom:0;"><?= t('protection_monitored_users_desc') ?></p>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+                                <div class="sp-card">
+                                    <div class="sp-card-body">
+                                        <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:1rem;">
+                                            <i class="fas fa-user-slash" style="color:var(--red);"></i>
+                                            <?= t('protection_ban_monitored_users') ?>
+                                        </h3>
+                                        <form action="/api/module_data_post.php" method="post">
+                                            <div class="sp-form-group">
+                                                <select class="sp-select" name="ban_monitored_users" id="ban_monitored_users">
+                                                    <option value="True"><?php echo t('yes'); ?></option>
+                                                    <option value="False"><?php echo t('no'); ?></option>
+                                                </select>
+                                            </div>
+                                            <div style="margin-top:1rem;">
+                                                <button type="submit" name="submit" class="sp-btn sp-btn-primary" style="width:100%;">
+                                                    <i class="fas fa-save"></i>
+                                                    <span><?php echo t('protection_update_btn'); ?></span>
+                                                </button>
+                                            </div>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -2412,6 +2449,7 @@ ob_start();
         var protection = data.protection || {};
         modulesSetSelectValue('#url_blocking', protection.url_blocking || 'False');
         modulesSetSelectValue('#term_blocking', protection.term_blocking || 'False');
+        modulesSetSelectValue('#ban_monitored_users', protection.ban_monitored_users || 'False');
         modulesSetSelectValue('#block_first_message_commands', protection.block_first_message_commands || 'False');
         modulesSetSelectValue('#block_first_message_command_mode', protection.block_first_message_command_mode || 'all');
         var cmdSelect = document.getElementById('block_first_message_selected_commands');
