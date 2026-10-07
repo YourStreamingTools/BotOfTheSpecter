@@ -20406,26 +20406,16 @@ async def send_ad_break_end_notice():
     if not settings.get('enable_ad_notice', True) or not settings.get('enable_end_ad_message', True):
         await mark_ad_break_end_sent()
         return
+    # The end notice is already sent once per break (end_notice_sent), so it skips the 45 second ad-message dedupe, which swallowed it after a 30 second break
     sent_ok = False
-    try:
-        if can_send_ad_message():
-            sent_ok = await send_chat_message(settings['ad_end_message'])
-            if not sent_ok:
-                api_logger.error(f"[ADS] Ad end message failed to send: {settings.get('ad_end_message')}")
-        else:
-            api_logger.info("[ADS] Skipped ad end immediate message due to cooldown")
-    except Exception as e:
-        api_logger.error(f"[ADS] Exception while sending immediate ad end message: {e}")
-    if not sent_ok:
+    for attempt in ("immediate", "retry"):
         try:
-            if can_send_ad_message():
-                sent_ok = await send_chat_message(settings['ad_end_message'])
-                if not sent_ok:
-                    api_logger.error(f"[ADS] Ad end message failed to send (fallback): {settings.get('ad_end_message')}")
-            else:
-                api_logger.info("[ADS] Skipped ad end fallback due to cooldown")
+            sent_ok = await send_chat_message(settings['ad_end_message'])
         except Exception as e:
-            api_logger.error(f"[ADS] Exception while sending ad end fallback message: {e}")
+            api_logger.error(f"[ADS] Exception while sending ad end message ({attempt}): {e}")
+        if sent_ok:
+            break
+        api_logger.error(f"[ADS] Ad end message failed to send ({attempt}): {settings.get('ad_end_message')}")
     if sent_ok:
         try_mark_ad_message_sent_after(True)
         await mark_ad_break_end_sent()
