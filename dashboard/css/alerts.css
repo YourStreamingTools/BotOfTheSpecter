@@ -7,6 +7,12 @@
 
 /* ---- Page shell + top bar -------------------------------------------- */
 
+/* The configurator is a full-screen editor: lift dashboard.css's 1600px content cap
+   (this stylesheet only loads on alerts.php) so it fills wide monitors. */
+.sp-content {
+    max-width: none;
+}
+
 .alerts-page-shell {
     display: flex;
     flex-direction: column;
