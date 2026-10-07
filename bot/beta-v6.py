@@ -7207,6 +7207,7 @@ class TwitchBot(commands.AutoBot):
                         user_id = ctx.author.id
                         await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
                         db_bits = await cursor.fetchone()
+                        has_bits_row = db_bits is not None
                         if db_bits:
                             db_bits = db_bits["bits"]
                         else:
@@ -7230,7 +7231,11 @@ class TwitchBot(commands.AutoBot):
                                     if user_data:
                                         api_bits = user_data['score']
                                         if api_bits > db_bits:
-                                            await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
+                                            # A viewer with no bits_data row yet gets one, otherwise the Twitch total is never stored
+                                            if has_bits_row:
+                                                await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
+                                            else:
+                                                await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (user_id, ctx.author.name, api_bits))
                                             await connection.commit()
                                             bits = "{:,}".format(api_bits)
                                         elif api_bits < db_bits:
