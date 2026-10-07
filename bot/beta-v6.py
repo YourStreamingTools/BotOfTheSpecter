@@ -18783,12 +18783,23 @@ async def subathon_status(ctx):
     subathon_state = await get_subathon_state()
     if subathon_state:
         if subathon_state["paused"]:
-            await send_chat_message(f"Subathon is paused with {subathon_state['remaining_minutes']} minutes remaining.")
+            # A stopped or finished subathon is also stored as paused, just with no time saved
+            if not subathon_has_time_saved(subathon_state):
+                await send_chat_message("No subathon is active!")
+                return
+            saved_seconds = int(subathon_state.get("remaining_seconds") or 0) or int(subathon_state.get("remaining_minutes") or 0) * 60
+            await send_chat_message(f"Subathon is paused with {format_subathon_remaining(saved_seconds)} remaining.")
         else:
-            remaining = subathon_state["end_time"] - time_right_now()
-            await send_chat_message(f"Subathon time remaining: {remaining}.")
+            remaining_seconds = max(0, int((subathon_state["end_time"] - time_right_now()).total_seconds()))
+            await send_chat_message(f"Subathon time remaining: {format_subathon_remaining(remaining_seconds)}.")
     else:
         await send_chat_message("No subathon is active!")
+
+# Function to format subathon seconds as "1h 05m 09s" (no microseconds, never negative)
+def format_subathon_remaining(total_seconds):
+    hours, remainder = divmod(max(0, int(total_seconds)), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}h {minutes:02d}m {seconds:02d}s" if hours else f"{minutes}m {seconds:02d}s"
 
 # Function to start the subathon countdown
 async def subathon_countdown():
