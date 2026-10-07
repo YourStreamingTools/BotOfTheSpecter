@@ -10306,11 +10306,17 @@ class TwitchBot(commands.AutoBot):
             # Parse the command and response from the message
             try:
                 command, response = ctx.message.text.strip().split(' ', 1)[1].split(' ', 1)
-            except ValueError:
+                # Lookups use the bare lowercase name, so "!Hello" must be stored as "hello"
+                command = command.lstrip('!').lower()
+            except (ValueError, IndexError):
                 await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
                 return
             # Insert the command and response into the database
             async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                if await cursor.fetchone():
+                    await send_chat_message(f"Command !{command} already exists. Use !editcommand to change it.")
+                    return
                 await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
                 await connection.commit()
             chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
@@ -10350,11 +10356,16 @@ class TwitchBot(commands.AutoBot):
             # Parse the command and new response from the message
             try:
                 command, new_response = ctx.message.text.strip().split(' ', 1)[1].split(' ', 1)
-            except ValueError:
+                command = command.lstrip('!').lower()
+            except (ValueError, IndexError):
                 await send_chat_message(f"Invalid command format. Use: !editcommand [command] [new_response]")
                 return
             # Update the command's response in the database
             async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                if not await cursor.fetchone():
+                    await send_chat_message(f"Command !{command} not found. Use !addcommand to create it.")
+                    return
                 await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
                 await connection.commit()
             chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
@@ -10393,14 +10404,18 @@ class TwitchBot(commands.AutoBot):
             add_usage('removecommand', bucket_key, cooldown_bucket)
             # Parse the command from the message
             try:
-                command = ctx.message.text.strip().split(' ')[1]
+                command = ctx.message.text.strip().split(' ')[1].lstrip('!').lower()
             except IndexError:
                 await send_chat_message(f"Invalid command format. Use: !removecommand [command]")
                 return
             # Delete the command from the database
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute('DELETE FROM custom_commands WHERE command = %s', (command,))
+                removed = cursor.rowcount
                 await connection.commit()
+            if not removed:
+                await send_chat_message(f"Command !{command} not found.")
+                return
             chat_logger.info(f"{ctx.author.name} has removed {command}")
             await send_chat_message(f'Custom command removed: !{command}')
         except Exception as e:
