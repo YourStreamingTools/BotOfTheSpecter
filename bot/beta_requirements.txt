@@ -44,10 +44,6 @@ pint
 # Discord bot integration (async)
 discord.py
 
-# Joke API
-# Fetches jokes from JokeAPI
-jokeapi
-
 # Translation
 # Text translation across multiple services
 deep_translator
