@@ -8260,7 +8260,8 @@ class TwitchBot(commands.AutoBot):
                             "channel_code": API_TOKEN,
                             "command": action
                         }))
-                        await send_chat_message(f"@{ctx.author.name} overlay timer {action}ed.")
+                        past_tense = {"start": "started", "stop": "stopped", "pause": "paused", "resume": "resumed"}[action]
+                        await send_chat_message(f"@{ctx.author.name} overlay timer {past_tense}.")
                     elif action == 'auto':
                         enabled = 1 if 'on' in rest else 0
                         await cursor.execute(
