@@ -14965,7 +14965,8 @@ async def process_dynamic_variables(
                             if details:
                                 range_match = re.match(r'(\d+)-(\d+)', details)
                                 if range_match:
-                                    lower_bound, upper_bound = int(range_match.group(1)), int(range_match.group(2))
+                                    # Accept the range either way round (100-1 works like 1-100)
+                                    lower_bound, upper_bound = sorted((int(range_match.group(1)), int(range_match.group(2))))
                             random_value = random.randint(lower_bound, upper_bound)
                             replacement = f'{random_value}%' if 'percent' in category else str(random_value)
                         elif 'pick' in category:
