@@ -8708,7 +8708,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("task",))
@@ -8737,7 +8737,7 @@ class TwitchBot(commands.Bot):
                     title = title[:255]
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+                    owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
                     # A new !task is always the thing you're working on NOW. If you already have an active task it's demoted to the front of the backlog (#1) so !done next picks it straight back up - use !later / !soon to queue a task without switching off this one.
@@ -8791,7 +8791,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("done",))
@@ -8816,7 +8816,7 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+                    owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
                     # !done <id> or !done <id>;<id2> - complete specific task(s) by database id. If the completed task was the active one, the next backlog item is promoted.
                     if arg and all(p.strip().isdigit() for p in arg.split(';') if p.strip()):
                         raw_parts = [p.strip() for p in arg.split(';') if p.strip()]
@@ -9056,7 +9056,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("taskclear",))
@@ -9124,7 +9124,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("mytasks",))
@@ -9177,7 +9177,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("now",))
@@ -9202,7 +9202,7 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+                    owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
                     if not arg:
                         await send_chat_message("Usage: !now <title> | !now <n> | !now skip")
                         return
@@ -9349,7 +9349,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("later",))
@@ -9378,7 +9378,7 @@ class TwitchBot(commands.Bot):
                         return
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+                    owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
                     created = []
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
@@ -9421,7 +9421,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("soon",))
@@ -9450,7 +9450,7 @@ class TwitchBot(commands.Bot):
                         return
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+                    owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
                     created = []
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
@@ -9491,7 +9491,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("backlog",))
@@ -9546,7 +9546,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("project",))
@@ -9641,7 +9641,7 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            owner = "streamer" if ctx.author.name.lower() == CHANNEL_NAME.lower() else "user"
             async with connection.cursor(DictCursor) as raw_cursor:
                 cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("projects",))
@@ -12965,7 +12965,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
         promoted = await promote_backlog_head(cursor, user_id, source_project)
         emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
-        task_owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+        task_owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
         emit_task_update({
             "id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
             "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner,
@@ -12988,7 +12988,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         if not task:
             return f"no backlog item #{n} in your current project."
         task_id, title = task.get('id'), task.get('title')
-        task_owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
+        task_owner = "streamer" if user_name.lower() == CHANNEL_NAME.lower() else "user"
         await register_user_project(cursor, user_id, user_name, target)
         new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
         await renumber_project_backlog(cursor, user_id, source_project)
