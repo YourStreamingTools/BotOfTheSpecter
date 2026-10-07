@@ -4080,9 +4080,8 @@ class TwitchBot(commands.Bot):
                                     await cursor.execute('SELECT link FROM link_whitelist')
                                     whitelist_result = await cursor.fetchall()
                                     whitelisted_patterns = [row['link'] for row in whitelist_result] if whitelist_result else []
-                                    contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_patterns, use_regex=True)
-                                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage or 'https://www.twitch.tv/' in AuthorMessage
-                                    if not contains_whitelisted_link and not contains_twitch_clip_link:
+                                    # Every link has to be allowed - one Twitch or whitelisted link no longer lets other links through
+                                    if not await message_links_whitelisted(AuthorMessage, whitelisted_patterns):
                                         should_delete = True
                                         send_warning = True
                                         chat_logger.info(f"[EVENT MESSAGE] Non-whitelisted URL detected in message from {messageAuthor}")
@@ -19762,11 +19761,20 @@ async def match_domain_or_link(message, domain_list, use_regex=False):
                 chat_logger.error(f"[SPAM FILTER] Invalid regex pattern '{pattern}': {e}")
                 continue
         else:
-            # Escape pattern for literal domain matching
+            # Literal domain match: not part of a longer name on either side (so "bad.com" matches "bad.com is fun" and "x.bad.com/page" but not "notbad.com" or "bad.com.au")
             escaped_pattern = re.escape(pattern)
-            if re.search(rf"(https?://)?(www\.)?{escaped_pattern}(\/|$)", message, re.IGNORECASE):
+            if re.search(rf"(?<![\w-])(https?://)?(www\.)?{escaped_pattern}(?![\w-]|\.[\w-])", message, re.IGNORECASE):
                 return True
     return False
+
+# Function to check every link in a message is allowed: Twitch links always are, any other link must match a whitelist pattern
+async def message_links_whitelisted(message, whitelist_patterns):
+    for url in re.findall(r"https?://\S+", message, re.IGNORECASE):
+        if re.match(r"https?://([\w-]+\.)?twitch\.tv(/|$)", url, re.IGNORECASE):
+            continue
+        if not await match_domain_or_link(url, whitelist_patterns, use_regex=True):
+            return False
+    return True
 
 # Function(s) to track watch time for users in active channel
 async def periodic_watch_time_update():

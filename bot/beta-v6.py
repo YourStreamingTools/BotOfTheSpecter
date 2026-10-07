@@ -4088,25 +4088,22 @@ class TwitchBot(commands.AutoBot):
                     result = await cursor.fetchone()
                     url_blocking = result.get("url_blocking") == 'True' if result else False
                     if url_blocking:
-                        # Check if user has permission to post links
-                        if messageAuthor.lower() in permitted_users and time.time() < permitted_users[messageAuthor.lower()]:
-                            return  # User is permitted, skip URL blocking
-                        if await command_permissions("mod", message.author):
-                            return  # Mods and broadcaster have permission by default
-                        # Fetch whitelist
-                        await cursor.execute('SELECT link FROM link_whitelist')
-                        whitelist_result = await cursor.fetchall()  # Fetch whitelist results
-                        whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
-                        contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
-                        # Check for Twitch clip links
-                        contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-                        if not contains_whitelisted_link and not contains_twitch_clip_link:
-                            deleted = await delete_chat_message(getattr(message, 'id', None))
-                            chat_logger.info(f"{'Deleted' if deleted else 'Could not delete'} message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
-                            return
+                        # Permitted users, mods and the broadcaster can post links
+                        if (messageAuthor.lower() in permitted_users and time.time() < permitted_users[messageAuthor.lower()]) or await command_permissions("mod", message.author):
+                            chat_logger.info(f"URL found in message from {messageAuthor}, allowed due to permit or mod/streamer privilege.")
                         else:
-                            chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
+                            # Fetch whitelist (regex patterns, same as beta)
+                            await cursor.execute('SELECT link FROM link_whitelist')
+                            whitelist_result = await cursor.fetchall()
+                            whitelisted_patterns = [row['link'] for row in whitelist_result] if whitelist_result else []
+                            # Every link has to be allowed - one Twitch or whitelisted link no longer lets other links through
+                            if not await message_links_whitelisted(AuthorMessage, whitelisted_patterns):
+                                deleted = await delete_chat_message(getattr(message, 'id', None))
+                                chat_logger.info(f"{'Deleted' if deleted else 'Could not delete'} message from {messageAuthor} containing a URL: {AuthorMessage}")
+                                await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
+                                return
+                            else:
+                                chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch link.")
                     else:
                         chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
                 else:
@@ -19267,12 +19264,31 @@ async def make_stream_marker(description: str):
         return False
 
 # Function to check if a URL or domain matches whitelisted or blacklisted URLs
-async def match_domain_or_link(message, domain_list):
-    for domain in domain_list:
-        pattern = re.escape(domain)
-        if re.search(rf"(https?://)?(www\.)?{pattern}(\/|$)", message):
-            return True
+async def match_domain_or_link(message, domain_list, use_regex=False):
+    for pattern in domain_list:
+        if use_regex:
+            # Use pattern as-is for regex matching
+            try:
+                if re.search(pattern, message, re.IGNORECASE):
+                    return True
+            except re.error as e:
+                chat_logger.error(f"Invalid regex pattern '{pattern}': {e}")
+                continue
+        else:
+            # Literal domain match: not part of a longer name on either side (so "bad.com" matches "bad.com is fun" and "x.bad.com/page" but not "notbad.com" or "bad.com.au")
+            escaped_pattern = re.escape(pattern)
+            if re.search(rf"(?<![\w-])(https?://)?(www\.)?{escaped_pattern}(?![\w-]|\.[\w-])", message, re.IGNORECASE):
+                return True
     return False
+
+# Function to check every link in a message is allowed: Twitch links always are, any other link must match a whitelist pattern
+async def message_links_whitelisted(message, whitelist_patterns):
+    for url in re.findall(r"https?://\S+", message, re.IGNORECASE):
+        if re.match(r"https?://([\w-]+\.)?twitch\.tv(/|$)", url, re.IGNORECASE):
+            continue
+        if not await match_domain_or_link(url, whitelist_patterns, use_regex=True):
+            return False
+    return True
 
 # Function(s) to track watch time for users in active channel
 async def periodic_watch_time_update():
