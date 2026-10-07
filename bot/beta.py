@@ -16983,7 +16983,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             event_logger.debug(f"[SUB EVENT] Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
-            subscriber_points = int(settings.get('point_amount_subscriber', 0))
+            subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
             event_logger.debug(f"[SUB EVENT] Subscriber points after multiplier: {subscriber_points}")
@@ -17102,7 +17102,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             event_logger.debug(f"[SUB MESSAGE] Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
-            subscriber_points = int(settings.get('point_amount_subscriber', 0))
+            subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
             event_logger.debug(f"[SUB MESSAGE] Subscriber points after multiplier: {subscriber_points}")
