@@ -399,33 +399,24 @@ function usr_schema_apply_for_user($dbname)
     if ($sessionWasClosed) {
         @session_start();
     }
-    $saved = [
-        'username' => $_SESSION['username'] ?? null,
-        'ok' => $_SESSION['usr_schema_ok'] ?? null,
-        'console' => $_SESSION['usr_schema_console'] ?? null,
-    ];
+    $savedUsername = $_SESSION['username'] ?? null;
     $_SESSION['username'] = $dbname;
-    unset($_SESSION['usr_schema_ok'], $_SESSION['usr_schema_console']);
     $GLOBALS['usr_schema_logs'] = [];
+    // Run the full check even when this user's marker is already current.
+    $GLOBALS['usr_schema_force'] = true;
 
-    include __DIR__ . '/usr_database.php';
+    try {
+        include __DIR__ . '/usr_database.php';
+    } finally {
+        unset($GLOBALS['usr_schema_force']);
+    }
 
     $logs = $GLOBALS['usr_schema_logs'] ?? [];
 
-    if ($saved['username'] !== null) {
-        $_SESSION['username'] = $saved['username'];
+    if ($savedUsername !== null) {
+        $_SESSION['username'] = $savedUsername;
     } else {
         unset($_SESSION['username']);
-    }
-    if ($saved['ok'] !== null) {
-        $_SESSION['usr_schema_ok'] = $saved['ok'];
-    } else {
-        unset($_SESSION['usr_schema_ok']);
-    }
-    if ($saved['console'] !== null) {
-        $_SESSION['usr_schema_console'] = $saved['console'];
-    } else {
-        unset($_SESSION['usr_schema_console']);
     }
     if ($sessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
         @session_write_close();

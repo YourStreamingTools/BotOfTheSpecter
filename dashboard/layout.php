@@ -470,12 +470,10 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <?php endif; ?>
     <?php
     // Replay usr_database.php console messages after paint; schema runs after the HTML response finishes.
+    require_once __DIR__ . '/includes/usr_schema_marker.php';
     $usrSchemaNeedsConsole = (!defined('BOTS_SKIP_USR_DATABASE') || !BOTS_SKIP_USR_DATABASE)
         && !empty($_SESSION['username'])
-        && (
-            empty($_SESSION['usr_schema_ok'])
-            || (string) $_SESSION['usr_schema_ok'] !== (string) $_SESSION['username']
-        );
+        && !usr_schema_marker_is_current((string) $_SESSION['username']);
     if ($usrSchemaNeedsConsole):
     ?>
     <script>
@@ -494,7 +492,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                 if (console.groupEnd) console.groupEnd();
             }
             function tick() {
-                fetch('/api/usr_schema.php', { credentials: 'same-origin', cache: 'no-store' })
+                fetch('/api/usr_schema.php?since=<?php echo time(); ?>', { credentials: 'same-origin', cache: 'no-store' })
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (d) {
                         if (!d) return;

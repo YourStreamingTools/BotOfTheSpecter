@@ -75,57 +75,21 @@ if (!function_exists('usr_merge_command_options_defaults')) {
         return $ok;
     }
 }
+require_once __DIR__ . '/usr_schema_marker.php';
 if (!function_exists('usr_schema_persist_logs')) {
-    function usr_schema_persist_logs($dbname = null, $mark_ok = false)
+    // Record the run (and its console messages) in the per-user marker file; $mark_ok marks the schema current.
+    function usr_schema_persist_logs($dbname, $mark_ok = false)
     {
-        $opened = false;
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            // Schema work releases the session lock first; reopen only to write the result.
-            if (!empty($_COOKIE[session_name()] ?? '')) {
-                @session_start();
-                $opened = true;
-            }
-        }
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            return;
-        }
-        $_SESSION['usr_schema_console'] = $GLOBALS['usr_schema_logs'] ?? [];
-        if ($mark_ok && is_string($dbname) && $dbname !== '') {
-            $_SESSION['usr_schema_ok'] = $dbname;
-        }
-        if ($opened) {
-            @session_write_close();
-        }
+        usr_schema_marker_write($dbname, $mark_ok, $GLOBALS['usr_schema_logs'] ?? []);
     }
 }
 
-// Fast path: skip schema work when this PHP session already bootstrapped this user DB.
-$__usrSchemaSessionWasClosed = false;
-if (session_status() === PHP_SESSION_NONE) {
-    // Pages commonly call session_write_close() before layout — reopen only for this flag.
-    if (!empty($_COOKIE[session_name()] ?? '')) {
-        @session_start();
-        $__usrSchemaSessionWasClosed = true;
-    }
-}
-if (session_status() === PHP_SESSION_ACTIVE
-    && !empty($_SESSION['usr_schema_ok'])
-    && (string) $_SESSION['usr_schema_ok'] === (string) $dbname) {
-    if ($__usrSchemaSessionWasClosed) {
-        @session_write_close();
-    }
+// Fast path: skip schema work when this user's DB was already checked against the current usr_database.php.
+// The admin schema page sets usr_schema_force to re-run it regardless.
+if (empty($GLOBALS['usr_schema_force']) && usr_schema_marker_is_current($dbname)) {
     return;
 }
-
-// web_sessions GET_LOCK is exclusive. Holding it across ~100 tables of
-// INFORMATION_SCHEMA / ALTER work blocks dashboard AJAX on the same cookie
-// (usr_schema peek waits 5s per try). Drop the lock before the heavy work.
-if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
-    @session_write_close();
-}
-if ($__usrSchemaSessionWasClosed) {
-    @set_time_limit(120);
-}
+@set_time_limit(120);
 
 try {
     // Create connection
@@ -134,10 +98,7 @@ try {
     if ($usrDBconn->connect_error) {
         error_log('usr_database.php connection failed: ' . $usrDBconn->connect_error);
         usr_schema_log('usr_database.php connection failed: ' . $usrDBconn->connect_error, 'error');
-        usr_schema_persist_logs();
-        if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
-            @session_write_close();
-        }
+        usr_schema_persist_logs($dbname);
         return;
     }
     // Check if the database exists, if not, create it
@@ -149,10 +110,7 @@ try {
         } else {
             error_log('usr_database.php create database failed: ' . $usrDBconn->error);
             usr_schema_log('usr_database.php create database failed: ' . $usrDBconn->error, 'error');
-            usr_schema_persist_logs();
-            if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
-                @session_write_close();
-            }
+            usr_schema_persist_logs($dbname);
             return;
         }
     }
@@ -164,10 +122,7 @@ try {
     if ($usrDBconn->connect_error) {
         error_log('usr_database.php reconnection failed: ' . $usrDBconn->connect_error);
         usr_schema_log('usr_database.php reconnection failed: ' . $usrDBconn->connect_error, 'error');
-        usr_schema_persist_logs();
-        if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
-            @session_write_close();
-        }
+        usr_schema_persist_logs($dbname);
         return;
     }
     usr_schema_log("Checking per-user database schema for $dbname...");
@@ -2213,17 +2168,11 @@ try {
     // Close the connection
     $usrDBconn->close();
 
-    // Mark schema OK for the rest of this session so later pages skip the work.
+    // Mark the schema current for this user so later pages skip the work until usr_database.php changes.
     usr_schema_persist_logs($dbname, true);
-    if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
-        @session_write_close();
-    }
 } catch (Exception $e) {
     error_log('usr_database.php exception: ' . $e->getMessage());
     usr_schema_log('Schema check failed: ' . $e->getMessage(), 'error');
-    usr_schema_persist_logs();
-    if (!empty($__usrSchemaSessionWasClosed) && session_status() === PHP_SESSION_ACTIVE) {
-        @session_write_close();
-    }
+    usr_schema_persist_logs($dbname);
 }
 ?>
