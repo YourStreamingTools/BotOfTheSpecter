@@ -9139,7 +9139,7 @@ class TwitchBot(commands.AutoBot):
                         (user_id, user_name, first_title, reward_points, pos, project)
                     )
                     active_id = cursor.lastrowid
-                    created.append((active_id, first_title, 'active', next_pos))
+                    created.append((active_id, first_title, 'active', pos))
                     for extra in titles[1:]:
                         await cursor.execute(
                             "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
