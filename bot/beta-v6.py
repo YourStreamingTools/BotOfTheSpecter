@@ -224,6 +224,8 @@ AD_BREAK_CHAT_MAX_LINES = 300
 ad_break_chat_history = deque(maxlen=AD_BREAK_CHAT_MAX_LINES)
 # Max allowed characters per chat message; reserve room for possible prefixes like @username
 MAX_CHAT_MESSAGE_LENGTH = 500
+# A long message is split into at most this many chat lines; anything beyond is cut so one oversized reply (API text, AI output) can't flood chat
+MAX_CHAT_MESSAGE_PARTS = 3
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 SSH_HOSTS = {
@@ -20518,7 +20520,13 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     # Messages over the limit are sent in parts instead of being dropped; only the first part is a threaded reply
     if len(message) > MAX_CHAT_MESSAGE_LENGTH:
         parts = split_chat_message(message)
-        chat_logger.info(f"Message is {len(message)} characters; sending it in {len(parts)} parts")
+        if len(parts) > MAX_CHAT_MESSAGE_PARTS:
+            chat_logger.warning(f"Message is {len(message)} characters ({len(parts)} parts); sending only the first {MAX_CHAT_MESSAGE_PARTS}")
+            parts = parts[:MAX_CHAT_MESSAGE_PARTS]
+            last = parts[-1]
+            parts[-1] = (last[:MAX_CHAT_MESSAGE_LENGTH - 1] if len(last) >= MAX_CHAT_MESSAGE_LENGTH else last) + '…'
+        else:
+            chat_logger.info(f"Message is {len(message)} characters; sending it in {len(parts)} parts")
         sent_all = True
         for index, part in enumerate(parts):
             if index:
