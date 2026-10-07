@@ -12799,6 +12799,9 @@ async def word_replace_maybe_echo(author, content, is_echo=False):
     author_key = (author or "").strip().lower()
     if author_key in settings.get("ignored_users", set()):
         return
+    # Other chat bots (the global known-bots list) never get echoed
+    if author_key in await get_known_bots():
+        return
     if not word_replace_is_transformable(content):
         return
     if not should_random_trigger(int(settings.get("frequency") or 30)):
