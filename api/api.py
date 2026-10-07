@@ -3721,7 +3721,7 @@ async def get_walkons(api_key: str = Query(...), channel: str = Query(None)):
                 "username": viewer,
                 "ext": ext,
                 "filename": filename,
-                "url": f"https://walkons.botofthespecter.com/{username}/{filename}",
+                "url": f"https://walkons.botofthespecter.com/{username}/{quote(filename)}",
             })
         return {
             "user": username,
@@ -5164,9 +5164,8 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
 
 # Functions to fetch weather data
 async def get_weather_lat_lon(location):
-    location = location.replace(" ", "%20")
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={WEATHER_API}") as response:
+        async with session.get(f"https://api.openweathermap.org/geo/1.0/direct?q={quote(location, safe='')}&limit=1&appid={WEATHER_API}") as response:
             data = await response.json()
             if len(data) > 0:
                 return data[0], data[0]['lat'], data[0]['lon']
@@ -5328,7 +5327,7 @@ async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..
     if not sound.endswith(('.mp3', '.wav', '.ogg', '.m4a')):
         sound += '.mp3'
     # Build the sound URL
-    sound_url = f"https://soundalerts.botofthespecter.com/{channel}/{sound}"
+    sound_url = f"https://soundalerts.botofthespecter.com/{channel}/{quote(sound)}"
     # Trigger the WebSocket event
     params = {"event": "SOUND_ALERT", "sound": sound_url}
     await websocket_notice("SOUND_ALERT", params, api_key)
