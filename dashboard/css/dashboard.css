@@ -6381,6 +6381,7 @@ label.checkbox input[type="checkbox"] {
     flex-direction: column;
     gap: 0.35rem;
 }
+.rerun-category { max-width: 480px; }
 .rerun-when { align-items: flex-end; gap: 1rem; margin-bottom: 1rem; }
 .rerun-when .sp-form-group { margin-bottom: 0; }
 .rerun-total { color: var(--text-secondary); padding-bottom: 0.5rem; }
