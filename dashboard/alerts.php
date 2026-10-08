@@ -193,6 +193,21 @@ $simpleCategorySeeds = [
     'patreon'      => 'Patreon',
     'fourthwall'   => 'Fourthwall'
 ];
+// Text a new variant starts with: the category's own default message, so an enabled-but-unedited variant still reads sensibly on the overlay.
+function alerts_default_template($category, $defaultAlerts, $adBreakSeedMessage)
+{
+    if ($category === 'ad_break') {
+        return $adBreakSeedMessage;
+    }
+    foreach ($defaultAlerts as $alert) {
+        if ($alert[0] === $category && $alert[4] !== null) {
+            return $alert[4];
+        }
+    }
+    return "{username}";
+}
+// Old "Add variant" placeholder (real newline, or a literal backslash-n). Variants still carrying it get their category default.
+$alertsOldPlaceholders = ["{username}\nfired this alert!", '{username}\nfired this alert!'];
 $adBreakSeedName = 'Ads playing';
 $adBreakSeedMessage = "Ads are playing\nBack in {duration}";
 
@@ -251,6 +266,20 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             $adIns->bind_param('ss', $adBreakSeedName, $adBreakSeedMessage);
             $adIns->execute();
             $adIns->close();
+        }
+        $phStmt = $db->prepare("SELECT id, alert_category FROM twitch_alerts WHERE message_template IN (?, ?)");
+        $phStmt->bind_param('ss', $alertsOldPlaceholders[0], $alertsOldPlaceholders[1]);
+        $phStmt->execute();
+        $phRes = $phStmt->get_result();
+        $phRows = $phRes ? $phRes->fetch_all(MYSQLI_ASSOC) : [];
+        $phStmt->close();
+        foreach ($phRows as $phRow) {
+            $phTpl = alerts_default_template($phRow['alert_category'], $defaultAlerts, $adBreakSeedMessage);
+            $phId = (int)$phRow['id'];
+            $phUp = $db->prepare("UPDATE twitch_alerts SET message_template = ? WHERE id = ?");
+            $phUp->bind_param('si', $phTpl, $phId);
+            $phUp->execute();
+            $phUp->close();
         }
         $allAlerts = [];
         if ($result = $db->query("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index")) {
@@ -500,7 +529,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $nextIdx = (int)$idxRes->fetch_assoc()['next_idx'];
         // Starts disabled: an unconfigured catch-all would otherwise take over the category on the overlay.
         $insStmt = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, message_template) VALUES (?, ?, ?, 0, ?)");
-        $tpl = "{username}\nfired this alert!";
+        $tpl = alerts_default_template($category, $defaultAlerts, $adBreakSeedMessage);
         $insStmt->bind_param('ssis', $category, $name, $nextIdx, $tpl);
         if ($insStmt->execute()) {
             $newId = $insStmt->insert_id;
