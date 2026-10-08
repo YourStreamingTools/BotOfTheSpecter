@@ -6325,6 +6325,25 @@ label.checkbox input[type="checkbox"] {
     background: var(--bg-surface);
     padding: 0.75rem 1rem;
 }
+.rerun-drag-handle {
+    flex: 0 0 auto;
+    align-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.15rem;
+    color: var(--text-muted);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+.rerun-drag-handle:hover { color: var(--text-primary); }
+.rerun-playlist.is-sorting,
+.rerun-playlist.is-sorting .rerun-drag-handle { cursor: grabbing; user-select: none; }
+.rerun-item.is-dragging {
+    border-color: var(--accent);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    opacity: 0.85;
+}
 .rerun-item-num {
     flex: 0 0 auto;
     min-width: 1.75rem;
