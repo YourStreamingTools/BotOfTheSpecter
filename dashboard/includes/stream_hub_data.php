@@ -1164,7 +1164,9 @@ if ($rerunsReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $picked,
                 $rerunCandidates,
                 (string) ($_POST['rerun_game_id'] ?? ''),
-                (string) ($_POST['rerun_game_name'] ?? '')
+                (string) ($_POST['rerun_game_name'] ?? ''),
+                (string) ($_POST['rerun_title'] ?? ''),
+                !empty($_POST['rerun_per_vod_titles'])
             );
             if (!empty($created['ok'])) {
                 stream_hub_redirect('reruns', t('rerun_scheduled_ok'), 'is-success');
