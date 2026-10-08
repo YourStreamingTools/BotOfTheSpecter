@@ -1070,6 +1070,9 @@ foreach ($s3Jobs as $job) {
         li.querySelector('[data-field="title"]').value = (btn.getAttribute('data-title') || '').slice(0, TITLE_MAX);
         setCategory(li, btn.getAttribute('data-game-id') || '', btn.getAttribute('data-game-name') || '');
         list.appendChild(li);
+        // A VOD in the playlist leaves the pick list; removing it from the playlist brings it back.
+        var pickRow = btn.closest('tr');
+        if (pickRow) pickRow.hidden = true;
         refresh();
     }
 
@@ -1096,6 +1099,13 @@ foreach ($s3Jobs as $job) {
             return;
         }
         if (event.target.closest('[data-remove]')) {
+            var token = li.querySelector('[data-field="vod"]').value;
+            document.querySelectorAll('[data-rerun-add]').forEach(function (addBtn) {
+                if (addBtn.getAttribute('data-token') === token) {
+                    var row = addBtn.closest('tr');
+                    if (row) row.hidden = false;
+                }
+            });
             li.remove();
             refresh();
         }
