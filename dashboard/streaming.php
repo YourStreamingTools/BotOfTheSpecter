@@ -321,7 +321,9 @@ foreach ($s3Jobs as $job) {
                                     <td><?php echo htmlspecialchars(formatBytes((int) $file['size'])); ?></td>
                                     <td><?php echo htmlspecialchars(stream_hub_format_duration($file['duration_seconds'] ?? $durSeconds)); ?></td>
                                     <td>
-                                        <?php if (!empty($file['upload_hold'])): ?>
+                                        <?php if ($inProgress): ?>
+                                            —
+                                        <?php elseif (!empty($file['upload_hold'])): ?>
                                             <?php echo t('recording_kept_for_upload'); ?>
                                         <?php elseif (!empty($file['expires_unix'])): ?>
                                             <span class="recording-countdown" data-expires="<?php echo (int) $file['expires_unix']; ?>">—</span>
@@ -1857,10 +1859,13 @@ foreach ($s3Jobs as $job) {
                 actions += '</div>';
             }
             var expires = Number(file.expires_unix || file.expires_at_unix || 0);
-            var expCell = file.upload_hold
-                ? escapeHtml(I18N.keptForUpload)
-                : (expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—');
-            if (file.rerun_hold) {
+            // Still recording or storing: the expiry keeps moving with the file, so don't show one yet.
+            var expCell = inProgress
+                ? '—'
+                : (file.upload_hold
+                    ? escapeHtml(I18N.keptForUpload)
+                    : (expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—'));
+            if (file.rerun_hold && !inProgress) {
                 expCell += ' <span class="sp-badge sp-badge-blue" title="' + escapeHtml(I18N.rerunHoldHelp) + '">' + escapeHtml(I18N.rerunHold) + '</span>';
             }
             rows += '<tr><td>' + check + '</td><td>' + escapeHtml(title) + '</td><td>' + type + '</td><td>' + formatBytes(file.size || file.size_bytes || 0) + '</td><td>' + escapeHtml(formatDuration(fileDurationSeconds(file))) + '</td><td>' + expCell + '</td><td>' + actions + '</td></tr>';
