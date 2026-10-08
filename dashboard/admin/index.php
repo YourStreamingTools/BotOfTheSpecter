@@ -352,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'websocket-control.service', 'yourchat-piper.service', 'ws-caddy.service', 'mysql.service', 'sql-api.service', 'sql-caddy.service', 'export_queue_worker.service', 'twitch-recorder.service', 'stream.service', 'caddy.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'websocket-control.service', 'yourchat-piper.service', 'ws-caddy.service', 'mysql.service', 'sql-api.service', 'sql-caddy.service', 'export_queue_worker.service', 'twitch-recorder.service', 'stream.service', 'rerun-scheduler.service', 'caddy.service'];
     // Some allowed "service" identifiers are dashboard-only aliases so the same real unit name
     // (e.g. caddy.service) can be routed to different hosts; map alias -> actual systemd unit here.
     $serviceUnitOverrides = [
@@ -393,7 +393,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $sql_server_host ?? '';
                 $ssh_username = $sql_server_username ?? '';
                 $ssh_password = $sql_server_password ?? '';
-            } elseif ($service == 'twitch-recorder.service' || $service == 'stream.service') {
+            } elseif ($service == 'twitch-recorder.service' || $service == 'stream.service' || $service == 'rerun-scheduler.service') {
                 $ssh_host = $recorder_ssh_host ?? '';
                 $ssh_username = $recorder_ssh_username ?? '';
                 $ssh_password = $recorder_ssh_password ?? '';
@@ -453,6 +453,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                             'export_queue_worker.service' => 'Export Queue Worker',
                             'twitch-recorder.service' => 'Twitch Recorder',
                             'stream.service' => 'RTMPS Stream Server',
+                            'rerun-scheduler.service' => 'Rerun Scheduler',
                             'caddy.service' => 'CADDY — WEB SERVER',
                         ];
                         $actionLabels = ['start' => 'started', 'stop' => 'stopped', 'restart' => 'restarted'];
@@ -2419,6 +2420,26 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-info"><i class="fas fa-redo-alt fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_rerun_scheduler'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_rerun_scheduler_sub'); ?></span>
+                                    <span class="admin-service-status" id="rerun-scheduler-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="rerun-scheduler-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="rerun-scheduler-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('rerun-scheduler.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('rerun-scheduler.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('rerun-scheduler.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
     </div>
@@ -2837,6 +2858,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
             'twitch-recorder.service' => t('admin_index_svc_twitch_recorder'),
             'stream.service' => t('admin_index_svc_stream_server'),
+            'rerun-scheduler.service' => t('admin_index_svc_rerun_scheduler'),
             'caddy.service' => t('admin_index_svc_web_caddy')
         ]); ?>,
         actionLabels: <?php echo json_encode([
@@ -3004,6 +3026,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
         'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' },
         'stream.service': { statusKey: 'stream_server', statusId: 'stream-server-status', pidId: 'stream-server-pid', buttonsId: 'stream-server-buttons' },
+        'rerun-scheduler.service': { statusKey: 'rerun_scheduler', statusId: 'rerun-scheduler-status', pidId: 'rerun-scheduler-pid', buttonsId: 'rerun-scheduler-buttons' },
         'caddy.service': { statusKey: 'web_caddy', statusId: 'web-caddy-status', pidId: 'web-caddy-pid', buttonsId: 'web-caddy-buttons' }
     };
     function scheduleStatusRefresh(meta, action) {
@@ -3585,6 +3608,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
         updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');
         updateServiceStatus('stream_server', 'stream-server-status', 'stream-server-pid', 'stream-server-buttons');
+        updateServiceStatus('rerun_scheduler', 'rerun-scheduler-status', 'rerun-scheduler-pid', 'rerun-scheduler-buttons');
         updateServiceStatus('web_caddy', 'web-caddy-status', 'web-caddy-pid', 'web-caddy-buttons');
     }, 100);
     const serviceUptimeState = {};
