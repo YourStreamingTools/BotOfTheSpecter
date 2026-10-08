@@ -31,6 +31,11 @@ from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 from ffmpeg_jobs import pull_ffmpeg_log_path, update_media_meta, read_media_meta
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
 load_dotenv()
 
 DB_HOST = os.getenv("SQL_HOST")
@@ -41,6 +46,9 @@ STREAM_DIR = os.path.dirname(os.path.abspath(__file__))
 HOSTNAME = socket.gethostname()
 PULL_CONCURRENCY = max(1, int(os.getenv("TWITCH_PULL_CONCURRENCY") or "24"))
 PULL_LIVE_SECONDS = 120
+# Pulls running at once on this server across all users; the rest wait as 'queued'
+PULL_SLOTS = max(1, int(os.getenv("TWITCH_PULL_SLOTS") or "2"))
+PULL_SLOT_DIR = "/run/specter-vod-pulls"
 HEARTBEAT_SECONDS = 10
 SEGMENT_RETRIES = 5
 DOWNLOAD_SHARE = 85.0
@@ -420,6 +428,25 @@ class LostClaim(Exception):
     pass
 
 
+def take_pull_slot():
+    # Returns the open lock file (held until the process exits) or None
+    if fcntl is None:
+        return True
+    folder = PULL_SLOT_DIR
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError:
+        folder = os.path.join(STREAM_DIR, "logs")
+    for index in range(PULL_SLOTS):
+        handle = open(os.path.join(folder, f"slot-{index}.lock"), "a+")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle
+        except OSError:
+            handle.close()
+    return None
+
+
 class PullWorker:
     def __init__(self, pool, user_id, username, vod_id, dest, title):
         self.pool = pool
@@ -461,6 +488,47 @@ class PullWorker:
              self.user_id, self.vod_id, PULL_LIVE_SECONDS),
         )
         return n == 1
+
+    async def wait_for_slot(self):
+        # Only the front of the queue takes a slot, so the dashboard's queue position is the real order
+        await self._exec(
+            """
+            INSERT INTO twitch_vod_pulls
+                (user_id, twitch_video_id, username, filename, title, status, owner_host)
+            VALUES (%s, %s, %s, %s, %s, 'queued', %s)
+            ON DUPLICATE KEY UPDATE id = id
+            """,
+            (self.user_id, self.vod_id, self.username, os.path.basename(self.dest), self.title or None, HOSTNAME),
+        )
+        waiting = False
+        while True:
+            slot = take_pull_slot()
+            if slot is not None:
+                return slot
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT status FROM twitch_vod_pulls WHERE user_id = %s AND twitch_video_id = %s",
+                        (self.user_id, self.vod_id),
+                    )
+                    row = await cur.fetchone()
+            if not row or row[0] != "queued":
+                return None
+            if not waiting:
+                waiting = True
+                logger.info(f"VOD {self.vod_id} for {self.username} queued; {PULL_SLOTS} pull(s) already running")
+            try:
+                await self._exec(
+                    """
+                    UPDATE twitch_vod_pulls
+                    SET phase = 'queued', owner_host = %s, owner_pid = %s, updated_at = NOW()
+                    WHERE user_id = %s AND twitch_video_id = %s AND status = 'queued'
+                    """,
+                    (HOSTNAME, self.pid, self.user_id, self.vod_id),
+                )
+            except Exception as e:
+                logger.warning(f"Could not refresh queued VOD {self.vod_id}: {e}")
+            await asyncio.sleep(HEARTBEAT_SECONDS / 2)
 
     async def _owned(self):
         async with self.pool.acquire() as conn:
@@ -768,7 +836,12 @@ async def run_worker(user_id, username, vod_id, dest, title):
     )
     job = PullWorker(pool, user_id, username, vod_id, dest, title)
     beat = None
+    slot = None
     try:
+        slot = await job.wait_for_slot()
+        if slot is None:
+            logger.info(f"VOD {vod_id} for {username} is no longer queued; exiting")
+            return 0
         if not await job.claim():
             logger.info(f"VOD {vod_id} for {username} is already being pulled; exiting")
             return 0
