@@ -621,6 +621,18 @@ foreach ($s3Jobs as $job) {
                 <div class="stream-hub-empty" id="rerun-playlist-empty"><?php echo t('rerun_playlist_empty'); ?></div>
                 <ol class="rerun-playlist" id="rerun-playlist"></ol>
                 <h3 class="rerun-step"><?php echo t('rerun_step_category'); ?></h3>
+                <div class="sp-form-group rerun-category">
+                    <label class="sp-label" for="rerun-title"><?php echo t('rerun_title_label'); ?></label>
+                    <div class="rerun-title-row">
+                        <span class="rerun-prefix"><?php echo htmlspecialchars(VOD_RERUN_PREFIX); ?></span>
+                        <input class="sp-input" type="text" id="rerun-title" name="rerun_title" required maxlength="<?php echo (int) (VOD_RERUN_TITLE_MAX - mb_strlen(VOD_RERUN_PREFIX)); ?>">
+                    </div>
+                    <span class="sp-help"><?php echo t('rerun_title_help'); ?></span>
+                    <label class="youtube-toggle rerun-per-vod">
+                        <input type="checkbox" name="rerun_per_vod_titles" id="rerun-per-vod" value="1">
+                        <?php echo t('rerun_title_per_vod'); ?>
+                    </label>
+                </div>
                 <p class="sp-help"><?php echo t('rerun_category_help'); ?></p>
                 <div class="sp-form-group rerun-category" id="rerun-category">
                     <label class="sp-label" for="rerun-cat-input"><?php echo t('rerun_category_label'); ?></label>
@@ -1022,10 +1034,24 @@ foreach ($s3Jobs as $job) {
         var m = Math.floor((seconds % 3600) / 60);
         return h > 0 ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m + 'm';
     }
+    // The rerun title follows the first VOD in the playlist until the streamer types their own.
+    var rerunTitle = document.getElementById('rerun-title');
+    var perVod = document.getElementById('rerun-per-vod');
+    var titleTouched = false;
+    rerunTitle.addEventListener('input', function () { titleTouched = true; });
+    perVod.addEventListener('change', function () { refresh(); });
     function refresh() {
         var items = list.querySelectorAll('.rerun-item');
         var total = 0;
         var unknown = false;
+        if (!titleTouched) {
+            rerunTitle.value = items.length ? items[0].querySelector('[data-field="title"]').value : '';
+        }
+        rerunTitle.required = !perVod.checked;
+        items.forEach(function (li) {
+            li.querySelector('.rerun-item-title').hidden = !perVod.checked;
+            li.querySelector('[data-field="title"]').required = perVod.checked;
+        });
         items.forEach(function (li, i) {
             li.querySelector('.rerun-item-num').textContent = String(i + 1);
             li.querySelectorAll('[data-field]').forEach(function (input) {
@@ -1063,10 +1089,10 @@ foreach ($s3Jobs as $job) {
             '<span class="rerun-item-num"></span>' +
             '<div class="rerun-item-body">' +
                 '<div class="rerun-item-file">' + esc(btn.getAttribute('data-display')) + '</div>' +
-                '<div class="sp-form-group">' +
+                '<div class="sp-form-group rerun-item-title">' +
                     '<label class="sp-label">' + esc(T.titleLabel) + '</label>' +
                     '<div class="rerun-title-row"><span class="rerun-prefix">' + esc(T.prefix) + '</span>' +
-                    '<input class="sp-input" type="text" data-field="title" required maxlength="' + TITLE_MAX + '"></div>' +
+                    '<input class="sp-input" type="text" data-field="title" maxlength="' + TITLE_MAX + '"></div>' +
                 '</div>' +
                 '<input type="hidden" data-field="vod">' +
             '</div>' +

@@ -235,6 +235,7 @@ class TwitchChannel:
         self.refresh = ""
         self.client_id = CLIENT_ID or ""
         self.scopes = set()
+        self.last_title = None
 
     async def load(self):
         row = await fetch_one(
@@ -349,6 +350,7 @@ class TwitchChannel:
             payload=payload,
         )
         if status == 204:
+            self.last_title = title
             return True, ""
         return False, f"twitch_channel_update_{status}"
 
@@ -583,7 +585,9 @@ async def run_group(pool, channel, rerun_id, group, proc, started_epoch, current
             nxt = group[current]
             await set_item(pool, nxt["id"], status="playing", started_at=NOW, error_message=None)
             await set_rerun(pool, rerun_id, current_position=nxt["position"])
-            ok, err = await channel.set_channel(rerun_title(nxt["title"]))
+            ok, err = True, ""
+            if rerun_title(nxt["title"]) != channel.last_title:
+                ok, err = await channel.set_channel(rerun_title(nxt["title"]))
             if not ok:
                 logger.warning(f"Rerun {rerun_id}: title update for item {nxt['position']} failed ({err}); still playing")
             logger.info(f"Rerun {rerun_id} now playing item {nxt['position']}")
@@ -810,7 +814,9 @@ async def run_rerun(pool, session, rerun_id, resume=False):
         group = [entry[0] for entry in queue[index:end]]
         paths = [entry[1] for entry in queue[index:end]]
         await set_rerun(pool, rerun_id, current_position=first_item["position"])
-        ok, err = await channel.set_channel(rerun_title(first_item["title"]), None if title_set else game_id)
+        ok, err = True, ""
+        if not title_set or rerun_title(first_item["title"]) != channel.last_title:
+            ok, err = await channel.set_channel(rerun_title(first_item["title"]), None if title_set else game_id)
         if not ok and not title_set:
             # Never go live without the RERUN title on the channel.
             await set_item(pool, first_item["id"], status="failed", error_message=err, finished_at=NOW)

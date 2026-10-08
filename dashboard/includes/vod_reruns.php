@@ -188,8 +188,10 @@ function vod_rerun_list(mysqli $conn, int $userId): array
     return array_values($reruns);
 }
 
-function vod_rerun_create(mysqli $conn, int $userId, string $username, string $timezone, string $localWhen, array $picked, array $candidates, string $gameId = '', string $gameName = ''): array
+function vod_rerun_create(mysqli $conn, int $userId, string $username, string $timezone, string $localWhen, array $picked, array $candidates, string $gameId = '', string $gameName = '', string $rerunTitle = '', bool $perVodTitles = false): array
 {
+    // One title for the whole rerun (shown as "RERUN - {title}"), unless each VOD keeps its own.
+    $rerunTitle = trim(preg_replace('/\s+/u', ' ', $rerunTitle));
     // One category for the whole rerun: it plays as one continuous stream.
     $gameId = trim($gameId);
     if (!preg_match('/^[0-9]{1,20}$/', $gameId)) {
@@ -222,9 +224,9 @@ function vod_rerun_create(mysqli $conn, int $userId, string $username, string $t
             return ['ok' => false, 'error' => 'vod_missing'];
         }
         $c = $candidates[$token];
-        $title = trim(preg_replace('/\s+/u', ' ', (string) ($row['title'] ?? '')));
+        $title = $perVodTitles ? trim(preg_replace('/\s+/u', ' ', (string) ($row['title'] ?? ''))) : $rerunTitle;
         if ($title === '') {
-            $title = $c['title'];
+            $title = $perVodTitles || !$items ? $c['title'] : $items[0]['title'];
         }
         $items[] = [
             'filename' => $c['name'],

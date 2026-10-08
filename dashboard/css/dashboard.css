@@ -6382,6 +6382,8 @@ label.checkbox input[type="checkbox"] {
     gap: 0.35rem;
 }
 .rerun-category { max-width: 480px; }
+.rerun-item-title[hidden] { display: none; }
+.rerun-per-vod { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
 .rerun-when { align-items: flex-end; gap: 1rem; margin-bottom: 1rem; }
 .rerun-when .sp-form-group { margin-bottom: 0; }
 .rerun-total { color: var(--text-secondary); padding-bottom: 0.5rem; }
