@@ -67,7 +67,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.25"
+VERSION = "5.7.26"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8931,6 +8931,13 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 giftsubfrom = "Anonymous"
             else:
                 giftsubfrom = gifter_user_name
+            # Twitch hides the gifter's total when they don't share it: None for anonymous gifts, 0 otherwise (a real total includes this gift, so it can't be below the count). Drop the sentence that mentions it rather than saying "0" or "None"
+            try:
+                total_shared = total_gifted is not None and int(total_gifted) >= max(1, int(number_gifts or 1))
+            except (TypeError, ValueError):
+                total_shared = False
+            if not total_shared:
+                alert_message = re.sub(r'[^.!?]*\(total-gifted\)[^.!?]*[.!?]?', '', alert_message).strip()
             alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
             await send_chat_message(alert_message)
             marker_description = f"New Gift Subs from {giftsubfrom}"
