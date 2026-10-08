@@ -6235,7 +6235,7 @@ label.checkbox input[type="checkbox"] {
 .sp-modal-wide {
     max-width: 720px;
 }
-#library, #record, #ingest, #forward, #youtube, #import, #s3 {
+#library, #record, #ingest, #forward, #youtube, #import, #s3, #reruns, #rerun-schedule {
     scroll-margin-top: 1rem;
 }
 .stream-hub-panel { display: none; }
@@ -6296,6 +6296,89 @@ label.checkbox input[type="checkbox"] {
 }
 @media (max-width: 640px) {
     .stream-hub-file-actions .sp-btn { width: 100%; justify-content: center; }
+}
+
+/* ----- Stream hub: scheduled reruns ----- */
+#rerun-schedule { margin-top: 1.25rem; }
+.rerun-step {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 1.25rem 0 0.5rem;
+}
+.rerun-step:first-of-type { margin-top: 0.25rem; }
+.rerun-picker { max-height: 320px; overflow-y: auto; }
+.rerun-playlist {
+    list-style: none;
+    margin: 0 0 0.5rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.rerun-item {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    padding: 0.75rem 1rem;
+}
+.rerun-item-num {
+    flex: 0 0 auto;
+    min-width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.rerun-item-body { flex: 1 1 auto; min-width: 0; }
+.rerun-item-body .sp-form-group { margin-bottom: 0.5rem; }
+.rerun-item-file {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    overflow-wrap: anywhere;
+}
+.rerun-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.rerun-title-row .sp-input { flex: 1 1 auto; min-width: 0; }
+.rerun-prefix {
+    flex: 0 0 auto;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.rerun-item-actions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.rerun-when { align-items: flex-end; gap: 1rem; margin-bottom: 1rem; }
+.rerun-when .sp-form-group { margin-bottom: 0; }
+.rerun-total { color: var(--text-secondary); padding-bottom: 0.5rem; }
+.rerun-list-items {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+.rerun-list-items li { margin-bottom: 0.35rem; }
+.rerun-list-items li > span:first-child { color: var(--text-primary); }
+.rerun-list-meta {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+@media (max-width: 640px) {
+    .rerun-item { flex-wrap: wrap; }
+    .rerun-item-actions { flex-direction: row; width: 100%; justify-content: flex-end; }
 }
 
 /* ----- Tracked games ----- */

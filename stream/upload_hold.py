@@ -1,4 +1,4 @@
-# Filenames with a YouTube or S3 transfer still queued or running. Retention must leave them on disk.
+# Filenames with a YouTube or S3 transfer still queued or running, or in a rerun that hasn't played yet. Retention must leave them on disk.
 import os
 
 import aiomysql
@@ -32,6 +32,12 @@ _HOLD_QUERIES = (
     FROM user_s3_uploads j
     JOIN users u ON u.id = j.user_id
     WHERE j.status IN ('queued', 'pulling', 'uploading')
+    """,
+    """
+    SELECT r.username, i.filename
+    FROM vod_rerun_items i
+    JOIN vod_reruns r ON r.id = i.rerun_id
+    WHERE r.status IN ('scheduled', 'live') AND i.storage = 'local'
     """,
 )
 
