@@ -1333,6 +1333,65 @@ class ChannelMapping:
         except Exception as e:
             self.logger.error(f"Error in populate_missing_mappings_from_users: {e}")
 
+# OpenAI webhook event types -> (title, plain-English description, colour)
+OPENAI_WEBHOOK_EVENTS = {
+    "response.completed": ("Background response completed", "A background response finished.", "green"),
+    "response.cancelled": ("Background response cancelled", "A background response was cancelled.", "grey"),
+    "response.failed": ("Background response failed", "A background response failed.", "red"),
+    "response.incomplete": ("Background response incomplete", "A background response stopped before it finished.", "orange"),
+    "batch.completed": ("Batch completed", "A batch job finished.", "green"),
+    "batch.cancelled": ("Batch cancelled", "A batch job was cancelled.", "grey"),
+    "batch.expired": ("Batch expired", "A batch job expired before it finished.", "orange"),
+    "batch.failed": ("Batch failed", "A batch job failed.", "red"),
+    "fine_tuning.job.succeeded": ("Fine-tuning job succeeded", "A fine-tuning job finished.", "green"),
+    "fine_tuning.job.failed": ("Fine-tuning job failed", "A fine-tuning job failed.", "red"),
+    "fine_tuning.job.cancelled": ("Fine-tuning job cancelled", "A fine-tuning job was cancelled.", "grey"),
+    "eval.run.succeeded": ("Eval run succeeded", "An eval run finished.", "green"),
+    "eval.run.failed": ("Eval run failed", "An eval run failed.", "red"),
+    "eval.run.canceled": ("Eval run cancelled", "An eval run was cancelled.", "grey"),
+    "realtime.call.incoming": ("Incoming call (Realtime)", "A phone (SIP) call is waiting to be answered through the Realtime API.", "blurple"),
+    "live.transport.incoming": ("Incoming call (Live)", "A phone (SIP) call is waiting to be answered through the Live API.", "blurple"),
+    "live.call.incoming": ("Incoming call (Live)", "A phone (SIP) call is waiting to be answered through the Live API.", "blurple"),
+    "safety.warning_issued": ("Safety warning issued", "OpenAI issued a safety warning for a user in the organisation.", "red"),
+    "safety.deactivation_issued": ("Safety deactivation issued", "OpenAI deactivated a user (safety identifier) in the organisation.", "red"),
+    "safety.alert.created": ("Safety alert", "A new safety alert is available for the API project.", "red"),
+    "safety.org_alert.created": ("Safety alert", "A new safety alert is available for the workspace.", "red"),
+    "test": ("Test notice", "A test sent from the admin Webhooks page.", "blurple"),
+}
+
+
+def openai_webhook_embed(service, payload):
+    event_type = str(payload.get('type') or '')
+    title, description, colour = OPENAI_WEBHOOK_EVENTS.get(
+        event_type, (event_type or "Event", f"OpenAI sent a `{event_type or 'unknown'}` event.", "orange")
+    )
+    colours = {
+        "green": discord.Color.green(), "red": discord.Color.red(), "orange": discord.Color.orange(),
+        "grey": discord.Color.light_grey(), "blurple": discord.Color.blurple(),
+    }
+    embed = discord.Embed(
+        title=f"OpenAI · {title}",
+        description=description,
+        color=colours.get(colour, discord.Color.orange()),
+        timestamp=datetime.now(timezone.utc),
+    )
+    inner = payload.get('data') if isinstance(payload.get('data'), dict) else {}
+    embed.add_field(name="Event", value=f"`{event_type or 'unknown'}`", inline=True)
+    resource = inner.get('id') or inner.get('call_id') or inner.get('session_id')
+    if resource:
+        embed.add_field(name="ID", value=f"`{resource}`", inline=True)
+    created = payload.get('created_at')
+    if isinstance(created, (int, float)) and created > 0:
+        embed.add_field(name="When", value=f"<t:{int(created)}:F>", inline=True)
+    if inner.get('sip_media_security'):
+        embed.add_field(name="Media", value=str(inner.get('sip_media_security')).upper(), inline=True)
+    footer = f"{service} webhook"
+    if payload.get('id'):
+        footer += f" · {payload.get('id')}"
+    embed.set_footer(text=footer)
+    return embed
+
+
 async def handle_webhook_log(bot, data):
     logger = bot.logger if hasattr(bot, 'logger') else logging.getLogger('WebhookLog')
     channel_id = getattr(config, 'webhook_logs_channel_id', '') or ''
@@ -1359,6 +1418,13 @@ async def handle_webhook_log(bot, data):
             payload = {"raw": raw[:500]}
     if not isinstance(payload, dict):
         payload = {"data": payload}
+    if str(service).lower() == 'openai':
+        try:
+            await channel.send(embed=openai_webhook_embed(service, payload))
+            logger.info(f"Posted OpenAI webhook log ({payload.get('type')}) to channel {channel_id}")
+        except Exception as e:
+            logger.error(f"Failed to post OpenAI webhook log: {e}")
+        return
     el_type = payload.get('type')
     inner = payload.get('data') if isinstance(payload.get('data'), dict) else {}
     desc_lines = [f"**Service:** {service}", f"**Event:** `{event_name}`"]

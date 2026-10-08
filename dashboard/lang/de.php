@@ -2367,6 +2367,7 @@ return [
     'admin_webhooks_verify_hmac' => 'HMAC-Signatur',
     'admin_webhooks_field_secret_header' => 'Geheimnis-Header',
     'admin_webhooks_field_secret_header_help' => 'Der HTTP-Header, den der Absender verwendet. Standardmäßig X-Webhook-Secret (bzw. X-Webhook-Signature für HMAC). Für ElevenLabs: ElevenLabs-Signature.',
+    'admin_webhooks_openai_hint' => 'OpenAI: Wähle HMAC-Signatur, setze den Header auf webhook-signature und füge das whsec_-Signiergeheimnis von OpenAI ein. Nutze den Bereich Discord-Logs für eine reine Discord-Meldung.',
     'admin_webhooks_field_secret' => 'Geteiltes Geheimnis (optional)',
     'admin_webhooks_field_secret_ph' => 'Anbieter-Geheimnis einfügen oder leer lassen zum Erzeugen',
     'admin_webhooks_field_secret_help' => 'Füge das Geheimnis des Anbieters ein (ElevenLabs erzeugt seines). Leer lassen, um ein neues zu erzeugen.',

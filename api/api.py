@@ -2617,12 +2617,48 @@ def _verify_elevenlabs_signature(secret: str, provided: str, raw_body: bytes) ->
     return hmac.compare_digest(computed.lower(), digest.lower())
 
 
+def _is_standard_webhook(secret: str, header_name: str) -> bool:
+    # Standard Webhooks senders (OpenAI) use a "whsec_" secret and the webhook-signature header
+    return str(secret or "").startswith("whsec_") or (header_name or "").lower() == "webhook-signature"
+
+
+def _verify_standard_webhook(secret: str, request: Request, raw_body: bytes) -> bool:
+    # Standard Webhooks spec: v1 signature = base64 HMAC-SHA256 of "{id}.{timestamp}.{body}" with the decoded whsec_ key
+    msg_id = request.headers.get("webhook-id", "")
+    timestamp = request.headers.get("webhook-timestamp", "")
+    signatures = request.headers.get("webhook-signature", "")
+    if not msg_id or not timestamp or not signatures:
+        return False
+    try:
+        ts = int(timestamp)
+    except (TypeError, ValueError):
+        return False
+    # Reject replays: the spec allows five minutes either way.
+    if abs(_time.time() - ts) > 300:
+        return False
+    key_text = secret[len("whsec_"):] if secret.startswith("whsec_") else secret
+    try:
+        key = base64.b64decode(key_text, validate=True)
+    except (ValueError, TypeError):
+        return False
+    body = raw_body if isinstance(raw_body, (bytes, bytearray)) else str(raw_body or "").encode("utf-8")
+    signed = f"{msg_id}.{timestamp}.".encode("utf-8") + bytes(body)
+    expected = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode("ascii")
+    for entry in signatures.split():
+        version, _, value = entry.partition(",")
+        if version == "v1" and hmac.compare_digest(value, expected):
+            return True
+    return False
+
+
 def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, request: Request, raw_body: bytes) -> bool:
     # Constant-time verification of an inbound custom webhook request.
     if verify_mode == "none":
         return True
     if not secret:
         return False
+    if verify_mode == "hmac" and _is_standard_webhook(secret, secret_header):
+        return _verify_standard_webhook(secret, request, raw_body)
     header_name = secret_header or ("X-Webhook-Signature" if verify_mode == "hmac" else "X-Webhook-Secret")
     provided = request.headers.get(header_name, "")
     if not provided:
@@ -2678,7 +2714,8 @@ async def _fail_custom_webhook(slug: str, status: str, detail: str, http_status:
     description=(
         "Generic inbound webhook receiver. Admins define each webhook (slug, secret, "
         "routing) from the admin panel; external services POST here. The request is "
-        "verified per the webhook's configured mode (none/secret/hmac) and the payload "
+        "verified per the webhook's configured mode (none/secret/hmac; hmac also covers "
+        "ElevenLabs and Standard Webhooks senders such as OpenAI) and the payload "
         "is forwarded to the internal WebSocket server as the configured event. No api.py "
         "edit or restart is needed to add a new integration. Auth is the per-webhook "
         "secret, not an API key."

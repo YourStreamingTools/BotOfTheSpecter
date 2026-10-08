@@ -337,7 +337,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_webhook'])) {
     if ($row['verify_mode'] !== 'none') {
         $headerName = $row['secret_header'] !== '' ? $row['secret_header'] : wh_default_header($row['verify_mode']);
         $secret = (string) $row['secret'];
-        if ($row['verify_mode'] === 'hmac') {
+        if ($row['verify_mode'] === 'hmac' && (strpos($secret, 'whsec_') === 0 || strtolower($headerName) === 'webhook-signature')) {
+            // Standard Webhooks (OpenAI): three headers, signature over "{id}.{timestamp}.{body}"
+            $msgId = 'msg_test_' . bin2hex(random_bytes(8));
+            $ts = time();
+            $key = base64_decode(strpos($secret, 'whsec_') === 0 ? substr($secret, 6) : $secret, true);
+            $headers[] = 'webhook-id: ' . $msgId;
+            $headers[] = 'webhook-timestamp: ' . $ts;
+            $headerName = 'webhook-signature';
+            $value = 'v1,' . base64_encode(hash_hmac('sha256', $msgId . '.' . $ts . '.' . $body, $key === false ? '' : $key, true));
+        } elseif ($row['verify_mode'] === 'hmac') {
             if (strtolower($headerName) === 'elevenlabs-signature') {
                 $ts = time();
                 $value = 't=' . $ts . ',v0=' . hash_hmac('sha256', $ts . '.' . $body, $secret);
@@ -480,6 +489,7 @@ ob_start();
             <label class="sp-label"><?php echo t('admin_webhooks_field_secret_header'); ?></label>
             <input class="sp-input" type="text" name="secret_header" id="f_header" placeholder="X-Webhook-Secret" style="font-family:monospace;">
             <p class="sp-help"><?php echo t('admin_webhooks_field_secret_header_help'); ?></p>
+            <p class="sp-help"><?php echo t('admin_webhooks_openai_hint'); ?></p>
         </div>
         <div class="sp-form-group" id="secretGroup">
             <label class="sp-label"><?php echo t('admin_webhooks_field_secret'); ?></label>
