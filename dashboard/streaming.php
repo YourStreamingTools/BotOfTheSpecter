@@ -238,7 +238,10 @@ foreach ($s3Jobs as $job) {
                 $pctVal = is_numeric($pct) ? max(0, min(100, (float) $pct)) : 0;
                 $label = (string) ($job['title'] ?: ($job['filename'] ?? $job['vod_id'] ?? ''));
                 $jobPhase = (string) ($job['phase'] ?? '');
-                $phaseLabel = $jobPhase === 'saving' ? t('youtube_vod_status_saving') : ($jobPhase === 'queued' ? t('youtube_vod_status_queued') : t('youtube_vod_status_pulling'));
+                $queueLabel = !empty($job['queue_position'])
+                    ? t('youtube_vod_status_queued_pos', ['n' => (string) (int) $job['queue_position']])
+                    : t('youtube_vod_status_queued');
+                $phaseLabel = $jobPhase === 'saving' ? t('youtube_vod_status_saving') : ($jobPhase === 'queued' ? $queueLabel : t('youtube_vod_status_pulling'));
                 if ($jobPhase === 'queued') {
                     $pct = null;
                 }
@@ -474,10 +477,12 @@ foreach ($s3Jobs as $job) {
                                 $stored = $storedByTwitchId[$vid] ?? null;
                                 $pulling = false;
                                 $pullPhase = '';
+                                $pullQueuePos = 0;
                                 foreach ($pullJobs as $job) {
                                     if ((string) ($job['vod_id'] ?? '') === $vid && ($job['status'] ?? '') === 'pulling') {
                                         $pulling = true;
                                         $pullPhase = (string) ($job['phase'] ?? '');
+                                        $pullQueuePos = (int) ($job['queue_position'] ?? 0);
                                         break;
                                     }
                                 }
@@ -495,7 +500,7 @@ foreach ($s3Jobs as $job) {
                                         <div class="stream-hub-file-actions">
                                         <span data-vod-store>
                                         <?php if ($pulling): ?>
-                                            <span class="sp-badge sp-badge-amber"><?php echo t($pullPhase === 'saving' ? 'youtube_vod_status_saving' : ($pullPhase === 'queued' ? 'youtube_vod_status_queued' : 'youtube_vod_status_pulling')); ?></span>
+                                            <span class="sp-badge sp-badge-amber"><?php echo $pullPhase === 'queued' && $pullQueuePos > 0 ? htmlspecialchars(t('youtube_vod_status_queued_pos', ['n' => (string) $pullQueuePos])) : t($pullPhase === 'saving' ? 'youtube_vod_status_saving' : ($pullPhase === 'queued' ? 'youtube_vod_status_queued' : 'youtube_vod_status_pulling')); ?></span>
                                         <?php elseif ($ready): ?>
                                             <span class="sp-badge sp-badge-green"><?php echo t('youtube_vod_status_stored'); ?></span>
                                         <?php elseif (!$isActAsUser): ?>
@@ -1221,6 +1226,7 @@ foreach ($s3Jobs as $job) {
     var I18N = {
         pulling: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
         pullQueued: <?php echo json_encode(t('youtube_vod_status_queued')); ?>,
+        pullQueuedPos: <?php echo json_encode(t('youtube_vod_status_queued_pos')); ?>,
         saving: <?php echo json_encode(t('youtube_vod_status_saving')); ?>,
         queuedFmt: <?php echo json_encode(t('stream_hub_stat_queued')); ?>,
         stored: <?php echo json_encode(t('youtube_vod_status_stored')); ?>,
@@ -1643,11 +1649,14 @@ foreach ($s3Jobs as $job) {
             bar.value = Math.min(100, Math.round((used / visual) * 1000) / 10);
         }
     }
-    function fillStoreCell(cell, mode) {
+    function queuedLabel(position) {
+        return position > 0 ? I18N.pullQueuedPos.replace(':n', String(position)) : I18N.pullQueued;
+    }
+    function fillStoreCell(cell, mode, position) {
         if (!cell) return;
         if (mode === 'pulling') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.pulling) + '</span>';
         if (mode === 'saving') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.saving) + '</span>';
-        if (mode === 'queued') cell.innerHTML = '<span class="sp-badge sp-badge-grey">' + escapeHtml(I18N.pullQueued) + '</span>';
+        if (mode === 'queued') cell.innerHTML = '<span class="sp-badge sp-badge-grey">' + escapeHtml(queuedLabel(position)) + '</span>';
         if (mode === 'stored') cell.innerHTML = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
     }
     var rateSamples = {};
@@ -1829,15 +1838,20 @@ foreach ($s3Jobs as $job) {
         var pulls = Array.isArray(data.pulls) ? data.pulls : [];
         var files = Array.isArray(data.files) ? data.files : [];
         var pullingIds = {};
+        var queuePosById = {};
         var storedIds = {};
         var html = '';
         pulls.filter(function (j) { return j && j.status === 'pulling'; }).forEach(function (job) {
             var saving = job.phase === 'saving';
             var queued = job.phase === 'queued';
-            if (job.vod_id) pullingIds[String(job.vod_id)] = saving ? 'saving' : (queued ? 'queued' : 'pulling');
+            var queuePos = Number(job.queue_position) || 0;
+            if (job.vod_id) {
+                pullingIds[String(job.vod_id)] = saving ? 'saving' : (queued ? 'queued' : 'pulling');
+                queuePosById[String(job.vod_id)] = queuePos;
+            }
             var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
             var label = job.title || job.filename || job.vod_id || '';
-            var phaseLabel = saving ? I18N.saving : (queued ? I18N.pullQueued : I18N.pulling);
+            var phaseLabel = saving ? I18N.saving : (queued ? queuedLabel(queuePos) : I18N.pulling);
             var sentBytes = Number(job.bytes) || 0;
             var totalBytes = Number(job.bytes_total) || 0;
             var pctLabel = (typeof job.percent === 'number' && !queued) ? (pct.toFixed(1) + '%') : phaseLabel;
@@ -1869,7 +1883,7 @@ foreach ($s3Jobs as $job) {
         document.querySelectorAll('tr[data-vod-id] [data-vod-store]').forEach(function (cell) {
             var row = cell.closest('tr[data-vod-id]');
             var id = row ? row.getAttribute('data-vod-id') : '';
-            if (id && pullingIds[id]) fillStoreCell(cell, pullingIds[id]);
+            if (id && pullingIds[id]) fillStoreCell(cell, pullingIds[id], queuePosById[id]);
             else if (id && storedIds[id]) fillStoreCell(cell, 'stored');
         });
         if (!filesHost) return;
