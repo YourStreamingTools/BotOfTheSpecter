@@ -1162,7 +1162,9 @@ if ($rerunsReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 (string) ($timezone ?? 'UTC'),
                 (string) ($_POST['rerun_at'] ?? ''),
                 $picked,
-                $rerunCandidates
+                $rerunCandidates,
+                (string) ($_POST['rerun_game_id'] ?? ''),
+                (string) ($_POST['rerun_game_name'] ?? '')
             );
             if (!empty($created['ok'])) {
                 stream_hub_redirect('reruns', t('rerun_scheduled_ok'), 'is-success');

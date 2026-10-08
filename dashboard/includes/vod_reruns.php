@@ -188,8 +188,14 @@ function vod_rerun_list(mysqli $conn, int $userId): array
     return array_values($reruns);
 }
 
-function vod_rerun_create(mysqli $conn, int $userId, string $username, string $timezone, string $localWhen, array $picked, array $candidates): array
+function vod_rerun_create(mysqli $conn, int $userId, string $username, string $timezone, string $localWhen, array $picked, array $candidates, string $gameId = '', string $gameName = ''): array
 {
+    // One category for the whole rerun: it plays as one continuous stream.
+    $gameId = trim($gameId);
+    if (!preg_match('/^[0-9]{1,20}$/', $gameId)) {
+        $gameId = '';
+    }
+    $gameName = $gameId !== '' ? mb_substr(trim($gameName), 0, 255) : '';
     try {
         $tz = new DateTimeZone($timezone !== '' ? $timezone : 'UTC');
     } catch (Exception $e) {
@@ -220,21 +226,13 @@ function vod_rerun_create(mysqli $conn, int $userId, string $username, string $t
         if ($title === '') {
             $title = $c['title'];
         }
-        $gameId = trim((string) ($row['game_id'] ?? ''));
-        $gameName = trim((string) ($row['game_name'] ?? ''));
-        if ($gameId !== '' && !preg_match('/^[0-9]{1,20}$/', $gameId)) {
-            $gameId = '';
-        }
-        if ($gameId === '') {
-            $gameName = '';
-        }
         $items[] = [
             'filename' => $c['name'],
             'storage' => $c['storage'],
             'source_key' => $c['source_key'] !== '' ? $c['source_key'] : null,
             'title' => mb_substr($title, 0, VOD_RERUN_TITLE_MAX - mb_strlen(VOD_RERUN_PREFIX)),
             'game_id' => $gameId !== '' ? $gameId : null,
-            'game_name' => $gameName !== '' ? mb_substr($gameName, 0, 255) : null,
+            'game_name' => $gameName !== '' ? $gameName : null,
             'duration_seconds' => $c['duration_seconds'],
         ];
     }

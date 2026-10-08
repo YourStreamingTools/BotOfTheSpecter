@@ -620,6 +620,18 @@ foreach ($s3Jobs as $job) {
                 <p class="sp-help"><?php echo t('rerun_order_help'); ?></p>
                 <div class="stream-hub-empty" id="rerun-playlist-empty"><?php echo t('rerun_playlist_empty'); ?></div>
                 <ol class="rerun-playlist" id="rerun-playlist"></ol>
+                <h3 class="rerun-step"><?php echo t('rerun_step_category'); ?></h3>
+                <p class="sp-help"><?php echo t('rerun_category_help'); ?></p>
+                <div class="sp-form-group rerun-category" id="rerun-category">
+                    <label class="sp-label" for="rerun-cat-input"><?php echo t('rerun_category_label'); ?></label>
+                    <div class="tg-search-wrap">
+                        <input class="sp-input rerun-cat-input" id="rerun-cat-input" type="search" autocomplete="off" placeholder="<?php echo htmlspecialchars(t('rerun_category_placeholder')); ?>">
+                        <div class="tg-search-results" hidden></div>
+                    </div>
+                    <span class="sp-help rerun-cat-state"><?php echo t('rerun_category_none'); ?></span>
+                    <input type="hidden" name="rerun_game_id" id="rerun-game-id">
+                    <input type="hidden" name="rerun_game_name" id="rerun-game-name">
+                </div>
                 <h3 class="rerun-step"><?php echo t('rerun_step_when'); ?></h3>
                 <div class="sp-field-row rerun-when">
                     <div class="sp-form-group">
@@ -666,14 +678,18 @@ foreach ($s3Jobs as $job) {
                             $rCount = count($rerun['items']);
                             ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($rWhen->format('D j M Y, g:i a')); ?></td>
+                                <td>
+                                    <?php echo htmlspecialchars($rWhen->format('D j M Y, g:i a')); ?>
+                                    <?php $rGame = (string) ($rerun['items'][0]['game_name'] ?? ''); ?>
+                                    <span class="rerun-list-meta"><?php echo htmlspecialchars($rGame !== '' ? $rGame : t('rerun_no_category')); ?></span>
+                                </td>
                                 <td>
                                     <ol class="rerun-list-items">
                                         <?php foreach ($rerun['items'] as $item): ?>
                                             <?php $iStatus = (string) $item['status']; ?>
                                             <li>
                                                 <span><?php echo htmlspecialchars(vod_rerun_full_title((string) $item['title'])); ?></span>
-                                                <span class="rerun-list-meta"><?php echo htmlspecialchars((string) ($item['game_name'] ?: t('rerun_no_category'))); ?> · <?php echo htmlspecialchars(stream_hub_format_duration($item['duration_seconds'] !== null ? (int) $item['duration_seconds'] : null)); ?></span>
+                                                <span class="rerun-list-meta"><?php echo htmlspecialchars(stream_hub_format_duration($item['duration_seconds'] !== null ? (int) $item['duration_seconds'] : null)); ?></span>
                                                 <?php if (isset($itemBadge[$iStatus]) && $rStatus !== 'cancelled'): ?>
                                                     <span class="sp-badge sp-badge-<?php echo $itemBadge[$iStatus]; ?>"><?php echo t('rerun_item_status_' . $iStatus); ?></span>
                                                 <?php endif; ?>
@@ -980,8 +996,6 @@ foreach ($s3Jobs as $job) {
     if (!form) return;
     var T = {
         titleLabel: <?php echo json_encode(t('rerun_title_label')); ?>,
-        categoryLabel: <?php echo json_encode(t('rerun_category_label')); ?>,
-        categoryPlaceholder: <?php echo json_encode(t('rerun_category_placeholder')); ?>,
         categorySet: <?php echo json_encode(t('rerun_category_set')); ?>,
         categoryNone: <?php echo json_encode(t('rerun_category_none')); ?>,
         noResults: <?php echo json_encode(t('rerun_category_no_results')); ?>,
@@ -1029,11 +1043,16 @@ foreach ($s3Jobs as $job) {
             btn.disabled = items.length >= MAX_ITEMS;
         });
     }
-    function setCategory(li, id, name) {
-        li.querySelector('[data-field="game_id"]').value = id || '';
-        li.querySelector('[data-field="game_name"]').value = id ? name : '';
-        li.querySelector('.rerun-cat-input').value = id ? name : '';
-        li.querySelector('.rerun-cat-state').textContent = id ? T.categorySet.replace(':name', name) : T.categoryNone;
+    // One category for the whole rerun, filled from the first VOD with a known category until changed
+    var cat = document.getElementById('rerun-category');
+    var catInput = cat.querySelector('.rerun-cat-input');
+    var catBox = cat.querySelector('.tg-search-results');
+    var catTouched = false;
+    function setCategory(id, name) {
+        document.getElementById('rerun-game-id').value = id || '';
+        document.getElementById('rerun-game-name').value = id ? name : '';
+        catInput.value = id ? name : '';
+        cat.querySelector('.rerun-cat-state').textContent = id ? T.categorySet.replace(':name', name) : T.categoryNone;
     }
     function addItem(btn) {
         var li = document.createElement('li');
@@ -1049,17 +1068,7 @@ foreach ($s3Jobs as $job) {
                     '<div class="rerun-title-row"><span class="rerun-prefix">' + esc(T.prefix) + '</span>' +
                     '<input class="sp-input" type="text" data-field="title" required maxlength="' + TITLE_MAX + '"></div>' +
                 '</div>' +
-                '<div class="sp-form-group">' +
-                    '<label class="sp-label">' + esc(T.categoryLabel) + '</label>' +
-                    '<div class="tg-search-wrap">' +
-                        '<input class="sp-input rerun-cat-input" type="search" autocomplete="off" placeholder="' + esc(T.categoryPlaceholder) + '">' +
-                        '<div class="tg-search-results" hidden></div>' +
-                    '</div>' +
-                    '<span class="sp-help rerun-cat-state"></span>' +
-                '</div>' +
                 '<input type="hidden" data-field="vod">' +
-                '<input type="hidden" data-field="game_id">' +
-                '<input type="hidden" data-field="game_name">' +
             '</div>' +
             '<div class="rerun-item-actions">' +
                 '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-move="-1" title="' + esc(T.moveUp) + '" aria-label="' + esc(T.moveUp) + '"><i class="fas fa-arrow-up"></i></button>' +
@@ -1068,7 +1077,9 @@ foreach ($s3Jobs as $job) {
             '</div>';
         li.querySelector('[data-field="vod"]').value = btn.getAttribute('data-token') || '';
         li.querySelector('[data-field="title"]').value = (btn.getAttribute('data-title') || '').slice(0, TITLE_MAX);
-        setCategory(li, btn.getAttribute('data-game-id') || '', btn.getAttribute('data-game-name') || '');
+        if (!catTouched && !document.getElementById('rerun-game-id').value && btn.getAttribute('data-game-id')) {
+            setCategory(btn.getAttribute('data-game-id'), btn.getAttribute('data-game-name') || '');
+        }
         list.appendChild(li);
         // A VOD in the playlist leaves the pick list; removing it from the playlist brings it back.
         var pickRow = btn.closest('tr');
@@ -1082,12 +1093,6 @@ foreach ($s3Jobs as $job) {
     list.addEventListener('click', function (event) {
         var li = event.target.closest('.rerun-item');
         if (!li) return;
-        var pick = event.target.closest('.tg-search-item');
-        if (pick) {
-            setCategory(li, pick.getAttribute('data-id'), pick.getAttribute('data-name'));
-            li.querySelector('.tg-search-results').hidden = true;
-            return;
-        }
         var move = event.target.closest('[data-move]');
         if (move) {
             if (move.getAttribute('data-move') === '-1' && li.previousElementSibling) {
@@ -1113,14 +1118,20 @@ foreach ($s3Jobs as $job) {
 
     // Category search: picking a result sets it; anything else left in the box means no category (cleared on Twitch).
     var searchTimer = null;
-    list.addEventListener('input', function (event) {
-        var input = event.target.closest('.rerun-cat-input');
-        if (!input) return;
-        var li = input.closest('.rerun-item');
-        var box = li.querySelector('.tg-search-results');
-        li.querySelector('[data-field="game_id"]').value = '';
-        li.querySelector('[data-field="game_name"]').value = '';
-        li.querySelector('.rerun-cat-state').textContent = T.categoryNone;
+    catBox.addEventListener('click', function (event) {
+        var pick = event.target.closest('.tg-search-item');
+        if (!pick) return;
+        catTouched = true;
+        setCategory(pick.getAttribute('data-id'), pick.getAttribute('data-name'));
+        catBox.hidden = true;
+    });
+    catInput.addEventListener('input', function () {
+        var input = catInput;
+        var box = catBox;
+        catTouched = true;
+        document.getElementById('rerun-game-id').value = '';
+        document.getElementById('rerun-game-name').value = '';
+        cat.querySelector('.rerun-cat-state').textContent = T.categoryNone;
         clearTimeout(searchTimer);
         var q = input.value.trim();
         if (q === '') {
@@ -1146,14 +1157,11 @@ foreach ($s3Jobs as $job) {
                 .catch(function () { box.hidden = true; });
         }, 300);
     });
-    list.addEventListener('focusout', function (event) {
-        var input = event.target.closest('.rerun-cat-input');
-        if (!input) return;
-        var li = input.closest('.rerun-item');
+    catInput.addEventListener('focusout', function () {
         setTimeout(function () {
-            if (li.contains(document.activeElement) && document.activeElement.closest('.tg-search-results')) return;
-            li.querySelector('.tg-search-results').hidden = true;
-            if (!li.querySelector('[data-field="game_id"]').value) input.value = '';
+            if (cat.contains(document.activeElement) && document.activeElement.closest('.tg-search-results')) return;
+            catBox.hidden = true;
+            if (!document.getElementById('rerun-game-id').value) catInput.value = '';
         }, 200);
     });
     // Drag a row by its grip to reorder. Pointer events cover mouse and touch; the arrow buttons stay for keyboard use.

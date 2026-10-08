@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # Plays scheduled VOD reruns to Twitch (rerun-scheduler.service on the stream server)
 import asyncio
+import datetime
 import json
 import os
 import re
 import shutil
 import signal
+import subprocess
 import time
 import logging
 from logging.handlers import RotatingFileHandler
@@ -330,12 +332,16 @@ class TwitchChannel:
         except ValueError:
             return None
 
-    async def set_channel(self, title, game_id):
+    async def set_channel(self, title, game_id=None):
+        # game_id None leaves the category alone; "" clears it
+        payload = {"title": title}
+        if game_id is not None:
+            payload["game_id"] = game_id
         status, text = await self.helix(
             "PATCH",
             "channels",
             params={"broadcaster_id": self.twitch_user_id},
-            payload={"title": title, "game_id": game_id or ""},
+            payload=payload,
         )
         if status == 204:
             return True, ""
@@ -448,14 +454,16 @@ def cleanup_stage_dirs(active_ids):
 
 # Playing
 
-def ffmpeg_command(path, stream_key):
+def ffmpeg_command(list_path, stream_key):
     return [
         "ffmpeg",
         "-hide_banner",
         "-nostdin",
         "-loglevel", "warning",
         "-re",
-        "-i", path,
+        "-f", "concat",
+        "-safe", "0",
+        "-i", list_path,
         "-map", "0:v:0?",
         "-map", "0:a:0?",
         "-c", "copy",
@@ -463,6 +471,48 @@ def ffmpeg_command(path, stream_key):
         "-flvflags", "no_duration_filesize",
         INGEST_URL + stream_key,
     ]
+
+
+def group_list_path(rerun_id, first_position):
+    return os.path.join(stage_dir(rerun_id), f"group-{int(first_position):03d}.txt")
+
+
+def write_concat_list(list_path, paths):
+    os.makedirs(os.path.dirname(list_path), exist_ok=True)
+    with open(list_path, "w", encoding="utf-8") as handle:
+        for path in paths:
+            handle.write("file '" + path.replace("'", "'\\''") + "'\n")
+
+
+def probe_media(path):
+    # Files with the same settings key can share one stream copy
+    try:
+        res = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries",
+                "stream=codec_type,codec_name,profile,width,height,r_frame_rate,pix_fmt,sample_rate,channels:format=duration",
+                "-of", "json", path,
+            ],
+            capture_output=True, timeout=120,
+        )
+        data = json.loads(res.stdout or b"{}")
+    except Exception:
+        return None, None
+    video = next((st for st in data.get("streams") or [] if st.get("codec_type") == "video"), {})
+    audio = next((st for st in data.get("streams") or [] if st.get("codec_type") == "audio"), {})
+    try:
+        duration = float((data.get("format") or {}).get("duration") or 0) or None
+    except (TypeError, ValueError):
+        duration = None
+    if not video:
+        return None, duration
+    key = (
+        video.get("codec_name"), video.get("profile"), video.get("width"), video.get("height"),
+        video.get("r_frame_rate"), video.get("pix_fmt"),
+        audio.get("codec_name"), audio.get("sample_rate"), audio.get("channels"),
+    )
+    return key, duration
 
 
 async def resolve_item_path(pool, session, item, username):
@@ -491,21 +541,54 @@ async def resolve_item_path(pool, session, item, username):
     return None
 
 
-async def watch_ffmpeg(pool, rerun_id, proc):
+async def stop_ffmpeg(proc):
+    proc.send_signal(signal.SIGINT)
+    for _ in range(20):
+        await asyncio.sleep(0.5)
+        if proc.poll() is not None:
+            return proc.poll()
+    proc.kill()
+    return proc.poll()
+
+
+async def run_group(pool, channel, rerun_id, group, proc, started_epoch, current, log_path, stream_key):
+    # Returns ("done" | "cancelled" | "failed", index of the VOD reached)
+    offsets = []
+    total = 0.0
+    for item in group:
+        offsets.append(total)
+        total += float(item["duration_seconds"] or 0)
     while True:
         rc = proc.poll()
         if rc is not None:
-            return rc, False
+            break
         if await cancel_requested(pool, rerun_id):
-            proc.send_signal(signal.SIGINT)
-            for _ in range(20):
-                await asyncio.sleep(0.5)
-                if proc.poll() is not None:
-                    break
-            else:
-                proc.kill()
-            return proc.poll(), True
-        await asyncio.sleep(WATCH_SECONDS)
+            await stop_ffmpeg(proc)
+            await set_item(pool, group[current]["id"], status="cancelled", finished_at=NOW)
+            return "cancelled", current
+        elapsed = time.time() - started_epoch
+        while current + 1 < len(group) and elapsed >= offsets[current + 1]:
+            await set_item(pool, group[current]["id"], status="done", finished_at=NOW)
+            current += 1
+            nxt = group[current]
+            await set_item(pool, nxt["id"], status="playing", started_at=NOW, error_message=None)
+            await set_rerun(pool, rerun_id, current_position=nxt["position"])
+            ok, err = await channel.set_channel(rerun_title(nxt["title"]))
+            if not ok:
+                logger.warning(f"Rerun {rerun_id}: title update for item {nxt['position']} failed ({err}); still playing")
+            logger.info(f"Rerun {rerun_id} now playing item {nxt['position']}")
+        wait = WATCH_SECONDS
+        if current + 1 < len(group):
+            wait = max(0.5, min(WATCH_SECONDS, offsets[current + 1] - elapsed))
+        await asyncio.sleep(wait)
+    if rc == 0:
+        for item in group[current:]:
+            await set_item(pool, item["id"], status="done", finished_at=NOW)
+        return "done", len(group) - 1
+    reason = scrub(log_tail(log_path), stream_key) or f"ffmpeg_exit_{rc}"
+    await set_item(pool, group[current]["id"], status="failed", error_message=reason, finished_at=NOW)
+    logger.error(f"Rerun {rerun_id} item {group[current]['position']} ffmpeg exited {rc}: {reason}")
+    return "failed", current
 
 
 class _DetachedHandle:
@@ -649,85 +732,124 @@ async def run_rerun(pool, session, rerun_id, resume=False):
         logger.info(f"↩️  Resuming rerun {rerun_id} for {username}")
 
     first_error = None
+    title_set = played
+
+    # A worker restart mid-rerun: pick the running push back up where it is.
+    playing = next((item for item in items if item["status"] == "playing"), None)
+    if playing is not None:
+        pid = int(playing.get("ffmpeg_pid") or 0)
+        group = [item for item in items if int(item.get("ffmpeg_pid") or 0) == pid and pid]
+        list_path = group_list_path(rerun_id, group[0]["position"]) if group else ""
+        if pid and pid_alive(pid) and list_path and cmdline_has(pid, list_path) and all(item["duration_seconds"] for item in group):
+            logger.info(f"Reattached to ffmpeg {pid} for rerun {rerun_id}")
+            started = group[0].get("started_at")
+            started_epoch = started.replace(tzinfo=datetime.timezone.utc).timestamp() if started else time.time()
+            current = group.index(playing)
+            outcome, reached = await run_group(
+                pool, channel, rerun_id, group, AttachedProcess(pid), started_epoch, current,
+                os.path.join(stage_dir(rerun_id), f"group-{int(group[0]['position']):03d}.ffmpeg.log"), stream_key,
+            )
+            if outcome == "cancelled":
+                await cancel_remaining(pool, rerun_id)
+                await finish_rerun(pool, rerun_id, "cancelled")
+                return
+            played = played or reached > 0 or outcome == "done"
+            title_set = True
+        else:
+            await set_item(pool, playing["id"], status="failed", error_message="interrupted", finished_at=NOW)
+            first_error = "interrupted"
+        items = await fetch_all(pool, "SELECT * FROM vod_rerun_items WHERE rerun_id = %s ORDER BY position ASC", (rerun_id,))
+
+    # Every VOD still to play: find it on disk and read its settings and length.
+    queue = []
     for item in items:
-        if item["status"] in ("done", "failed", "skipped", "cancelled"):
+        if item["status"] in ("done", "failed", "skipped", "cancelled", "playing"):
             continue
         if await cancel_requested(pool, rerun_id):
             await cancel_remaining(pool, rerun_id)
             await finish_rerun(pool, rerun_id, "cancelled")
             return
-        await set_rerun(pool, rerun_id, current_position=item["position"])
-        log_path = os.path.join(stage_dir(rerun_id), f"{int(item['position']):03d}.ffmpeg.log")
-        handle = None
-        if item["status"] == "playing":
-            pid = int(item.get("ffmpeg_pid") or 0)
-            path = item.get("staged_path") or os.path.join(VOD_ROOT, username, item["filename"])
-            if pid and pid_alive(pid) and cmdline_has(pid, path):
-                handle = AttachedProcess(pid)
-                logger.info(f"Reattached to ffmpeg {pid} for rerun {rerun_id} item {item['position']}")
-            else:
-                await set_item(pool, item["id"], status="failed", error_message="interrupted", finished_at=NOW)
-                first_error = first_error or "interrupted"
-                continue
-        else:
-            if not _safe_filename(item["filename"]):
-                await set_item(pool, item["id"], status="failed", error_message="unsafe_path", finished_at=NOW)
-                first_error = first_error or "unsafe_path"
-                continue
+        path = None
+        if _safe_filename(item["filename"]):
             path = await resolve_item_path(pool, session, item, username)
-            if not path:
-                if await cancel_requested(pool, rerun_id):
-                    continue
-                row = await fetch_one(pool, "SELECT status, error_message FROM vod_rerun_items WHERE id = %s", (item["id"],))
-                reason = ((row or {}).get("error_message") or "missing_file") if (row or {}).get("status") == "failed" else "missing_file"
-                await set_item(pool, item["id"], status="failed", error_message=reason, finished_at=NOW)
-                first_error = first_error or reason
-                logger.warning(f"Rerun {rerun_id} item {item['position']} unavailable: {reason}")
-                continue
-            ok, err = await channel.set_channel(rerun_title(item["title"]), item.get("game_id") or "")
-            if not ok and not played:
-                # Never go live without the RERUN title on the channel.
-                await set_item(pool, item["id"], status="failed", error_message=err, finished_at=NOW)
-                await cancel_remaining(pool, rerun_id)
-                await finish_rerun(pool, rerun_id, "failed", err)
-                return
-            if not ok:
-                logger.warning(f"Rerun {rerun_id}: title/category update failed before item {item['position']} ({err}); still playing")
-            os.makedirs(stage_dir(rerun_id), exist_ok=True)
-            try:
-                pid = spawn_detached_ffmpeg(ffmpeg_command(path, stream_key), log_path)
-            except OSError as exc:
-                await set_item(pool, item["id"], status="failed", error_message=f"ffmpeg_start:{type(exc).__name__}", finished_at=NOW)
-                first_error = first_error or "ffmpeg_start"
-                continue
-            try:
-                os.chmod(log_path, 0o600)
-            except OSError:
-                pass
-            await set_item(pool, item["id"], status="playing", ffmpeg_pid=pid, started_at=NOW, error_message=None)
-            handle = _DetachedHandle(pid)
-            logger.info(f"📡 Rerun {rerun_id} item {item['position']} live via ffmpeg {pid}: {username}/{item['filename']}")
+        if not path:
+            row = await fetch_one(pool, "SELECT status, error_message FROM vod_rerun_items WHERE id = %s", (item["id"],))
+            reason = ((row or {}).get("error_message") or "missing_file") if (row or {}).get("status") == "failed" else "missing_file"
+            await set_item(pool, item["id"], status="failed", error_message=reason, finished_at=NOW)
+            first_error = first_error or reason
+            logger.warning(f"Rerun {rerun_id} item {item['position']} unavailable: {reason}")
+            continue
+        key, duration = await asyncio.to_thread(probe_media, path)
+        item = dict(item, duration_seconds=int(round(duration)) if duration else None)
+        queue.append((item, path, key))
+    # The category is chosen once for the whole rerun (the dashboard stores it on every VOD).
+    game_id = (items[0].get("game_id") or "") if items else ""
 
-        rc, cancelled = await watch_ffmpeg(pool, rerun_id, handle)
-        if cancelled:
-            await set_item(pool, item["id"], status="cancelled", finished_at=NOW)
+    index = 0
+    while index < len(queue):
+        if await cancel_requested(pool, rerun_id):
             await cancel_remaining(pool, rerun_id)
             await finish_rerun(pool, rerun_id, "cancelled")
             return
-        if rc in (0, None):
-            await set_item(pool, item["id"], status="done", finished_at=NOW)
+        # Consecutive VODs with identical settings and known lengths share one continuous push.
+        first_item, _, first_key = queue[index]
+        end = index + 1
+        if first_key is not None and first_item["duration_seconds"]:
+            while end < len(queue) and queue[end][2] == first_key and queue[end][0]["duration_seconds"]:
+                end += 1
+        group = [entry[0] for entry in queue[index:end]]
+        paths = [entry[1] for entry in queue[index:end]]
+        await set_rerun(pool, rerun_id, current_position=first_item["position"])
+        ok, err = await channel.set_channel(rerun_title(first_item["title"]), None if title_set else game_id)
+        if not ok and not title_set:
+            # Never go live without the RERUN title on the channel.
+            await set_item(pool, first_item["id"], status="failed", error_message=err, finished_at=NOW)
+            await cancel_remaining(pool, rerun_id)
+            await finish_rerun(pool, rerun_id, "failed", err)
+            return
+        if not ok:
+            logger.warning(f"Rerun {rerun_id}: title update before item {first_item['position']} failed ({err}); still playing")
+        title_set = True
+        list_path = group_list_path(rerun_id, first_item["position"])
+        log_path = os.path.join(stage_dir(rerun_id), f"group-{int(first_item['position']):03d}.ffmpeg.log")
+        write_concat_list(list_path, paths)
+        try:
+            pid = spawn_detached_ffmpeg(ffmpeg_command(list_path, stream_key), log_path)
+        except OSError as exc:
+            await set_item(pool, first_item["id"], status="failed", error_message=f"ffmpeg_start:{type(exc).__name__}", finished_at=NOW)
+            first_error = first_error or "ffmpeg_start"
+            index += 1
+            continue
+        try:
+            os.chmod(log_path, 0o600)
+        except OSError:
+            pass
+        started_epoch = time.time()
+        for item in group:
+            await set_item(pool, item["id"], ffmpeg_pid=pid)
+            await _update(pool, "vod_rerun_items", {"duration_seconds"}, item["id"], {"duration_seconds": item["duration_seconds"]})
+        await set_item(pool, first_item["id"], status="playing", started_at=NOW, error_message=None)
+        logger.info(
+            f"📡 Rerun {rerun_id} live via ffmpeg {pid}: {len(group)} VOD(s) in one stream, from item {first_item['position']}"
+        )
+        outcome, reached = await run_group(pool, channel, rerun_id, group, _DetachedHandle(pid), started_epoch, 0, log_path, stream_key)
+        if outcome == "cancelled":
+            await cancel_remaining(pool, rerun_id)
+            await finish_rerun(pool, rerun_id, "cancelled")
+            return
+        if outcome == "done":
             played = True
-        else:
-            reason = scrub(log_tail(log_path), stream_key) or f"ffmpeg_exit_{rc}"
-            await set_item(pool, item["id"], status="failed", error_message=reason, finished_at=NOW)
-            first_error = first_error or reason
-            logger.error(f"Rerun {rerun_id} item {item['position']} ffmpeg exited {rc}: {reason}")
+            index = end
+            continue
+        # The push died part-way: that VOD failed; carry on from the next one in a fresh push.
+        played = played or reached > 0
+        first_error = first_error or "stream_failed"
+        index = index + reached + 1
 
     if played:
         await finish_rerun(pool, rerun_id, "done")
     else:
         await finish_rerun(pool, rerun_id, "failed", first_error or "nothing_played")
-
 
 async def start_due(pool, session, running):
     rows = await fetch_all(
