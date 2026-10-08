@@ -858,13 +858,28 @@ if (!$list['ok']) {
 // without a phase (older worker) at 85%+ is already saving.
 if ($pullJobs && $userId > 0 && isset($conn) && $conn instanceof mysqli) {
     $phaseById = [];
-    $phaseStmt = $conn->prepare("SELECT twitch_video_id, phase FROM twitch_vod_pulls WHERE user_id = ? AND status IN ('queued', 'pulling')");
+    $queueById = [];
+    // Place in line counts every user's live queued pulls on the same server, first come first served.
+    $phaseStmt = $conn->prepare(
+        "SELECT p.twitch_video_id, p.phase,
+                CASE WHEN p.status = 'queued' THEN (
+                    SELECT COUNT(*) FROM twitch_vod_pulls q
+                    WHERE q.status = 'queued' AND q.owner_host = p.owner_host
+                      AND q.updated_at >= NOW() - INTERVAL 30 SECOND
+                      AND (q.created_at < p.created_at OR (q.created_at = p.created_at AND q.id < p.id))
+                ) + 1 END AS queue_position
+         FROM twitch_vod_pulls p
+         WHERE p.user_id = ? AND p.status IN ('queued', 'pulling')"
+    );
     if ($phaseStmt) {
         $phaseStmt->bind_param('i', $userId);
         if ($phaseStmt->execute()) {
             $phaseRes = $phaseStmt->get_result();
             while ($phaseRow = $phaseRes->fetch_assoc()) {
                 $phaseById[(string) $phaseRow['twitch_video_id']] = (string) ($phaseRow['phase'] ?? '');
+                if ($phaseRow['queue_position'] !== null) {
+                    $queueById[(string) $phaseRow['twitch_video_id']] = (int) $phaseRow['queue_position'];
+                }
             }
         }
         $phaseStmt->close();
@@ -873,8 +888,13 @@ if ($pullJobs && $userId > 0 && isset($conn) && $conn instanceof mysqli) {
         if (!is_array($pullJob)) {
             continue;
         }
-        $phase = $phaseById[(string) ($pullJob['vod_id'] ?? '')] ?? '';
-        if ($phase === '') {
+        $pullVodId = (string) ($pullJob['vod_id'] ?? '');
+        $phase = $phaseById[$pullVodId] ?? '';
+        if (isset($queueById[$pullVodId])) {
+            // Still waiting for one of the server's download slots.
+            $phase = 'queued';
+            $pullJob['queue_position'] = $queueById[$pullVodId];
+        } elseif ($phase === '' || $phase === 'queued') {
             $phase = (is_numeric($pullJob['percent'] ?? null) && (float) $pullJob['percent'] >= 85) ? 'saving' : 'downloading';
         }
         $pullJob['phase'] = $phase;

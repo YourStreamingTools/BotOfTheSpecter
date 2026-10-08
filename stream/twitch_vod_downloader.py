@@ -49,6 +49,8 @@ PULL_LIVE_SECONDS = 120
 # Pulls running at once on this server across all users; the rest wait as 'queued'
 PULL_SLOTS = max(1, int(os.getenv("TWITCH_PULL_SLOTS") or "2"))
 PULL_SLOT_DIR = "/run/specter-vod-pulls"
+# First come, first served by created_at; a queued pull that stops refreshing its row loses its place
+QUEUE_FRESH_SECONDS = 30
 HEARTBEAT_SECONDS = 10
 SEGMENT_RETRIES = 5
 DOWNLOAD_SHARE = 85.0
@@ -374,9 +376,9 @@ async def request_pull(conn, user_id, username, vod_id, title, dest):
             await cur.execute(
                 """
                 UPDATE twitch_vod_pulls
-                SET status = 'queued', username = %s, filename = %s,
+                SET status = 'queued', phase = 'queued', username = %s, filename = %s,
                     title = COALESCE(NULLIF(%s, ''), title), error_message = NULL,
-                    owner_host = %s, owner_pid = NULL, updated_at = NOW()
+                    owner_host = %s, owner_pid = NULL, created_at = NOW(), updated_at = NOW()
                 WHERE user_id = %s AND twitch_video_id = %s
                   AND NOT (status IN ('queued', 'pulling') AND updated_at >= NOW() - INTERVAL %s SECOND)
                 """,
@@ -489,6 +491,22 @@ class PullWorker:
         )
         return n == 1
 
+    async def queue_ahead(self):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT COUNT(*) FROM twitch_vod_pulls q
+                    JOIN twitch_vod_pulls me ON me.user_id = %s AND me.twitch_video_id = %s
+                    WHERE q.status = 'queued' AND q.owner_host = %s
+                      AND q.updated_at >= NOW() - INTERVAL %s SECOND
+                      AND (q.created_at < me.created_at OR (q.created_at = me.created_at AND q.id < me.id))
+                    """,
+                    (self.user_id, self.vod_id, HOSTNAME, QUEUE_FRESH_SECONDS),
+                )
+                row = await cur.fetchone()
+        return int(row[0]) if row else 0
+
     async def wait_for_slot(self):
         # Only the front of the queue takes a slot, so the dashboard's queue position is the real order
         await self._exec(
@@ -502,9 +520,6 @@ class PullWorker:
         )
         waiting = False
         while True:
-            slot = take_pull_slot()
-            if slot is not None:
-                return slot
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
@@ -514,9 +529,6 @@ class PullWorker:
                     row = await cur.fetchone()
             if not row or row[0] != "queued":
                 return None
-            if not waiting:
-                waiting = True
-                logger.info(f"VOD {self.vod_id} for {self.username} queued; {PULL_SLOTS} pull(s) already running")
             try:
                 await self._exec(
                     """
@@ -528,6 +540,18 @@ class PullWorker:
                 )
             except Exception as e:
                 logger.warning(f"Could not refresh queued VOD {self.vod_id}: {e}")
+            try:
+                ahead = await self.queue_ahead()
+            except Exception as e:
+                logger.warning(f"Could not read the pull queue for VOD {self.vod_id}: {e}")
+                ahead = 0
+            if ahead == 0:
+                slot = take_pull_slot()
+                if slot is not None:
+                    return slot
+            if not waiting:
+                waiting = True
+                logger.info(f"VOD {self.vod_id} for {self.username} queued ({ahead} ahead, {PULL_SLOTS} slot(s))")
             await asyncio.sleep(HEARTBEAT_SECONDS / 2)
 
     async def _owned(self):

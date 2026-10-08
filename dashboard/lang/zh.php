@@ -7129,6 +7129,7 @@ return [
     'youtube_vod_status_pulling' => '下载中…',
     'youtube_vod_status_saving' => '保存到后端存储…',
     'youtube_vod_status_queued' => '排队等待下载',
+    'youtube_vod_status_queued_pos' => '排队等待下载（第 :n 位）',
     'youtube_vod_status_stored' => '已存储',
     'youtube_vod_store_started' => '下载已开始。进度见下方已存储 VOD。',
     'youtube_vod_stored_heading' => '已存储 VOD',
