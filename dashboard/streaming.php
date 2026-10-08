@@ -980,6 +980,7 @@ foreach ($s3Jobs as $job) {
         categorySet: <?php echo json_encode(t('rerun_category_set')); ?>,
         categoryNone: <?php echo json_encode(t('rerun_category_none')); ?>,
         noResults: <?php echo json_encode(t('rerun_category_no_results')); ?>,
+        drag: <?php echo json_encode(t('rerun_drag_handle')); ?>,
         moveUp: <?php echo json_encode(t('rerun_move_up')); ?>,
         moveDown: <?php echo json_encode(t('rerun_move_down')); ?>,
         remove: <?php echo json_encode(t('rerun_btn_remove_item')); ?>,
@@ -1034,6 +1035,7 @@ foreach ($s3Jobs as $job) {
         li.className = 'rerun-item';
         li.setAttribute('data-duration', btn.getAttribute('data-duration') || '0');
         li.innerHTML =
+            '<span class="rerun-drag-handle" title="' + esc(T.drag) + '" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>' +
             '<span class="rerun-item-num"></span>' +
             '<div class="rerun-item-body">' +
                 '<div class="rerun-item-file">' + esc(btn.getAttribute('data-display')) + '</div>' +
@@ -1139,6 +1141,46 @@ foreach ($s3Jobs as $job) {
             if (!li.querySelector('[data-field="game_id"]').value) input.value = '';
         }, 200);
     });
+    // Drag a row by its grip to reorder. Pointer events cover mouse and touch; the arrow buttons stay for keyboard use.
+    var dragItem = null;
+    function endDrag() {
+        if (!dragItem) return;
+        dragItem.classList.remove('is-dragging');
+        list.classList.remove('is-sorting');
+        dragItem = null;
+        refresh();
+    }
+    list.addEventListener('pointerdown', function (event) {
+        var handle = event.target.closest('.rerun-drag-handle');
+        if (!handle || event.button > 0) return;
+        event.preventDefault();
+        dragItem = handle.closest('.rerun-item');
+        dragItem.classList.add('is-dragging');
+        list.classList.add('is-sorting');
+        handle.setPointerCapture(event.pointerId);
+    });
+    list.addEventListener('pointermove', function (event) {
+        if (!dragItem) return;
+        var y = event.clientY;
+        if (y < 60) window.scrollBy(0, -12);
+        else if (y > window.innerHeight - 60) window.scrollBy(0, 12);
+        var before = null;
+        var rows = list.querySelectorAll('.rerun-item');
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i] === dragItem) continue;
+            var box = rows[i].getBoundingClientRect();
+            if (y < box.top + box.height / 2) { before = rows[i]; break; }
+        }
+        if (before) {
+            if (dragItem.nextElementSibling !== before) list.insertBefore(dragItem, before);
+        } else if (list.lastElementChild !== dragItem) {
+            list.appendChild(dragItem);
+        }
+        var n = 0;
+        list.querySelectorAll('.rerun-item').forEach(function (li) { li.querySelector('.rerun-item-num').textContent = String(++n); });
+    });
+    list.addEventListener('pointerup', endDrag);
+    list.addEventListener('pointercancel', endDrag);
     refresh();
 })();
 </script>
