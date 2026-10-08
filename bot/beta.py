@@ -8030,9 +8030,16 @@ class TwitchBot(commands.Bot):
                     # No text gives a default description; Twitch caps marker descriptions at 140 characters
                     marker_description = (description or "").strip() or f"Marker made by {ctx.author.name}"
                     marker_description = marker_description[:140]
-                    if await make_stream_marker(marker_description):
+                    created, marker_reason = await make_stream_marker(marker_description, with_reason=True)
+                    if created:
                         await send_chat_message(f"{ctx.author.name} created a stream marker.")
                         twitch_logger.info(f"[MARKER] A stream marker was created: {marker_description}.")
+                    elif marker_reason == "rerun":
+                        await send_chat_message("Stream markers can't be added while a rerun is playing.")
+                    elif marker_reason == "vod_disabled":
+                        await send_chat_message("Stream markers need past broadcasts (VODs) turned on for this channel.")
+                    elif marker_reason == "offline":
+                        await send_chat_message("Sorry, I can only create stream markers while the stream is online.")
                     else:
                         await send_chat_message("Failed to create a stream marker.")
                         twitch_logger.error("[MARKER] Failed to create a stream marker.")
@@ -19857,16 +19864,36 @@ async def check_premium_feature(user):
         api_logger.error(f"[PREMIUM] Error in check_premium_feature: {e}")
         return 0
 
-# Make a Stream Marker for events
-async def make_stream_marker(description: str):
+# Specter reruns reach Twitch as normal live streams, so this check covers Twitch's no-markers-on-reruns rule
+async def specter_rerun_live():
+    try:
+        async with await mysql_connection(db_name="website") as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT id FROM vod_reruns WHERE username = %s AND status = 'live' LIMIT 1", (CHANNEL_NAME,))
+                return await cursor.fetchone() is not None
+    except Exception as e:
+        twitch_logger.warning(f"[MARKER] Could not check for a live rerun: {e}")
+        return False
+
+# Make a Stream Marker for events; with_reason=True returns (ok, reason): offline, rerun, vod_disabled, failed
+async def make_stream_marker(description: str, with_reason: bool = False):
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    def result(ok, reason=""):
+        return (ok, reason) if with_reason else ok
     # Validate description
     if not description or not description.strip():
         twitch_logger.error("[MARKER] Stream marker description cannot be empty")
-        return False
+        return result(False, "failed")
     if len(description) > 140:
         twitch_logger.error(f"[MARKER] Stream marker description too long: {len(description)} characters (max 140)")
-        return False
+        return result(False, "failed")
+    # Markers only work on a live stream, and never on a rerun
+    if not stream_online:
+        twitch_logger.info("[MARKER] Skipped stream marker: the stream is offline")
+        return result(False, "offline")
+    if await specter_rerun_live():
+        twitch_logger.info("[MARKER] Skipped stream marker: a rerun is playing")
+        return result(False, "rerun")
     payload = {"user_id": CHANNEL_ID,"description": description.strip()}
     headers = {"Client-ID": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}","Content-Type": "application/json"}
     timeout = ClientTimeout(total=10)  # 10 second timeout
@@ -19878,23 +19905,29 @@ async def make_stream_marker(description: str):
                         data = await marker_response.json()
                         marker_id = data.get("data", [{}])[0].get("id")
                         twitch_logger.info(f"[MARKER] Stream marker created successfully with ID: {marker_id}")
-                        return True
+                        return result(True)
                     except (aiohttpClientError, json.JSONDecodeError) as e:
                         twitch_logger.error(f"[MARKER] Failed to parse response JSON: {e}")
-                        return False
+                        return result(False, "failed")
                 else:
                     response_text = await marker_response.text()
                     twitch_logger.error(f"[MARKER] Failed to create stream marker: HTTP {marker_response.status} - {response_text}")
-                    return False
+                    # Twitch refuses markers when the channel doesn't save past broadcasts (VODs)
+                    lowered = response_text.lower()
+                    if "video on demand" in lowered or "vod" in lowered:
+                        return result(False, "vod_disabled")
+                    if "not live" in lowered or "offline" in lowered:
+                        return result(False, "offline")
+                    return result(False, "failed")
     except asyncioTimeoutError as e:
         twitch_logger.error(f"[MARKER] Timeout creating stream marker: {e}")
-        return False
+        return result(False, "failed")
     except aiohttpClientError as e:
         twitch_logger.error(f"[MARKER] Client error creating stream marker: {e}")
-        return False
+        return result(False, "failed")
     except Exception as e:
         twitch_logger.error(f"[MARKER] Unexpected error creating stream marker: {e}")
-        return False
+        return result(False, "failed")
 
 # Function to check if a URL or domain matches whitelisted or blacklisted URLs
 async def match_domain_or_link(message, domain_list, use_regex=False):
