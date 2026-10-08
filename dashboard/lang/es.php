@@ -2427,6 +2427,7 @@ return [
     'admin_webhooks_verify_hmac' => 'firma HMAC',
     'admin_webhooks_field_secret_header' => 'Encabezado secreto',
     'admin_webhooks_field_secret_header_help' => 'El encabezado HTTP que utiliza el remitente. El valor predeterminado es X-Webhook-Secret (o X-Webhook-Signature para HMAC). Para ElevenLabs: ElevenLabs-Signature.',
+    'admin_webhooks_openai_hint' => 'OpenAI: elige Firma HMAC, pon el encabezado en webhook-signature y pega el secreto de firma whsec_ que te da OpenAI. Usa el ámbito Registros de Discord para un aviso solo en Discord.',
     'admin_webhooks_field_secret' => 'Secreto compartido (opcional)',
     'admin_webhooks_field_secret_ph' => 'Pega el secreto del proveedor, o déjalo vacío para generar uno',
     'admin_webhooks_field_secret_help' => 'Pega el secreto del proveedor (ElevenLabs genera el suyo). Déjalo vacío para crear uno nuevo.',

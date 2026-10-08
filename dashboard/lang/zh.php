@@ -2372,6 +2372,7 @@ return [
     'admin_webhooks_verify_hmac' => 'HMAC签名',
     'admin_webhooks_field_secret_header' => '秘密标头',
     'admin_webhooks_field_secret_header_help' => '发送方使用的 HTTP 标头。默认为 X-Webhook-Secret（或 HMAC 的 X-Webhook-Signature）。ElevenLabs 请使用 ElevenLabs-Signature。',
+    'admin_webhooks_openai_hint' => 'OpenAI：选择 HMAC 签名，将请求头设为 webhook-signature，并粘贴 OpenAI 提供的 whsec_ 签名密钥。选择 Discord 日志范围即可只在 Discord 中通知。',
     'admin_webhooks_field_secret' => '共享密钥（可选）',
     'admin_webhooks_field_secret_ph' => '粘贴提供方密钥，或留空以自动生成',
     'admin_webhooks_field_secret_help' => '粘贴提供方给出的密钥（ElevenLabs 会生成自己的）。留空则新建一个。',
