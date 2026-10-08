@@ -237,7 +237,11 @@ foreach ($s3Jobs as $job) {
                 $pct = $job['percent'];
                 $pctVal = is_numeric($pct) ? max(0, min(100, (float) $pct)) : 0;
                 $label = (string) ($job['title'] ?: ($job['filename'] ?? $job['vod_id'] ?? ''));
-                $phaseLabel = ($job['phase'] ?? '') === 'saving' ? t('youtube_vod_status_saving') : t('youtube_vod_status_pulling');
+                $jobPhase = (string) ($job['phase'] ?? '');
+                $phaseLabel = $jobPhase === 'saving' ? t('youtube_vod_status_saving') : ($jobPhase === 'queued' ? t('youtube_vod_status_queued') : t('youtube_vod_status_pulling'));
+                if ($jobPhase === 'queued') {
+                    $pct = null;
+                }
                 ?>
                 <div class="media-storage-bar mb-4">
                     <div class="media-storage-header">
@@ -491,7 +495,7 @@ foreach ($s3Jobs as $job) {
                                         <div class="stream-hub-file-actions">
                                         <span data-vod-store>
                                         <?php if ($pulling): ?>
-                                            <span class="sp-badge sp-badge-amber"><?php echo t($pullPhase === 'saving' ? 'youtube_vod_status_saving' : 'youtube_vod_status_pulling'); ?></span>
+                                            <span class="sp-badge sp-badge-amber"><?php echo t($pullPhase === 'saving' ? 'youtube_vod_status_saving' : ($pullPhase === 'queued' ? 'youtube_vod_status_queued' : 'youtube_vod_status_pulling')); ?></span>
                                         <?php elseif ($ready): ?>
                                             <span class="sp-badge sp-badge-green"><?php echo t('youtube_vod_status_stored'); ?></span>
                                         <?php elseif (!$isActAsUser): ?>
@@ -1174,6 +1178,7 @@ foreach ($s3Jobs as $job) {
     tabFromHash();
     var I18N = {
         pulling: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
+        pullQueued: <?php echo json_encode(t('youtube_vod_status_queued')); ?>,
         saving: <?php echo json_encode(t('youtube_vod_status_saving')); ?>,
         queuedFmt: <?php echo json_encode(t('stream_hub_stat_queued')); ?>,
         stored: <?php echo json_encode(t('youtube_vod_status_stored')); ?>,
@@ -1600,6 +1605,7 @@ foreach ($s3Jobs as $job) {
         if (!cell) return;
         if (mode === 'pulling') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.pulling) + '</span>';
         if (mode === 'saving') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.saving) + '</span>';
+        if (mode === 'queued') cell.innerHTML = '<span class="sp-badge sp-badge-grey">' + escapeHtml(I18N.pullQueued) + '</span>';
         if (mode === 'stored') cell.innerHTML = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
     }
     var rateSamples = {};
@@ -1785,14 +1791,17 @@ foreach ($s3Jobs as $job) {
         var html = '';
         pulls.filter(function (j) { return j && j.status === 'pulling'; }).forEach(function (job) {
             var saving = job.phase === 'saving';
-            if (job.vod_id) pullingIds[String(job.vod_id)] = saving ? 'saving' : 'pulling';
+            var queued = job.phase === 'queued';
+            if (job.vod_id) pullingIds[String(job.vod_id)] = saving ? 'saving' : (queued ? 'queued' : 'pulling');
             var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
             var label = job.title || job.filename || job.vod_id || '';
-            var phaseLabel = saving ? I18N.saving : I18N.pulling;
+            var phaseLabel = saving ? I18N.saving : (queued ? I18N.pullQueued : I18N.pulling);
             var sentBytes = Number(job.bytes) || 0;
             var totalBytes = Number(job.bytes_total) || 0;
-            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : phaseLabel;
-            if (saving) {
+            var pctLabel = (typeof job.percent === 'number' && !queued) ? (pct.toFixed(1) + '%') : phaseLabel;
+            if (queued) {
+                // Waiting for one of the server's download slots; nothing to measure yet.
+            } else if (saving) {
                 // Bytes written to the MP4 so far; no speed shown until it is actually moving.
                 if (sentBytes > 0 && totalBytes > sentBytes) pctLabel += ' · ' + formatBytes(sentBytes) + ' / ' + formatBytes(totalBytes);
                 var saveRate = transferRate('save:' + (job.vod_id || job.filename || ''), sentBytes);
