@@ -9,7 +9,6 @@ import signal
 import time
 import logging
 from logging.handlers import RotatingFileHandler
-from urllib.parse import quote
 
 import aiohttp
 import aiomysql
@@ -34,7 +33,6 @@ DB_PASS = os.getenv("SQL_PASSWORD")
 DB_NAME = "website"
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-VODS_CDN_BASE = (os.getenv("VODS_CDN_BASE") or "https://vods.botofthespecter.com").rstrip("/")
 MIN_DISK_FREE_BYTES = int(os.getenv("STREAM_MIN_DISK_FREE_BYTES") or str(20 * 1024 * 1024 * 1024))
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
 
@@ -354,23 +352,6 @@ def _disk_has_room(expected_bytes=0):
     return free - int(expected_bytes or 0) >= MIN_DISK_FREE_BYTES
 
 
-async def _download_s4(session, username, filename, part):
-    url = f"{VODS_CDN_BASE}/{quote(username, safe='')}/{quote(filename, safe='')}"
-    timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
-    async with session.get(url, timeout=timeout) as resp:
-        if resp.status == 404:
-            # Expired and removed from S4 (it is only held for reruns that start soon after it expires).
-            raise RuntimeError("missing_file")
-        if resp.status != 200:
-            raise RuntimeError(f"s4_http_{resp.status}")
-        expected = int(resp.headers.get("Content-Length") or 0)
-        if not _disk_has_room(expected):
-            raise RuntimeError("low_disk")
-        with open(part, "wb") as handle:
-            async for chunk in resp.content.iter_chunked(4 * 1024 * 1024):
-                handle.write(chunk)
-
-
 async def _download_user_s3(pool, user_id, source_key, part):
     from s3_vod_uploader import endpoint_ok, make_client
 
@@ -408,10 +389,7 @@ async def stage_item(pool, session, item, username):
     dest = os.path.join(folder, f"{int(item['position']):03d}.mp4")
     part = dest + ".part"
     try:
-        if item["storage"] == "s4":
-            await _download_s4(session, username, item["filename"], part)
-        else:
-            await _download_user_s3(pool, item["user_id"], item.get("source_key"), part)
+        await _download_user_s3(pool, item["user_id"], item.get("source_key"), part)
         os.replace(part, dest)
     except asyncio.CancelledError:
         _discard_file(part)
@@ -435,7 +413,7 @@ async def stage_pending(pool, session):
         SELECT i.*, r.username
         FROM vod_rerun_items i
         JOIN vod_reruns r ON r.id = i.rerun_id
-        WHERE i.status = 'pending' AND i.storage IN ('s4', 'user_s3')
+        WHERE i.status = 'pending' AND i.storage = 'user_s3'
           AND r.status = 'scheduled'
           AND r.scheduled_at <= UTC_TIMESTAMP() + INTERVAL %s SECOND
         ORDER BY r.scheduled_at ASC, i.position ASC
@@ -491,6 +469,8 @@ async def resolve_item_path(pool, session, item, username):
     if item["storage"] == "local":
         path = os.path.join(VOD_ROOT, username, item["filename"])
         return path if os.path.isfile(path) else None
+    if item["storage"] != "user_s3":
+        return None
     # Wait out a copy the staging loop is already making, then make it here if it never started.
     for _ in range(6 * 3600 // WATCH_SECONDS):
         row = await fetch_one(pool, "SELECT status, staged_path FROM vod_rerun_items WHERE id = %s", (item["id"],))
@@ -552,7 +532,7 @@ async def remove_expired_after_rerun(pool, rerun_id):
     if not _safe_username(username):
         return
     items = await fetch_all(
-        pool, "SELECT DISTINCT filename, storage FROM vod_rerun_items WHERE rerun_id = %s AND storage IN ('local', 's4')", (rerun_id,)
+        pool, "SELECT DISTINCT filename FROM vod_rerun_items WHERE rerun_id = %s AND storage = 'local'", (rerun_id,)
     )
     if not items:
         return
@@ -578,35 +558,14 @@ async def remove_expired_after_rerun(pool, rerun_id):
         name = item["filename"]
         if not _safe_filename(name) or (username, name) in held or name in other_reruns:
             continue
-        if item["storage"] == "local":
-            path = os.path.join(VOD_ROOT, username, name)
-            try:
-                expired = os.path.isfile(path) and os.path.getmtime(path) < cutoff
-            except OSError:
-                expired = False
-            if expired and not find_ffmpeg_pid_for_path(path):
-                remove_media_and_sidecars(path)
-                logger.info(f"Removed expired {username}/{name} after rerun {rerun_id}")
-            continue
-        ext = await fetch_one(
-            pool,
-            "SELECT id, s4_key FROM vod_extensions WHERE username = %s AND filename = %s AND expires_at <= NOW() LIMIT 1",
-            (username, name),
-        )
-        if not ext:
-            continue
+        path = os.path.join(VOD_ROOT, username, name)
         try:
-            from vod_s4 import delete_vod
-
-            await asyncio.to_thread(delete_vod, ext["s4_key"])
-        except Exception as exc:
-            # stream.py's S4 cleanup retries it every minute.
-            logger.warning(f"S4 delete of {username}/{name} after rerun {rerun_id} failed: {exc!r}")
-            continue
-        async with pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM vod_extensions WHERE id = %s", (ext["id"],))
-        logger.info(f"Removed expired extended VOD {username}/{name} after rerun {rerun_id}")
+            expired = os.path.isfile(path) and os.path.getmtime(path) < cutoff
+        except OSError:
+            expired = False
+        if expired and not find_ffmpeg_pid_for_path(path):
+            remove_media_and_sidecars(path)
+            logger.info(f"Removed expired {username}/{name} after rerun {rerun_id}")
 
 
 async def release_rerun(pool, rerun_id):

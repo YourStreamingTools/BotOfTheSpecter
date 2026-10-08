@@ -35,7 +35,7 @@ function vod_rerun_candidate_token(string $storage, string $name, string $key): 
     return substr(hash('sha256', $storage . "\0" . $name . "\0" . $key), 0, 20);
 }
 
-// Finished MP4s in the library that the stream server can play: on its disk, extended to S4, or in the streamer's S3 bucket.
+// Playable library VODs: local files or the streamer's S3 (S4-only extended VODs are left out)
 function vod_rerun_candidates(array $libraryFiles): array
 {
     $out = [];
@@ -45,7 +45,7 @@ function vod_rerun_candidates(array $libraryFiles): array
         if ($name === '' || !empty($file['is_partial']) || !preg_match('/\.mp4$/i', $name)) {
             continue;
         }
-        if (!in_array($storage, ['local', 's4', 'user_s3'], true)) {
+        if (!in_array($storage, ['local', 'user_s3'], true)) {
             continue;
         }
         if ($storage === 'local' && function_exists('recordingFileKind') && recordingFileKind($file) === 'recording') {
