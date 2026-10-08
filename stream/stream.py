@@ -168,6 +168,8 @@ DASHBOARD_HOME_URL = "https://dashboard.botofthespecter.com"
 FAVICON_URL = "https://cdn.botofthespecter.com/favicon.ico"
 LOGO_URL = "https://cdn.botofthespecter.com/logo.png"
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
+# An expired extended (S4) VOD is only kept for a rerun that starts within this many days of its expiry, so rescheduling a rerun can't keep it in S4 forever.
+RERUN_S4_HOLD_DAYS = 7
 DURATION_BACKFILL_PER_REQUEST = 3
 DURATION_PROBE_RETRY_SECONDS = 600
 _duration_probes: set[str] = set()
@@ -1446,8 +1448,16 @@ async def filenames_in_reruns(user_id: int) -> set[str]:
                 SELECT DISTINCT i.filename FROM vod_rerun_items i
                 JOIN vod_reruns r ON r.id = i.rerun_id
                 WHERE i.user_id = %s AND r.status IN ('scheduled', 'live')
+                  AND (
+                    i.storage <> 's4'
+                    OR EXISTS (
+                      SELECT 1 FROM vod_extensions e
+                      WHERE e.username = r.username AND e.filename = i.filename
+                        AND r.scheduled_at <= e.expires_at + INTERVAL %s DAY
+                    )
+                  )
                 """,
-                (user_id,),
+                (user_id, RERUN_S4_HOLD_DAYS),
             )
             return {str(row[0]) for row in await cursor.fetchall() or [] if row and row[0]}
     except Exception:
@@ -1760,8 +1770,10 @@ async def cleanup_expired_s4_vods() -> None:
                         JOIN vod_reruns r ON r.id = i.rerun_id
                         WHERE r.status IN ('scheduled', 'live') AND i.storage = 's4'
                           AND r.username = e.username AND i.filename = e.filename
+                          AND r.scheduled_at <= e.expires_at + INTERVAL %s DAY
                       )
-                    """
+                    """,
+                    (RERUN_S4_HOLD_DAYS,),
                 )
             except aiomysql.ProgrammingError:
                 # vod_reruns not migrated yet
