@@ -1965,9 +1965,8 @@ foreach ($s3Jobs as $job) {
             }
             setNotice(json.message || (ok ? '' : I18N.storeFailed), ok ? 'success' : (json.status === 'full' ? 'warning' : 'danger'));
             if (ok) {
+                // Stay on the Import tab: the row's badge and the notice show the pull has started.
                 fillStoreCell(form.closest('[data-vod-store]'), json.status === 'stored' ? 'stored' : 'pulling');
-                activateTab('library');
-                if (history.replaceState) history.replaceState(null, '', '#library');
                 poll();
             } else if (btn) {
                 btn.disabled = false;
