@@ -358,6 +358,9 @@ async def _download_s4(session, username, filename, part):
     url = f"{VODS_CDN_BASE}/{quote(username, safe='')}/{quote(filename, safe='')}"
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
     async with session.get(url, timeout=timeout) as resp:
+        if resp.status == 404:
+            # Expired and removed from S4 (it is only held for reruns that start soon after it expires).
+            raise RuntimeError("missing_file")
         if resp.status != 200:
             raise RuntimeError(f"s4_http_{resp.status}")
         expected = int(resp.headers.get("Content-Length") or 0)
