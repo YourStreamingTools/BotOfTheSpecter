@@ -6,6 +6,7 @@ import secrets
 import datetime
 import logging
 import ssl
+import signal
 import asyncio
 import argparse
 import time
@@ -2727,6 +2728,7 @@ async def _serve_web(
     certfile: str,
     keyfile: str,
     https_port: int = DEFAULT_HTTPS_PORT,
+    shutdown_trigger=None,
 ) -> None:
     from hypercorn.asyncio import serve
     from hypercorn.config import Config
@@ -2757,7 +2759,7 @@ async def _serve_web(
     logger.info(f"HTTPS bind(s): {', '.join(cfg.bind)}")
     if cfg.insecure_bind:
         logger.info(f"HTTP redirect bind(s): {', '.join(cfg.insecure_bind)}")
-    await serve(app, cfg)
+    await serve(app, cfg, shutdown_trigger=shutdown_trigger)
 
 async def start_rtmp_server(
     twitch_server: str,
@@ -2799,12 +2801,45 @@ async def start_rtmp_server(
     logger.info(f"Operator web UI: {ui_url} (HTTP port {web_port} redirects to HTTPS)")
     logger.info(f"API docs: https://{domain}/docs")
     logger.info(f"Recordings page reading from: {recorder_storage_path}")
-    await asyncio.gather(
-        _serve_rtmp(server),
-        _serve_web(web_app, web_host, web_port, cert_path, key_path, https_port),
-        _expired_vod_loop(recorder_storage_path),
-        _resume_twitch_pulls(recorder_storage_path),
+    # Handle SIGINT here: if hypercorn takes it, only the web server stops and systemd has to kill the rest
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except (NotImplementedError, RuntimeError):
+            pass
+    crashed = []
+
+    def _on_task_done(task: asyncio.Task) -> None:
+        # A part that dies on its own still takes the server down, so systemd restarts it.
+        if not task.cancelled() and task.exception() is not None:
+            crashed.append(task.exception())
+            stop.set()
+
+    web_task = asyncio.create_task(
+        _serve_web(web_app, web_host, web_port, cert_path, key_path, https_port, shutdown_trigger=stop.wait)
     )
+    tasks = [
+        asyncio.create_task(_serve_rtmp(server)),
+        web_task,
+        asyncio.create_task(_expired_vod_loop(recorder_storage_path)),
+        asyncio.create_task(_resume_twitch_pulls(recorder_storage_path)),
+    ]
+    for task in tasks:
+        task.add_done_callback(_on_task_done)
+    await stop.wait()
+    logger.info("Shutting down stream server")
+    await server.stop()
+    # Give hypercorn its graceful window to finish open requests, then cancel everything else.
+    await asyncio.wait({web_task}, timeout=5)
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    if crashed:
+        raise crashed[0]
+    logger.info("Stream server stopped")
 
 if __name__ == "__main__":
     try:
