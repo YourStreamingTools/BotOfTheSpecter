@@ -450,6 +450,10 @@
     margin-top: 1rem;
 }
 
+.discord-ref { font-variant-numeric: tabular-nums; }
+.discord-ref.is-resolved { font-variant-numeric: normal; }
+.discord-ref .fa-volume-up { font-size: 0.85em; color: var(--text-muted); }
+.discord-config-card-head .discord-token-expired { margin-left: 0.35rem; }
 .discord-config-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
