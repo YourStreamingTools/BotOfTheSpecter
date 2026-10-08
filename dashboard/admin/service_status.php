@@ -281,6 +281,12 @@ $serviceMap = [
         'ssh_username' => $recorder_ssh_username ?? '',
         'ssh_password' => $recorder_ssh_password ?? ''
     ],
+    'rerun_scheduler' => [
+        'service_name' => 'rerun-scheduler.service',
+        'ssh_host' => $recorder_ssh_host ?? '',
+        'ssh_username' => $recorder_ssh_username ?? '',
+        'ssh_password' => $recorder_ssh_password ?? ''
+    ],
     'web_caddy' => [
         'service_name' => 'caddy.service',
         'ssh_host' => $web_ssh_host ?? '',

@@ -1464,6 +1464,40 @@ async def filenames_in_reruns(user_id: int) -> dict[str, int]:
             await sqldb.ensure_closed()
 
 
+async def _rerun_scheduler_status() -> dict:
+    status = {"service": "unknown", "live": None, "scheduled": None, "next_start": None}
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "is-active", "rerun-scheduler.service",
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        status["service"] = (out or b"").decode("utf-8", "replace").strip() or "unknown"
+    except Exception:
+        pass
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT SUM(status = 'live'), SUM(status = 'scheduled'),
+                       MIN(CASE WHEN status = 'scheduled' THEN scheduled_at END)
+                FROM vod_reruns WHERE status IN ('scheduled', 'live')
+                """
+            )
+            live, scheduled, next_start = await cursor.fetchone() or (0, 0, None)
+            status["live"] = int(live or 0)
+            status["scheduled"] = int(scheduled or 0)
+            status["next_start"] = next_start.replace(tzinfo=datetime.timezone.utc).isoformat() if next_start else None
+    except Exception as e:
+        logger.warning(f"Could not read rerun counts: {e}")
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+    return status
+
+
 def _restore_state_key(username: str, filename: str) -> str:
     return username + "\0" + filename
 
@@ -1966,7 +2000,7 @@ def stream_openapi_spec() -> dict:
             "title": "Sydney Stream API",
             "version": "1.0.0",
             "description": (
-                "Recordings, Twitch VOD store, and extended VOD storage on syd1. "
+                "Recordings, Twitch VOD store, extended VOD storage, and scheduled VOD reruns on syd1. "
                 "User routes take the streamer's API key in X-API-KEY. "
                 "Operator routes also accept an admin key with service rtmp-server or admin."
             ),
@@ -2052,7 +2086,40 @@ def stream_openapi_spec() -> dict:
                 "get": {
                     "tags": ["Operator"],
                     "summary": "Stream host health (admin key)",
-                    "responses": {"200": {"description": "Region, ffmpeg, sessions"}},
+                    "description": (
+                        "Region, ffmpeg, RTMPS sessions, and the VOD rerun scheduler. "
+                        "rerun_scheduler.service is the systemd state of rerun-scheduler.service, the worker "
+                        "that plays reruns scheduled on the dashboard Streaming page (it has no HTTP routes of its own). "
+                        "rerun_scheduler.live and rerun_scheduler.scheduled count reruns on air and waiting; "
+                        "next_start is the earliest scheduled start in UTC."
+                    ),
+                    "responses": {
+                        "200": {
+                            "description": "Host health",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "region": {"type": "string"},
+                                            "active_sessions": {"type": "integer"},
+                                            "uptime_seconds": {"type": "integer"},
+                                            "ffmpeg_version": {"type": "string"},
+                                            "rerun_scheduler": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "service": {"type": "string", "example": "active"},
+                                                    "live": {"type": "integer"},
+                                                    "scheduled": {"type": "integer"},
+                                                    "next_start": {"type": "string", "format": "date-time", "nullable": True},
+                                                },
+                                            },
+                                        },
+                                    }
+                                }
+                            },
+                        }
+                    },
                 }
             },
             "/api/recordings": {
@@ -2659,6 +2726,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "uptime_seconds": int(uptime.total_seconds()),
             "ffmpeg_version": FFMPEG_VERSION,
             "python_version": sys.version.split()[0],
+            "rerun_scheduler": await _rerun_scheduler_status(),
             "generated_at": now.isoformat(),
         })
 
