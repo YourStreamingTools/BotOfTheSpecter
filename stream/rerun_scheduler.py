@@ -46,6 +46,9 @@ MISSED_GRACE_SECONDS = 15 * 60
 STAGE_AHEAD_SECONDS = 6 * 3600
 TITLE_MAX = 140
 RERUN_PREFIX = "RERUN - "
+# Added to the channel's existing tags when a rerun goes live (Twitch allows 10 tags).
+RERUN_TAG = "Rerun"
+MAX_CHANNEL_TAGS = 10
 
 TWITCH_INGEST_SERVERS = {
     "sydney": "rtmps://syd03.contribute.live-video.net/app/",
@@ -337,6 +340,26 @@ class TwitchChannel:
             return bool((json.loads(text) or {}).get("data"))
         except ValueError:
             return None
+
+    async def add_tag(self, tag):
+        # Twitch replaces the whole tag list (max 10), so a full list drops its last tag
+        status, text = await self.helix("GET", "channels", params={"broadcaster_id": self.twitch_user_id})
+        if status != 200:
+            return False, f"twitch_channel_read_{status}"
+        try:
+            data = ((json.loads(text) or {}).get("data") or [{}])[0]
+        except (ValueError, AttributeError, IndexError):
+            return False, "twitch_channel_read_bad_json"
+        tags = [t for t in (data.get("tags") or []) if isinstance(t, str) and t]
+        if any(t.lower() == tag.lower() for t in tags):
+            return True, ""
+        tags = tags[:MAX_CHANNEL_TAGS - 1] + [tag]
+        status, _ = await self.helix(
+            "PATCH", "channels", params={"broadcaster_id": self.twitch_user_id}, payload={"tags": tags},
+        )
+        if status == 204:
+            return True, ""
+        return False, f"twitch_tags_update_{status}"
 
     async def set_channel(self, title, game_id=None):
         # game_id None leaves the category alone; "" clears it
@@ -825,6 +848,11 @@ async def run_rerun(pool, session, rerun_id, resume=False):
             return
         if not ok:
             logger.warning(f"Rerun {rerun_id}: title update before item {first_item['position']} failed ({err}); still playing")
+        if ok and not title_set:
+            # Separate call so a rejected tag never stops the rerun.
+            tagged, tag_err = await channel.add_tag(RERUN_TAG)
+            if not tagged:
+                logger.warning(f"Rerun {rerun_id}: could not add the {RERUN_TAG} tag ({tag_err}); still playing")
         title_set = True
         list_path = group_list_path(rerun_id, first_item["position"])
         log_path = os.path.join(stage_dir(rerun_id), f"group-{int(first_item['position']):03d}.ffmpeg.log")

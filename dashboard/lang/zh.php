@@ -7260,7 +7260,7 @@ return [
     's3_vod_twitch_queued' => '排队中：它将从 Twitch 下载，然后复制到您的 S3 存储桶。',
     'stream_hub_nav_reruns' => '重播',
     'rerun_heading' => '安排重播',
-    'rerun_help' => '选择一个或多个已存储的 VOD 和开始时间。到时 Specter 会使用你的 Twitch 推流密钥，按顺序将它们作为一个连续的直播推流到你的 Twitch 频道，标题为 "RERUN - {标题}"，并设置你选择的分类（不选分类则清空）。如果届时你的频道已在直播，重播将被跳过。结束后标题仍保持 RERUN。已安排的 VOD 会保留到重播结束，即使已过期。',
+    'rerun_help' => '选择一个或多个已存储的 VOD 和开始时间。到时 Specter 会使用你的 Twitch 推流密钥，按顺序将它们作为一个连续的直播推流到你的 Twitch 频道，标题为 "RERUN - {标题}"，并设置你选择的分类（不选分类则清空），同时为你的频道标签添加 Rerun 标签（其他标签保留）。如果届时你的频道已在直播，重播将被跳过。结束后标题仍保持 RERUN。已安排的 VOD 会保留到重播结束，即使已过期。',
     'rerun_no_stream_key' => '重播需要你的 Twitch 推流密钥。',
     'rerun_no_stream_key_link' => '请在 设置 → 推流 中添加。',
     'rerun_actas_disabled' => '代表其他用户操作时无法更改重播。',
