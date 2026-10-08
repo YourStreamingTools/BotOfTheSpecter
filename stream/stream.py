@@ -169,8 +169,6 @@ DASHBOARD_HOME_URL = "https://dashboard.botofthespecter.com"
 FAVICON_URL = "https://cdn.botofthespecter.com/favicon.ico"
 LOGO_URL = "https://cdn.botofthespecter.com/logo.png"
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
-# An expired extended (S4) VOD is only kept for a rerun that starts within this many days of its expiry, so rescheduling a rerun can't keep it in S4 forever.
-RERUN_S4_HOLD_DAYS = 7
 DURATION_BACKFILL_PER_REQUEST = 3
 DURATION_PROBE_RETRY_SECONDS = 600
 _duration_probes: set[str] = set()
@@ -1267,10 +1265,7 @@ def vod_cdn_url(username: str, filename: str, title: str = "") -> str:
     )
 
 
-async def list_extended_vods(username: str, keep_names: set[str] | None = None) -> list[dict]:
-    # keep_names: expired extensions still listed because a rerun is holding them.
-    keep = sorted(keep_names or ())
-    keep_sql = (" OR filename IN (" + ", ".join(["%s"] * len(keep)) + ")") if keep else ""
+async def list_extended_vods(username: str) -> list[dict]:
     sqldb = None
     try:
         sqldb = await access_website_database()
@@ -1280,15 +1275,15 @@ async def list_extended_vods(username: str, keep_names: set[str] | None = None) 
                     """
                     SELECT filename, s4_key, expires_at, duration_seconds
                     FROM vod_extensions
-                    WHERE username = %s AND (expires_at > NOW()""" + keep_sql + """)
+                    WHERE username = %s AND expires_at > NOW()
                     """,
-                    (username, *keep),
+                    (username,),
                 )
             except aiomysql.OperationalError:
                 # duration_seconds column not migrated yet
                 await cursor.execute(
-                    "SELECT filename, s4_key, expires_at FROM vod_extensions WHERE username = %s AND (expires_at > NOW()" + keep_sql + ")",
-                    (username, *keep),
+                    "SELECT filename, s4_key, expires_at FROM vod_extensions WHERE username = %s AND expires_at > NOW()",
+                    (username,),
                 )
             return await cursor.fetchall() or []
     except Exception as e:
@@ -1448,17 +1443,9 @@ async def filenames_in_reruns(user_id: int) -> set[str]:
                 """
                 SELECT DISTINCT i.filename FROM vod_rerun_items i
                 JOIN vod_reruns r ON r.id = i.rerun_id
-                WHERE i.user_id = %s AND r.status IN ('scheduled', 'live')
-                  AND (
-                    i.storage <> 's4'
-                    OR EXISTS (
-                      SELECT 1 FROM vod_extensions e
-                      WHERE e.username = r.username AND e.filename = i.filename
-                        AND r.scheduled_at <= e.expires_at + INTERVAL %s DAY
-                    )
-                  )
+                WHERE i.user_id = %s AND i.storage = 'local' AND r.status IN ('scheduled', 'live')
                 """,
-                (user_id, RERUN_S4_HOLD_DAYS),
+                (user_id,),
             )
             return {str(row[0]) for row in await cursor.fetchall() or [] if row and row[0]}
     except Exception:
@@ -1761,26 +1748,9 @@ async def cleanup_expired_s4_vods() -> None:
     try:
         sqldb = await access_website_database()
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-            try:
-                await cursor.execute(
-                    """
-                    SELECT e.id, e.s4_key FROM vod_extensions e
-                    WHERE e.expires_at <= NOW()
-                      AND NOT EXISTS (
-                        SELECT 1 FROM vod_rerun_items i
-                        JOIN vod_reruns r ON r.id = i.rerun_id
-                        WHERE r.status IN ('scheduled', 'live') AND i.storage = 's4'
-                          AND r.username = e.username AND i.filename = e.filename
-                          AND r.scheduled_at <= e.expires_at + INTERVAL %s DAY
-                      )
-                    """,
-                    (RERUN_S4_HOLD_DAYS,),
-                )
-            except aiomysql.ProgrammingError:
-                # vod_reruns not migrated yet
-                await cursor.execute(
-                    "SELECT id, s4_key FROM vod_extensions WHERE expires_at <= NOW()"
-                )
+            await cursor.execute(
+                "SELECT id, s4_key FROM vod_extensions WHERE expires_at <= NOW()"
+            )
             rows = await cursor.fetchall() or []
             for row in rows:
                 key = row.get("s4_key") or ""
@@ -2368,7 +2338,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 "upload_hold": f["name"] in held_names,
                 "rerun_hold": f["name"] in rerun_names,
             })
-        for row in await list_extended_vods(username, rerun_names):
+        for row in await list_extended_vods(username):
             name = str(row.get("filename") or "")
             if not name or name in local_names:
                 continue
@@ -2402,7 +2372,6 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 "expires_at": expires_iso,
                 "expires_at_unix": expires_unix,
                 "twitch_video_id": twitch_id,
-                "rerun_hold": name in rerun_names,
             })
         slot = await get_storage_slot(username)
         quota_bytes = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
