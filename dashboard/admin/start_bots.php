@@ -1514,6 +1514,19 @@ ob_start();
         restartIssuesFailed: <?php echo json_encode(t('admin_start_bots_restart_all_issues_failed')); ?>
     };
     let runningBots = [];
+    // users.id per username: Restart All goes in account order (Specter is 1), not the bots server's process order
+    const SB_USER_IDS = <?php
+        $sbUserIds = [];
+        foreach ($users as $u) {
+            $sbUserIds[strtolower((string) $u['username'])] = (int) $u['id'];
+        }
+        echo json_encode((object) $sbUserIds);
+    ?>;
+    function byUserId(a, b) {
+        const ia = SB_USER_IDS[String(a.username || '').toLowerCase()] || Number.MAX_SAFE_INTEGER;
+        const ib = SB_USER_IDS[String(b.username || '').toLowerCase()] || Number.MAX_SAFE_INTEGER;
+        return ia - ib;
+    }
     function hasCustomBotEnabled(row) {
         return row && row.getAttribute('data-custom-enabled') === '1';
     }
@@ -2801,8 +2814,8 @@ ob_start();
             restartAllBtn.disabled = true;
             restartAllBtn.classList.add('sp-btn-loading');
         }
-        // Store original PIDs for comparison
-        const botRestartTracking = runningBots.map(bot => ({
+        // Store original PIDs for comparison, in users.id order
+        const botRestartTracking = runningBots.slice().sort(byUserId).map(bot => ({
             username: bot.username,
             botType: bot.bot_type || 'stable',
             originalPid: bot.pid,
