@@ -93,10 +93,15 @@ logger.addHandler(console_handler)
 LOCK_PATH = os.path.join(log_dir, "rerun_scheduler.lock")
 
 
+def _has_control_chars(text):
+    return any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in text)
+
+
 def _safe_filename(name):
     if not isinstance(name, str) or not name:
         return False
-    if "/" in name or "\\" in name or "\x00" in name:
+    # Control characters (newlines especially) could add lines to the ffmpeg concat list.
+    if "/" in name or "\\" in name or _has_control_chars(name):
         return False
     if name in (".", "..") or os.path.basename(name) != name:
         return False
@@ -478,6 +483,11 @@ def group_list_path(rerun_id, first_position):
 
 
 def write_concat_list(list_path, paths):
+    # One "file" line per VOD and nothing else: only plain absolute paths inside our own folders.
+    allowed = (os.path.realpath(VOD_ROOT) + os.sep, os.path.realpath(STAGE_ROOT) + os.sep)
+    for path in paths:
+        if not os.path.isabs(path) or _has_control_chars(path) or not os.path.realpath(path).startswith(allowed):
+            raise ValueError("unsafe path for concat list")
     os.makedirs(os.path.dirname(list_path), exist_ok=True)
     with open(list_path, "w", encoding="utf-8") as handle:
         for path in paths:
@@ -812,7 +822,14 @@ async def run_rerun(pool, session, rerun_id, resume=False):
         title_set = True
         list_path = group_list_path(rerun_id, first_item["position"])
         log_path = os.path.join(stage_dir(rerun_id), f"group-{int(first_item['position']):03d}.ffmpeg.log")
-        write_concat_list(list_path, paths)
+        try:
+            write_concat_list(list_path, paths)
+        except ValueError:
+            for item in group:
+                await set_item(pool, item["id"], status="failed", error_message="unsafe_path", finished_at=NOW)
+            first_error = first_error or "unsafe_path"
+            index = end
+            continue
         try:
             pid = spawn_detached_ffmpeg(ffmpeg_command(list_path, stream_key), log_path)
         except OSError as exc:
