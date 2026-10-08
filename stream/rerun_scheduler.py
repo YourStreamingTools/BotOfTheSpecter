@@ -606,14 +606,37 @@ async def remove_expired_after_rerun(pool, rerun_id):
         logger.info(f"Removed expired extended VOD {username}/{name} after rerun {rerun_id}")
 
 
-async def finish_rerun(pool, rerun_id, status, error=None):
-    await set_rerun(pool, rerun_id, status=status, error_message=error, finished_at=NOW, current_position=None)
+async def release_rerun(pool, rerun_id):
     shutil.rmtree(stage_dir(rerun_id), ignore_errors=True)
-    logger.info(f"Rerun {rerun_id} finished: {status}{(' (' + error + ')') if error else ''}")
     try:
         await remove_expired_after_rerun(pool, rerun_id)
     except Exception as exc:
         logger.warning(f"Rerun {rerun_id}: expiry cleanup failed: {exc!r}")
+
+
+async def finish_rerun(pool, rerun_id, status, error=None):
+    await set_rerun(pool, rerun_id, status=status, error_message=error, finished_at=NOW, current_position=None)
+    logger.info(f"Rerun {rerun_id} finished: {status}{(' (' + error + ')') if error else ''}")
+    await release_rerun(pool, rerun_id)
+
+
+async def release_cancelled(pool, released):
+    # Dashboard cancels never reach this worker, so release them here
+    rows = await fetch_all(
+        pool,
+        """
+        SELECT id FROM vod_reruns
+        WHERE status = 'cancelled' AND started_at IS NULL
+          AND finished_at >= UTC_TIMESTAMP() - INTERVAL 10 MINUTE
+        """,
+    )
+    for row in rows:
+        rerun_id = int(row["id"])
+        if rerun_id in released:
+            continue
+        released.add(rerun_id)
+        logger.info(f"Rerun {rerun_id} was cancelled before it started")
+        await release_rerun(pool, rerun_id)
 
 
 async def cancel_remaining(pool, rerun_id):
@@ -762,8 +785,8 @@ async def start_due(pool, session, running):
         if int(row.get("late_seconds") or 0) > MISSED_GRACE_SECONDS:
             if await set_rerun(pool, rerun_id, only_status=("scheduled",), status="failed", error_message="missed_start", finished_at=NOW):
                 await cancel_remaining(pool, rerun_id)
-                shutil.rmtree(stage_dir(rerun_id), ignore_errors=True)
                 logger.warning(f"Rerun {rerun_id} for {row['username']} missed its start time")
+                await release_rerun(pool, rerun_id)
             continue
         busy = await fetch_one(
             pool,
@@ -773,7 +796,7 @@ async def start_due(pool, session, running):
         if busy:
             if await set_rerun(pool, rerun_id, only_status=("scheduled",), status="skipped", error_message="another_rerun_live", finished_at=NOW):
                 await cancel_remaining(pool, rerun_id)
-                shutil.rmtree(stage_dir(rerun_id), ignore_errors=True)
+                await release_rerun(pool, rerun_id)
             continue
         if not await set_rerun(pool, rerun_id, only_status=("scheduled",), status="live", started_at=NOW, error_message=None):
             continue
@@ -797,6 +820,7 @@ async def main():
         host=DB_HOST, user=DB_USER, password=DB_PASS, db=DB_NAME, autocommit=True, minsize=1, maxsize=6,
     )
     running = {}
+    released = set()
     staging_task = None
     try:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
@@ -814,9 +838,11 @@ async def main():
                         running.pop(rerun_id, None)
                         if not task.cancelled() and task.exception():
                             logger.error(f"Rerun {rerun_id} crashed: {task.exception()!r}")
-                            await set_rerun(pool, rerun_id, only_status=("live",), status="failed", error_message="worker_error", finished_at=NOW)
+                            if await set_rerun(pool, rerun_id, only_status=("live",), status="failed", error_message="worker_error", finished_at=NOW):
+                                await release_rerun(pool, rerun_id)
                 try:
                     await start_due(pool, session, running)
+                    await release_cancelled(pool, released)
                     if staging_task is None or staging_task.done():
                         staging_task = asyncio.create_task(stage_pending_safe(pool, session))
                     if ticks % 6 == 0:
