@@ -342,7 +342,8 @@ foreach ($s3Jobs as $job) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($canDl && $namedUrl !== ''): ?>
+                                        <?php /* A VOD waiting on a scheduled rerun can't be changed until the rerun is over. */ ?>
+                                        <?php if ($canDl && $namedUrl !== '' && empty($file['rerun_hold'])): ?>
                                             <div class="stream-hub-file-actions">
                                             <a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($namedUrl); ?>"><?php echo t('recording_btn_download'); ?></a>
                                             <?php if ($isUserS3 && !empty($canS3) && !empty($file['s3_key'])): ?>
@@ -694,6 +695,8 @@ foreach ($s3Jobs as $job) {
                                     <?php echo htmlspecialchars($rWhen->format('D j M Y, g:i a')); ?>
                                     <?php $rGame = (string) ($rerun['items'][0]['game_name'] ?? ''); ?>
                                     <span class="rerun-list-meta"><?php echo htmlspecialchars($rGame !== '' ? $rGame : t('rerun_no_category')); ?></span>
+                                    <?php $rLength = array_sum(array_map(static function ($i) { return (int) ($i['duration_seconds'] ?? 0); }, $rerun['items'])); ?>
+                                    <span class="rerun-list-meta"><?php echo t('rerun_total_length'); ?> <?php echo htmlspecialchars(vod_rerun_format_length($rLength)); ?></span>
                                 </td>
                                 <td>
                                     <ol class="rerun-list-items">
@@ -1954,7 +1957,8 @@ foreach ($s3Jobs as $job) {
             var type = typeBadgesHtml(file);
             var check = (canDl && named) ? '<input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="' + escapeHtml(named) + '" data-vod-title="' + escapeHtml(title) + '" data-vod-name="' + escapeHtml(file.name || '') + '">' : '';
             var actions = '—';
-            if (canDl && named) {
+            // A VOD waiting on a scheduled rerun can't be changed until the rerun is over.
+            if (canDl && named && !file.rerun_hold) {
                 actions = '<div class="stream-hub-file-actions"><a class="sp-btn sp-btn-primary sp-btn-sm" href="' + escapeHtml(named) + '">' + escapeHtml(I18N.download) + '</a>';
                 if (file.storage !== 'user_s3' && file.can_extend) {
                     actions += '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="' + escapeHtml(file.name || '') + '">' + escapeHtml(I18N.extend) + '</button>';

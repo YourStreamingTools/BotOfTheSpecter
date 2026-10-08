@@ -1431,25 +1431,34 @@ async def filenames_held_for_user(user_id: int) -> set[str]:
             await sqldb.ensure_closed()
 
 
-async def filenames_in_reruns(user_id: int) -> set[str]:
+async def filenames_in_reruns(user_id: int) -> dict[str, int]:
     # Files a scheduled or live rerun still needs, with when that rerun ends (unix time)
     if user_id <= 0:
-        return set()
+        return {}
     sqldb = None
     try:
         sqldb = await access_website_database()
         async with sqldb.cursor() as cursor:
             await cursor.execute(
                 """
-                SELECT DISTINCT i.filename FROM vod_rerun_items i
+                SELECT i.filename, COALESCE(r.started_at, r.scheduled_at) AS starts_at,
+                       (SELECT COALESCE(SUM(t.duration_seconds), 0) FROM vod_rerun_items t WHERE t.rerun_id = r.id) AS length_s
+                FROM vod_rerun_items i
                 JOIN vod_reruns r ON r.id = i.rerun_id
                 WHERE i.user_id = %s AND i.storage = 'local' AND r.status IN ('scheduled', 'live')
                 """,
                 (user_id,),
             )
-            return {str(row[0]) for row in await cursor.fetchall() or [] if row and row[0]}
+            ends = {}
+            for filename, starts_at, length_s in await cursor.fetchall() or []:
+                if not filename or starts_at is None:
+                    continue
+                # Rerun times are stored in UTC.
+                end = int(starts_at.replace(tzinfo=datetime.timezone.utc).timestamp()) + int(length_s or 0)
+                ends[str(filename)] = max(end, ends.get(str(filename), 0))
+            return ends
     except Exception:
-        return set()
+        return {}
     finally:
         if sqldb is not None:
             await sqldb.ensure_closed()
@@ -2311,6 +2320,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         probe_budget = DURATION_BACKFILL_PER_REQUEST
         for f in files:
             expires_unix = int(f["mtime"]) + RECORDING_RETENTION_SECONDS
+            # Held for a rerun: it can't go before that rerun has finished.
+            expires_unix = max(expires_unix, rerun_names.get(f["name"], 0))
             twitch_id = None
             fpath = os.path.join(recorder_storage_path, username, f["name"])
             meta = read_media_meta(fpath)

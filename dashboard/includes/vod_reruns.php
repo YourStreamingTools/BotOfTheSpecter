@@ -153,6 +153,14 @@ function vod_rerun_search_categories(string $query, string $clientID, string $ac
     return $out;
 }
 
+// "9h 19m" / "42m" for a rerun's total length.
+function vod_rerun_format_length(int $seconds): string
+{
+    $hours = intdiv(max(0, $seconds), 3600);
+    $minutes = intdiv(max(0, $seconds) % 3600, 60);
+    return $hours > 0 ? sprintf('%dh %02dm', $hours, $minutes) : sprintf('%dm', $minutes);
+}
+
 function vod_rerun_full_title(string $title): string
 {
     $title = trim(preg_replace('/\s+/u', ' ', $title));
