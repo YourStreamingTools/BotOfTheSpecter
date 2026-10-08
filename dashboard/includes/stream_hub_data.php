@@ -1,7 +1,7 @@
 <?php
 /**
  * Shared Stream hub data, POST handlers, and AJAX for streaming.php.
- * Expects dashboard bootstrap: $db, $conn, userdata, stream.php, twitch.php, youtube.php, stream_api_client.php.
+ * Expects dashboard bootstrap: $db, $conn, userdata, stream.php, twitch.php, youtube.php, stream_api_client.php, vod_reruns.php.
  */
 
 if (!function_exists('isSafeRecorderFileName')) {
@@ -843,6 +843,7 @@ if (!$list['ok']) {
                     'expires_unix' => (int) ($row['expires_at_unix'] ?? 0),
                     'twitch_video_id' => (string) ($row['twitch_video_id'] ?? ''),
                     'upload_hold' => !empty($row['upload_hold']),
+                    'rerun_hold' => !empty($row['rerun_hold']),
                 ];
             }
         }
@@ -1118,6 +1119,54 @@ if ($restoreByKey) {
         $libraryFile['restore_percent'] = (float) ($restoreRow['percent'] ?? 0);
     }
     unset($libraryFile);
+}
+
+// Scheduled reruns: the VODs the stream server can play, plus this channel's schedule.
+$rerunsReady = isset($conn) && $conn instanceof mysqli && $userId > 0 && $canIngest && vod_rerun_tables_ready($conn);
+$rerunCandidates = $rerunsReady ? vod_rerun_candidates($libraryFiles) : [];
+if ($rerunsReady && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rerunAction = (string) ($_POST['action'] ?? '');
+    if (in_array($rerunAction, ['rerun_schedule', 'rerun_cancel', 'rerun_remove'], true)) {
+        if ($isActAsUser) {
+            stream_hub_redirect('reruns', t('rerun_actas_disabled'), 'is-warning');
+        }
+        if ($rerunAction === 'rerun_schedule') {
+            if ($twitchKey === '') {
+                stream_hub_redirect('reruns', t('rerun_error_no_stream_key'), 'is-danger');
+            }
+            $picked = is_array($_POST['items'] ?? null) ? array_values($_POST['items']) : [];
+            $created = vod_rerun_create(
+                $conn,
+                $userId,
+                $recorderUsername,
+                (string) ($timezone ?? 'UTC'),
+                (string) ($_POST['rerun_at'] ?? ''),
+                $picked,
+                $rerunCandidates
+            );
+            if (!empty($created['ok'])) {
+                stream_hub_redirect('reruns', t('rerun_scheduled_ok'), 'is-success');
+            }
+            stream_hub_redirect('reruns', t('rerun_error_' . ($created['error'] ?? 'db')), 'is-danger');
+        }
+        $rerunId = (int) ($_POST['rerun_id'] ?? 0);
+        if ($rerunAction === 'rerun_cancel') {
+            $result = vod_rerun_cancel($conn, $userId, $rerunId);
+            if ($result === 'cancelled') {
+                stream_hub_redirect('reruns', t('rerun_cancelled_ok'), 'is-success');
+            }
+            if ($result === 'stopping') {
+                stream_hub_redirect('reruns', t('rerun_stopping_ok'), 'is-info');
+            }
+            stream_hub_redirect('reruns', t('rerun_error_not_found'), 'is-warning');
+        }
+        $removed = vod_rerun_remove($conn, $userId, $rerunId);
+        stream_hub_redirect('reruns', $removed ? t('rerun_removed_ok') : t('rerun_error_not_found'), $removed ? 'is-success' : 'is-warning');
+    }
+}
+$reruns = $rerunsReady ? vod_rerun_list($conn, $userId) : [];
+if ($rerunsReady && $rerunCandidates && !$isAjax) {
+    vod_rerun_resolve_games($rerunCandidates, (string) ($clientID ?? ''), (string) ($_SESSION['access_token'] ?? ''));
 }
 
 if ($isAjax) {

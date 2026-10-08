@@ -1,0 +1,19 @@
+[Unit]
+Description=Specter VOD rerun scheduler (streams scheduled reruns to Twitch)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/specter-stream
+EnvironmentFile=/opt/specter-stream/.env
+ExecStart=/opt/specter-stream/venv/bin/python /opt/specter-stream/rerun_scheduler.py
+Restart=on-failure
+RestartSec=10
+# ffmpeg runs in its own session; leave it streaming across a restart so the rerun carries on.
+KillMode=process
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -13,6 +13,7 @@ include 'includes/user_db_connect.php';
 require_once __DIR__ . '/includes/youtube.php';
 require_once __DIR__ . '/includes/user_s3.php';
 require_once __DIR__ . '/includes/stream_api_client.php';
+require_once __DIR__ . '/includes/vod_reruns.php';
 if (function_exists('botofthespecter_twitch_apply_db_override')) {
     botofthespecter_twitch_apply_db_override($conn, $clientID, $clientSecret, $oauth);
 }
@@ -26,6 +27,14 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
+
+// Twitch category search for the rerun form (answered before the recordings listing loads).
+if (isset($_GET['rerun_categories'])) {
+    $q = substr(trim((string) $_GET['rerun_categories']), 0, 200);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($q === '' ? [] : vod_rerun_search_categories($q, (string) ($clientID ?? ''), (string) ($_SESSION['access_token'] ?? '')));
+    exit();
+}
 
 require_once __DIR__ . '/includes/stream_hub_data.php';
 session_write_close();
@@ -199,6 +208,9 @@ foreach ($s3Jobs as $job) {
     <?php if ($canYoutube): ?>
     <li data-stream-tab="import"><a href="#import"><i class="fab fa-twitch"></i> <?php echo t('stream_hub_nav_import'); ?></a></li>
     <?php endif; ?>
+    <?php if ($rerunsReady): ?>
+    <li data-stream-tab="reruns"><a href="#reruns"><i class="fas fa-redo-alt"></i> <?php echo t('stream_hub_nav_reruns'); ?></a></li>
+    <?php endif; ?>
     <li data-stream-tab="setup"><a href="#setup"><i class="fas fa-cog"></i> <?php echo t('stream_hub_nav_setup'); ?></a></li>
 </ul>
 
@@ -315,6 +327,9 @@ foreach ($s3Jobs as $job) {
                                             <span class="recording-countdown" data-expires="<?php echo (int) $file['expires_unix']; ?>">—</span>
                                         <?php else: ?>
                                             —
+                                        <?php endif; ?>
+                                        <?php if (!empty($file['rerun_hold'])): ?>
+                                            <span class="sp-badge sp-badge-blue" title="<?php echo htmlspecialchars(t('rerun_hold_help')); ?>"><?php echo t('rerun_hold_badge'); ?></span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -536,6 +551,164 @@ foreach ($s3Jobs as $job) {
                         </tbody>
                     </table>
                 </div>
+        <?php endif; ?>
+    </div>
+</div>
+</div>
+<?php endif; ?>
+
+<?php if ($rerunsReady): ?>
+<div class="stream-hub-panel" id="panel-reruns" data-stream-panel="reruns">
+<div class="sp-card" id="reruns">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-redo-alt"></i> <?php echo t('rerun_heading'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?php echo t('rerun_help'); ?></p>
+        <?php if ($twitchKey === ''): ?>
+            <div class="sp-alert sp-alert-warning"><?php echo t('rerun_no_stream_key'); ?> <a href="#ingest"><?php echo t('rerun_no_stream_key_link'); ?></a></div>
+        <?php elseif ($isActAsUser): ?>
+            <div class="sp-alert sp-alert-warning"><?php echo t('rerun_actas_disabled'); ?></div>
+        <?php elseif (!$rerunCandidates): ?>
+            <div class="stream-hub-empty"><i class="fas fa-film"></i><?php echo t('rerun_no_vods'); ?></div>
+        <?php else: ?>
+            <form method="post" action="streaming.php#reruns" id="rerun-form">
+                <input type="hidden" name="action" value="rerun_schedule">
+                <h3 class="rerun-step"><?php echo t('rerun_step_pick'); ?></h3>
+                <div class="sp-table-wrap rerun-picker">
+                    <table class="sp-table">
+                        <thead>
+                            <tr>
+                                <th><?php echo t('recording_th_file'); ?></th>
+                                <th><?php echo t('recording_th_length'); ?></th>
+                                <th><?php echo t('rerun_th_category'); ?></th>
+                                <th><?php echo t('recording_th_action'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($rerunCandidates as $cand): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($cand['display']); ?></td>
+                                    <td><?php echo htmlspecialchars(stream_hub_format_duration($cand['duration_seconds'])); ?></td>
+                                    <td><?php echo $cand['game_name'] !== '' ? htmlspecialchars($cand['game_name']) : '—'; ?></td>
+                                    <td>
+                                        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-rerun-add
+                                            data-token="<?php echo htmlspecialchars($cand['token']); ?>"
+                                            data-display="<?php echo htmlspecialchars($cand['display']); ?>"
+                                            data-title="<?php echo htmlspecialchars($cand['title']); ?>"
+                                            data-game-id="<?php echo htmlspecialchars($cand['game_id']); ?>"
+                                            data-game-name="<?php echo htmlspecialchars($cand['game_name']); ?>"
+                                            data-duration="<?php echo (int) ($cand['duration_seconds'] ?? 0); ?>"><i class="fas fa-plus"></i> <?php echo t('rerun_btn_add'); ?></button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <h3 class="rerun-step"><?php echo t('rerun_step_order'); ?></h3>
+                <p class="sp-help"><?php echo t('rerun_order_help'); ?></p>
+                <div class="stream-hub-empty" id="rerun-playlist-empty"><?php echo t('rerun_playlist_empty'); ?></div>
+                <ol class="rerun-playlist" id="rerun-playlist"></ol>
+                <h3 class="rerun-step"><?php echo t('rerun_step_when'); ?></h3>
+                <div class="sp-field-row rerun-when">
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="rerun-at"><?php echo t('rerun_start_label', ['tz' => htmlspecialchars($timezone)]); ?></label>
+                        <input class="sp-input" type="datetime-local" id="rerun-at" name="rerun_at" required
+                            min="<?php echo htmlspecialchars(date('Y-m-d\TH:i', time() + VOD_RERUN_MIN_LEAD_SECONDS)); ?>"
+                            max="<?php echo htmlspecialchars(date('Y-m-d\TH:i', time() + VOD_RERUN_MAX_DAYS_AHEAD * 86400)); ?>">
+                    </div>
+                    <div class="rerun-total"><?php echo t('rerun_total_length'); ?> <strong id="rerun-total">—</strong></div>
+                </div>
+                <button type="submit" class="sp-btn sp-btn-primary" id="rerun-submit" disabled><i class="fas fa-calendar-plus"></i> <?php echo t('rerun_btn_schedule'); ?></button>
+            </form>
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="sp-card" id="rerun-schedule">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-calendar-alt"></i> <?php echo t('rerun_list_heading'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <?php if (!$reruns): ?>
+            <div class="stream-hub-empty"><i class="fas fa-calendar"></i><?php echo t('rerun_list_empty'); ?></div>
+        <?php else: ?>
+            <div class="sp-table-wrap">
+                <table class="sp-table">
+                    <thead>
+                        <tr>
+                            <th><?php echo t('rerun_th_when'); ?></th>
+                            <th><?php echo t('rerun_th_vods'); ?></th>
+                            <th><?php echo t('rerun_th_status'); ?></th>
+                            <th><?php echo t('recording_th_action'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $rerunBadge = ['scheduled' => 'blue', 'live' => 'green', 'done' => 'accent', 'failed' => 'red', 'cancelled' => 'grey', 'skipped' => 'amber'];
+                        $itemBadge = ['staging' => 'amber', 'staged' => 'blue', 'playing' => 'green', 'done' => 'accent', 'failed' => 'red', 'skipped' => 'amber', 'cancelled' => 'grey'];
+                        ?>
+                        <?php foreach ($reruns as $rerun): ?>
+                            <?php
+                            $rStatus = (string) $rerun['status'];
+                            $rWhen = (new DateTime((string) $rerun['scheduled_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone));
+                            $rCount = count($rerun['items']);
+                            ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($rWhen->format('D j M Y, g:i a')); ?></td>
+                                <td>
+                                    <ol class="rerun-list-items">
+                                        <?php foreach ($rerun['items'] as $item): ?>
+                                            <?php $iStatus = (string) $item['status']; ?>
+                                            <li>
+                                                <span><?php echo htmlspecialchars(vod_rerun_full_title((string) $item['title'])); ?></span>
+                                                <span class="rerun-list-meta"><?php echo htmlspecialchars((string) ($item['game_name'] ?: t('rerun_no_category'))); ?> · <?php echo htmlspecialchars(stream_hub_format_duration($item['duration_seconds'] !== null ? (int) $item['duration_seconds'] : null)); ?></span>
+                                                <?php if (isset($itemBadge[$iStatus]) && $rStatus !== 'cancelled'): ?>
+                                                    <span class="sp-badge sp-badge-<?php echo $itemBadge[$iStatus]; ?>"><?php echo t('rerun_item_status_' . $iStatus); ?></span>
+                                                <?php endif; ?>
+                                                <?php if ($iStatus === 'failed' && !empty($item['error_message'])): ?>
+                                                    <span class="rerun-list-meta"><?php echo htmlspecialchars(vod_rerun_reason_text($item['error_message'])); ?></span>
+                                                <?php endif; ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ol>
+                                </td>
+                                <td>
+                                    <span class="sp-badge sp-badge-<?php echo $rerunBadge[$rStatus] ?? 'grey'; ?>"><?php echo t('rerun_status_' . $rStatus); ?></span>
+                                    <?php if ($rStatus === 'live' && $rerun['current_position'] !== null): ?>
+                                        <div class="rerun-list-meta"><?php echo htmlspecialchars(t('rerun_playing_of', ['n' => (string) (int) $rerun['current_position'], 'total' => (string) $rCount])); ?></div>
+                                    <?php endif; ?>
+                                    <?php if ($rStatus === 'live' && (int) $rerun['cancel_requested'] === 1): ?>
+                                        <div class="rerun-list-meta"><?php echo t('rerun_stopping'); ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($rerun['error_message'])): ?>
+                                        <div class="rerun-list-meta"><?php echo htmlspecialchars(vod_rerun_reason_text($rerun['error_message'])); ?></div>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($isActAsUser): ?>
+                                        —
+                                    <?php elseif ($rStatus === 'scheduled' || ($rStatus === 'live' && (int) $rerun['cancel_requested'] === 0)): ?>
+                                        <form method="post" action="streaming.php#reruns" onsubmit="return confirm(<?php echo htmlspecialchars(json_encode($rStatus === 'live' ? t('rerun_stop_confirm') : t('rerun_cancel_confirm'))); ?>);">
+                                            <input type="hidden" name="action" value="rerun_cancel">
+                                            <input type="hidden" name="rerun_id" value="<?php echo (int) $rerun['id']; ?>">
+                                            <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><?php echo $rStatus === 'live' ? t('rerun_btn_stop') : t('rerun_btn_cancel'); ?></button>
+                                        </form>
+                                    <?php elseif ($rStatus !== 'live'): ?>
+                                        <form method="post" action="streaming.php#reruns">
+                                            <input type="hidden" name="action" value="rerun_remove">
+                                            <input type="hidden" name="rerun_id" value="<?php echo (int) $rerun['id']; ?>">
+                                            <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo t('rerun_btn_remove'); ?></button>
+                                        </form>
+                                    <?php else: ?>
+                                        —
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         <?php endif; ?>
     </div>
 </div>
@@ -789,12 +962,187 @@ foreach ($s3Jobs as $job) {
         </div>
     </div>
 </div>
+<?php if ($rerunsReady): ?>
 <script>
 (function () {
-    var TAB_MAP = { library: 'library', import: 'import', setup: 'setup', record: 'setup', ingest: 'setup', forward: 'setup', youtube: 'setup', s3: 'setup' };
+    var form = document.getElementById('rerun-form');
+    if (!form) return;
+    var T = {
+        titleLabel: <?php echo json_encode(t('rerun_title_label')); ?>,
+        categoryLabel: <?php echo json_encode(t('rerun_category_label')); ?>,
+        categoryPlaceholder: <?php echo json_encode(t('rerun_category_placeholder')); ?>,
+        categorySet: <?php echo json_encode(t('rerun_category_set')); ?>,
+        categoryNone: <?php echo json_encode(t('rerun_category_none')); ?>,
+        noResults: <?php echo json_encode(t('rerun_category_no_results')); ?>,
+        moveUp: <?php echo json_encode(t('rerun_move_up')); ?>,
+        moveDown: <?php echo json_encode(t('rerun_move_down')); ?>,
+        remove: <?php echo json_encode(t('rerun_btn_remove_item')); ?>,
+        prefix: <?php echo json_encode(VOD_RERUN_PREFIX); ?>
+    };
+    var MAX_ITEMS = <?php echo (int) VOD_RERUN_MAX_ITEMS; ?>;
+    var TITLE_MAX = <?php echo (int) (VOD_RERUN_TITLE_MAX - mb_strlen(VOD_RERUN_PREFIX)); ?>;
+    var list = document.getElementById('rerun-playlist');
+    var empty = document.getElementById('rerun-playlist-empty');
+    var submit = document.getElementById('rerun-submit');
+    var totalEl = document.getElementById('rerun-total');
+
+    function esc(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function formatLength(seconds) {
+        var h = Math.floor(seconds / 3600);
+        var m = Math.floor((seconds % 3600) / 60);
+        return h > 0 ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m + 'm';
+    }
+    function refresh() {
+        var items = list.querySelectorAll('.rerun-item');
+        var total = 0;
+        var unknown = false;
+        items.forEach(function (li, i) {
+            li.querySelector('.rerun-item-num').textContent = String(i + 1);
+            li.querySelectorAll('[data-field]').forEach(function (input) {
+                input.name = 'items[' + i + '][' + input.getAttribute('data-field') + ']';
+            });
+            li.querySelector('[data-move="-1"]').disabled = i === 0;
+            li.querySelector('[data-move="1"]').disabled = i === items.length - 1;
+            var length = Number(li.getAttribute('data-duration') || 0);
+            if (length > 0) total += length; else unknown = true;
+        });
+        empty.hidden = items.length > 0;
+        submit.disabled = items.length === 0;
+        totalEl.textContent = items.length ? formatLength(total) + (unknown ? ' +' : '') : '—';
+        document.querySelectorAll('[data-rerun-add]').forEach(function (btn) {
+            btn.disabled = items.length >= MAX_ITEMS;
+        });
+    }
+    function setCategory(li, id, name) {
+        li.querySelector('[data-field="game_id"]').value = id || '';
+        li.querySelector('[data-field="game_name"]').value = id ? name : '';
+        li.querySelector('.rerun-cat-input').value = id ? name : '';
+        li.querySelector('.rerun-cat-state').textContent = id ? T.categorySet.replace(':name', name) : T.categoryNone;
+    }
+    function addItem(btn) {
+        var li = document.createElement('li');
+        li.className = 'rerun-item';
+        li.setAttribute('data-duration', btn.getAttribute('data-duration') || '0');
+        li.innerHTML =
+            '<span class="rerun-item-num"></span>' +
+            '<div class="rerun-item-body">' +
+                '<div class="rerun-item-file">' + esc(btn.getAttribute('data-display')) + '</div>' +
+                '<div class="sp-form-group">' +
+                    '<label class="sp-label">' + esc(T.titleLabel) + '</label>' +
+                    '<div class="rerun-title-row"><span class="rerun-prefix">' + esc(T.prefix) + '</span>' +
+                    '<input class="sp-input" type="text" data-field="title" required maxlength="' + TITLE_MAX + '"></div>' +
+                '</div>' +
+                '<div class="sp-form-group">' +
+                    '<label class="sp-label">' + esc(T.categoryLabel) + '</label>' +
+                    '<div class="tg-search-wrap">' +
+                        '<input class="sp-input rerun-cat-input" type="search" autocomplete="off" placeholder="' + esc(T.categoryPlaceholder) + '">' +
+                        '<div class="tg-search-results" hidden></div>' +
+                    '</div>' +
+                    '<span class="sp-help rerun-cat-state"></span>' +
+                '</div>' +
+                '<input type="hidden" data-field="vod">' +
+                '<input type="hidden" data-field="game_id">' +
+                '<input type="hidden" data-field="game_name">' +
+            '</div>' +
+            '<div class="rerun-item-actions">' +
+                '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-move="-1" title="' + esc(T.moveUp) + '" aria-label="' + esc(T.moveUp) + '"><i class="fas fa-arrow-up"></i></button>' +
+                '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-move="1" title="' + esc(T.moveDown) + '" aria-label="' + esc(T.moveDown) + '"><i class="fas fa-arrow-down"></i></button>' +
+                '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-remove title="' + esc(T.remove) + '" aria-label="' + esc(T.remove) + '"><i class="fas fa-times"></i></button>' +
+            '</div>';
+        li.querySelector('[data-field="vod"]').value = btn.getAttribute('data-token') || '';
+        li.querySelector('[data-field="title"]').value = (btn.getAttribute('data-title') || '').slice(0, TITLE_MAX);
+        setCategory(li, btn.getAttribute('data-game-id') || '', btn.getAttribute('data-game-name') || '');
+        list.appendChild(li);
+        refresh();
+    }
+
+    document.querySelectorAll('[data-rerun-add]').forEach(function (btn) {
+        btn.addEventListener('click', function () { addItem(btn); });
+    });
+    list.addEventListener('click', function (event) {
+        var li = event.target.closest('.rerun-item');
+        if (!li) return;
+        var pick = event.target.closest('.tg-search-item');
+        if (pick) {
+            setCategory(li, pick.getAttribute('data-id'), pick.getAttribute('data-name'));
+            li.querySelector('.tg-search-results').hidden = true;
+            return;
+        }
+        var move = event.target.closest('[data-move]');
+        if (move) {
+            if (move.getAttribute('data-move') === '-1' && li.previousElementSibling) {
+                list.insertBefore(li, li.previousElementSibling);
+            } else if (move.getAttribute('data-move') === '1' && li.nextElementSibling) {
+                list.insertBefore(li.nextElementSibling, li);
+            }
+            refresh();
+            return;
+        }
+        if (event.target.closest('[data-remove]')) {
+            li.remove();
+            refresh();
+        }
+    });
+
+    // Category search: picking a result sets it; anything else left in the box means no category (cleared on Twitch).
+    var searchTimer = null;
+    list.addEventListener('input', function (event) {
+        var input = event.target.closest('.rerun-cat-input');
+        if (!input) return;
+        var li = input.closest('.rerun-item');
+        var box = li.querySelector('.tg-search-results');
+        li.querySelector('[data-field="game_id"]').value = '';
+        li.querySelector('[data-field="game_name"]').value = '';
+        li.querySelector('.rerun-cat-state').textContent = T.categoryNone;
+        clearTimeout(searchTimer);
+        var q = input.value.trim();
+        if (q === '') {
+            box.hidden = true;
+            return;
+        }
+        searchTimer = setTimeout(function () {
+            fetch('streaming.php?rerun_categories=' + encodeURIComponent(q), { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.json(); })
+                .then(function (results) {
+                    if (input.value.trim() !== q) return;
+                    if (!Array.isArray(results) || !results.length) {
+                        box.innerHTML = '<div class="tg-search-empty">' + esc(T.noResults) + '</div>';
+                    } else {
+                        box.innerHTML = results.map(function (game) {
+                            return '<button type="button" class="tg-search-item" data-id="' + esc(game.id) + '" data-name="' + esc(game.name) + '">' +
+                                (game.box_art_url ? '<img src="' + esc(game.box_art_url) + '" alt="">' : '') +
+                                '<span>' + esc(game.name) + '</span></button>';
+                        }).join('');
+                    }
+                    box.hidden = false;
+                })
+                .catch(function () { box.hidden = true; });
+        }, 300);
+    });
+    list.addEventListener('focusout', function (event) {
+        var input = event.target.closest('.rerun-cat-input');
+        if (!input) return;
+        var li = input.closest('.rerun-item');
+        setTimeout(function () {
+            if (li.contains(document.activeElement) && document.activeElement.closest('.tg-search-results')) return;
+            li.querySelector('.tg-search-results').hidden = true;
+            if (!li.querySelector('[data-field="game_id"]').value) input.value = '';
+        }, 200);
+    });
+    refresh();
+})();
+</script>
+<?php endif; ?>
+<script>
+(function () {
+    var TAB_MAP = { library: 'library', import: 'import', reruns: 'reruns', setup: 'setup', record: 'setup', ingest: 'setup', forward: 'setup', youtube: 'setup', s3: 'setup' };
     function activateTab(name, scrollId) {
         var tab = TAB_MAP[name] || 'library';
-        if (tab === 'import' && !document.querySelector('[data-stream-tab="import"]')) tab = 'library';
+        if ((tab === 'import' || tab === 'reruns') && !document.querySelector('[data-stream-tab="' + tab + '"]')) tab = 'library';
         document.querySelectorAll('#stream-hub-tabs li').forEach(function (li) {
             li.classList.toggle('is-active', li.getAttribute('data-stream-tab') === tab);
         });
@@ -856,6 +1204,8 @@ foreach ($s3Jobs as $job) {
         noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
         expired: <?php echo json_encode(t('recording_countdown_expired')); ?>,
         keptForUpload: <?php echo json_encode(t('recording_kept_for_upload')); ?>,
+        rerunHold: <?php echo json_encode(t('rerun_hold_badge')); ?>,
+        rerunHoldHelp: <?php echo json_encode(t('rerun_hold_help')); ?>,
         restoreLocal: <?php echo json_encode(t('recording_btn_restore')); ?>,
         restoreRetry: <?php echo json_encode(t('recording_restore_retry')); ?>,
         restoreCopying: <?php echo json_encode(t('recording_restore_copying')); ?>,
@@ -1510,6 +1860,9 @@ foreach ($s3Jobs as $job) {
             var expCell = file.upload_hold
                 ? escapeHtml(I18N.keptForUpload)
                 : (expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—');
+            if (file.rerun_hold) {
+                expCell += ' <span class="sp-badge sp-badge-blue" title="' + escapeHtml(I18N.rerunHoldHelp) + '">' + escapeHtml(I18N.rerunHold) + '</span>';
+            }
             rows += '<tr><td>' + check + '</td><td>' + escapeHtml(title) + '</td><td>' + type + '</td><td>' + formatBytes(file.size || file.size_bytes || 0) + '</td><td>' + escapeHtml(formatDuration(fileDurationSeconds(file))) + '</td><td>' + expCell + '</td><td>' + actions + '</td></tr>';
         });
         filesHost.innerHTML = '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all"></th><th><?php echo htmlspecialchars(t('recording_th_file')); ?></th><th><?php echo htmlspecialchars(t('recording_th_type')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('recording_th_length')); ?></th><th><?php echo htmlspecialchars(t('recording_th_expires')); ?></th><th><?php echo htmlspecialchars(t('recording_th_action')); ?></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
