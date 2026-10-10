@@ -377,8 +377,9 @@ streamelements_socket = AsyncClient()                                           
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)                                     # OpenAI client for AI responses
 _shared_http_session = None                                                             # Shared aiohttp session (lazy-created)
 bot_started = time_right_now()                                                          # Time the bot started
-stream_online = False                                                                   # Whether the stream is currently online 
-current_game = None                                                                     # Live Twitch category name
+stream_online = False                                                                   # Whether the stream is currently online
+rerun_notice_state = {"rerun_id": None, "checked_at": 0.0, "notified": set()}          # Live Specter rerun cache + chatters already told about it
+current_game = None                                                                    # Live Twitch category name
 current_game_id = None                                                                  # Live Twitch category id (Helix) 
 next_spotify_refresh_time = None                                                        # Time for the next Spotify token refresh 
 HEARTRATE = None                                                                        # Current heart rate value 
@@ -3876,6 +3877,7 @@ class TwitchBot(commands.Bot):
                         safe_create_task(ban_user(messageAuthor, messageAuthorID))
                         bannedUser = messageAuthor
                         return
+            safe_create_task(send_rerun_notice(messageAuthorID, messageAuthor, _pet_display))
             if messageContent.startswith('!'):
                 command_parts = messageContent.split()
                 command = command_parts[0][1:]  # Extract the command without '!'
@@ -12456,6 +12458,41 @@ class TwitchBot(commands.Bot):
 ##
 # Functions for all the commands
 ##
+# Rerun notice: while a Specter VOD rerun is live, each chatter gets one @ letting them know the streamer may be away
+RERUN_NOTICE_MESSAGE = "@{user} Heads up! This is a rerun of a past stream, so {channel} may be away from keyboard and might not see your messages right away."
+RERUN_NOTICE_CHECK_SECONDS = 60
+
+async def get_live_rerun_id():
+    now = time.time()
+    if now - rerun_notice_state["checked_at"] < RERUN_NOTICE_CHECK_SECONDS:
+        return rerun_notice_state["rerun_id"]
+    rerun_notice_state["checked_at"] = now
+    rerun_id = None
+    try:
+        async with await mysql_connection(db_name="website") as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT id FROM vod_reruns WHERE username = %s AND status = 'live' LIMIT 1", (CHANNEL_NAME,))
+                row = await cursor.fetchone()
+                rerun_id = row["id"] if row else None
+    except Exception as e:
+        chat_logger.warning(f"[RERUN NOTICE] Could not check for a live rerun: {e}")
+        rerun_id = rerun_notice_state["rerun_id"]
+    if rerun_id != rerun_notice_state["rerun_id"]:
+        rerun_notice_state["notified"] = set()
+    rerun_notice_state["rerun_id"] = rerun_id
+    return rerun_id
+
+async def send_rerun_notice(user_id, username, display_name):
+    if not stream_online or not user_id or str(user_id) == str(CHANNEL_ID):
+        return
+    if not await get_live_rerun_id():
+        return
+    if str(user_id) in rerun_notice_state["notified"]:
+        return
+    rerun_notice_state["notified"].add(str(user_id))
+    chat_logger.info(f"[RERUN NOTICE] Letting {username} know this is a rerun")
+    await send_chat_message(RERUN_NOTICE_MESSAGE.format(user=display_name or username, channel=CHANNEL_NAME))
+
 # Birthdays: !addbirthday (mods), !mybirthday and !updatebirthday store a viewer's day/month in the per-user `birthdays` table (keyed by Twitch user_id). When a viewer's first chat of the stream falls on their birthday (streamer's profile timezone), a birthday wish is sent as its own chat message (after their welcome message, if one is sent).
 def parse_birthday_date(raw):
     match = re.fullmatch(r"(\d{1,2})[/.\-](\d{1,2})", (raw or "").strip())
