@@ -491,6 +491,26 @@ class MySQLManager:
             if 'conn' in locals() and conn:
                 conn.close()
 
+    async def specter_rerun_live(self, channel_name: str) -> bool:
+        # A Specter rerun replays VODs already in the library, so it is never recorded again
+        conn = None
+        try:
+            conn = await self.get_connection()
+            if not conn:
+                return False
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT id FROM vod_reruns WHERE username = %s AND status = 'live' LIMIT 1",
+                    (channel_name,),
+                )
+                return await cursor.fetchone() is not None
+        except Exception as e:
+            self.logger.warning(f"Could not check for a live rerun for {channel_name}: {e}")
+            return False
+        finally:
+            if conn:
+                conn.close()
+
     async def get_forwarding_settings(self, channel_name: str) -> List[Dict[str, Any]]:
         try:
             conn = await self.get_connection(channel_name)
@@ -916,7 +936,9 @@ class RecordChecker:
                     should_record = await self.mysql_manager.should_auto_record(username)
                     went_live = self._last_live.get(username) is False
                     if should_record and went_live:
-                        if not self._disk_has_room():
+                        if await self.mysql_manager.specter_rerun_live(username):
+                            self.logger.info(f"Not recording {username}: this stream is a Specter rerun")
+                        elif not self._disk_has_room():
                             self.logger.warning(
                                 f"Skipping {username}: host disk has less than "
                                 f"{MIN_DISK_FREE_BYTES} bytes free"
