@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 from ffmpeg_jobs import (
     AttachedProcess, cmdline_has, ffmpeg_returncode, find_ffmpeg_pid_for_path, pid_alive,
-    remove_media_and_sidecars, spawn_detached_ffmpeg,
+    proc_cmdline, remove_media_and_sidecars, spawn_detached_ffmpeg,
 )
 from upload_hold import filenames_held_for_upload
 
@@ -49,6 +49,13 @@ RERUN_PREFIX = "RERUN - "
 # Added to the channel's existing tags when a rerun goes live (Twitch allows 10 tags).
 RERUN_TAG = "Rerun"
 MAX_CHANNEL_TAGS = 10
+# Re-encoding a VOD whose settings don't match the rest of its rerun (any reconnect splits the Twitch broadcast).
+CONFORM_PRESET = os.getenv("RERUN_CONFORM_PRESET") or "veryfast"
+CONFORM_DEFAULT_BITRATE = 6_000_000
+CONFORM_MIN_BITRATE = 2_500_000
+CONFORM_MAX_BITRATE = 8_000_000
+CONFORM_AUDIO_BITRATE = "160k"
+X264_PROFILES = {"high": "high", "main": "main", "baseline": "baseline", "constrained baseline": "baseline"}
 
 TWITCH_INGEST_SERVERS = {
     "sydney": "rtmps://syd03.contribute.live-video.net/app/",
@@ -550,7 +557,278 @@ def probe_media(path):
     return key, duration
 
 
+# Matching settings: VODs that differ from the rest of their rerun are re-encoded ahead of time
+
+_probe_cache = {}
+_conform_failed = set()
+_conform_settled = set()
+_CONFORM_PART_RE = re.compile(re.escape(STAGE_ROOT + os.sep) + r"(\d+)" + re.escape(os.sep) + r"conform-\d+\.mp4\.part")
+
+
+def conform_path(rerun_id, item_id):
+    return os.path.join(stage_dir(rerun_id), f"conform-{int(item_id)}.mp4")
+
+
+def is_conform_path(path):
+    return (
+        bool(path) and path.startswith(STAGE_ROOT + os.sep)
+        and os.path.basename(path).startswith("conform-") and os.path.isfile(path)
+    )
+
+
+def probe_cached(path):
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None, None
+    sig = (path, st.st_size, int(st.st_mtime))
+    if sig not in _probe_cache:
+        if len(_probe_cache) > 500:
+            _probe_cache.clear()
+        _probe_cache[sig] = probe_media(path)
+    return _probe_cache[sig]
+
+
+def probe_video_bitrate(path):
+    try:
+        res = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=bit_rate:format=bit_rate", "-of", "json", path,
+            ],
+            capture_output=True, timeout=120,
+        )
+        data = json.loads(res.stdout or b"{}")
+    except Exception:
+        return None
+    stream = (data.get("streams") or [{}])[0] or {}
+    for value, audio_share in ((stream.get("bit_rate"), 0), ((data.get("format") or {}).get("bit_rate"), 160_000)):
+        try:
+            rate = int(value) - audio_share
+        except (TypeError, ValueError):
+            continue
+        if rate > 0:
+            return rate
+    return None
+
+
+def describe_key(key):
+    v_codec, profile, width, height, rate, pix_fmt, a_codec, a_rate, a_channels = key
+    return f"{v_codec} {profile} {width}x{height}@{rate} {pix_fmt} / {a_codec or 'no audio'}"
+
+
+def can_conform(target):
+    # Only targets libx264 + aac can reproduce exactly
+    v_codec, profile, width, height, rate, pix_fmt, a_codec, a_rate, a_channels = target
+    if v_codec != "h264" or str(profile or "").lower() not in X264_PROFILES or pix_fmt != "yuv420p":
+        return False
+    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0 or width % 2 or height % 2:
+        return False
+    if not re.match(r"^[1-9]\d*(/[1-9]\d*)?$", str(rate or "")):
+        return False
+    if a_codec is None:
+        return True
+    return a_codec == "aac" and str(a_rate or "").isdigit() and a_channels in (1, 2)
+
+
+def pick_target(entries):
+    # The settings covering the most playtime win, so the least video gets re-encoded; ties go to the earliest VOD
+    totals = {}
+    for _, _, key, duration in entries:
+        if key is not None:
+            totals[key] = totals.get(key, 0.0) + float(duration or 0)
+    return max(totals, key=lambda key: totals[key]) if totals else None
+
+
+def conform_command(src, part, target, bitrate, source_has_audio):
+    _, profile, width, height, rate, pix_fmt, a_codec, a_rate, a_channels = target
+    num, _, den = str(rate).partition("/")
+    gop = max(1, int(round(float(num) / float(den or 1) * 2)))
+    video_filter = (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={rate},format={pix_fmt}"
+    )
+    cmd = ["nice", "-n", "19", "ffmpeg", "-hide_banner", "-nostdin", "-y", "-loglevel", "warning", "-i", src]
+    if a_codec and not source_has_audio:
+        cmd += ["-f", "lavfi", "-i", f"anullsrc=r={int(a_rate)}:cl={'mono' if a_channels == 1 else 'stereo'}"]
+    cmd += ["-map", "0:v:0"]
+    if a_codec:
+        cmd += [
+            "-map", "0:a:0" if source_has_audio else "1:a:0",
+            "-c:a", "aac", "-b:a", CONFORM_AUDIO_BITRATE, "-ar", str(int(a_rate)), "-ac", str(int(a_channels)),
+        ]
+        if not source_has_audio:
+            cmd += ["-shortest"]
+    else:
+        cmd += ["-an"]
+    cmd += [
+        "-vf", video_filter,
+        "-c:v", "libx264", "-preset", CONFORM_PRESET, "-profile:v", X264_PROFILES[str(profile).lower()],
+        "-b:v", str(bitrate), "-maxrate", str(bitrate), "-bufsize", str(bitrate * 2),
+        "-g", str(gop), "-keyint_min", str(gop), "-sc_threshold", "0",
+        "-movflags", "+faststart", "-f", "mp4", part,
+    ]
+    return cmd
+
+
+def stop_orphan_conforms(scheduled_ids):
+    # Re-encodes outlive a worker restart; stop any whose rerun has started or gone
+    if not os.path.isdir("/proc"):
+        return
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/comm", encoding="utf-8") as handle:
+                if handle.read().strip() != "ffmpeg":
+                    continue
+        except OSError:
+            continue
+        match = _CONFORM_PART_RE.search(proc_cmdline(int(name)))
+        if match and int(match.group(1)) not in scheduled_ids:
+            try:
+                os.kill(int(name), signal.SIGKILL)
+                logger.info(f"Stopped leftover re-encode for rerun {match.group(1)}")
+            except OSError:
+                pass
+
+
+async def rerun_still_scheduled(pool, rerun_id):
+    row = await fetch_one(pool, "SELECT status FROM vod_reruns WHERE id = %s", (rerun_id,))
+    return bool(row) and row.get("status") == "scheduled"
+
+
+async def conform_item(pool, rerun_id, item, src, src_key, src_duration, target, reference):
+    dest = conform_path(rerun_id, item["id"])
+    part = dest + ".part"
+    log_path = dest + ".ffmpeg.log"
+    pid = find_ffmpeg_pid_for_path(part)
+    if pid:
+        proc = AttachedProcess(pid)
+        logger.info(f"Reattached to the re-encode of rerun {rerun_id} item {item['position']} (ffmpeg {pid})")
+    else:
+        if not _disk_has_room(os.path.getsize(src)):
+            _conform_failed.add(item["id"])
+            logger.error(f"Rerun {rerun_id}: not enough disk to re-encode item {item['position']}; it will reconnect the stream")
+            return
+        bitrate = await asyncio.to_thread(probe_video_bitrate, reference) or CONFORM_DEFAULT_BITRATE
+        bitrate = max(CONFORM_MIN_BITRATE, min(CONFORM_MAX_BITRATE, bitrate))
+        _discard_file(part)
+        try:
+            pid = spawn_detached_ffmpeg(conform_command(src, part, target, bitrate, src_key[6] is not None), log_path)
+        except OSError as exc:
+            _conform_failed.add(item["id"])
+            logger.error(f"Rerun {rerun_id}: could not start the re-encode of item {item['position']}: {exc!r}")
+            return
+        proc = _DetachedHandle(pid)
+        logger.info(
+            f"🎞️  Rerun {rerun_id}: re-encoding item {item['position']} to match the other VODs "
+            f"({describe_key(src_key)} -> {describe_key(target)}, {bitrate // 1000} kbps) via ffmpeg {pid}"
+        )
+    while proc.poll() is None:
+        if not await rerun_still_scheduled(pool, rerun_id):
+            await stop_ffmpeg(proc)
+            _discard_file(part)
+            logger.warning(f"Rerun {rerun_id} started or ended before item {item['position']} finished re-encoding; it plays as-is")
+            return
+        await asyncio.sleep(WATCH_SECONDS)
+    key, duration = await asyncio.to_thread(probe_media, part)
+    if key != target or not duration or (src_duration and abs(duration - src_duration) > 5):
+        _discard_file(part)
+        _conform_failed.add(item["id"])
+        logger.error(
+            f"Rerun {rerun_id}: re-encode of item {item['position']} did not match "
+            f"({describe_key(key) if key else 'unreadable'}, {duration}s vs {src_duration}s): {log_tail(log_path)}"
+        )
+        return
+    os.replace(part, dest)
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                UPDATE vod_rerun_items i JOIN vod_reruns r ON r.id = i.rerun_id
+                SET i.staged_path = %s
+                WHERE i.id = %s AND r.status = 'scheduled'
+                """,
+                (dest, item["id"]),
+            )
+            updated = cur.rowcount > 0
+    if not updated:
+        _discard_file(dest)
+        return
+    # A copied-in user_s3 original is no longer needed once its match exists.
+    if item["storage"] == "user_s3" and src != dest and src.startswith(STAGE_ROOT + os.sep):
+        _discard_file(src)
+    logger.info(f"✅ Rerun {rerun_id}: item {item['position']} re-encoded to match the rest of the rerun")
+
+
+def conform_source(item, username):
+    # Returns (path, waiting): waiting means a copy hasn't arrived yet
+    staged = item.get("staged_path") or ""
+    if is_conform_path(staged):
+        return staged, False
+    if item["storage"] == "local":
+        path = os.path.join(VOD_ROOT, username, item["filename"]) if _safe_filename(item["filename"]) else ""
+        return (path if path and os.path.isfile(path) else None), False
+    if item["storage"] == "user_s3":
+        if item["status"] in ("pending", "staging"):
+            return None, True
+        if item["status"] == "staged" and staged.startswith(STAGE_ROOT + os.sep) and os.path.isfile(staged):
+            return staged, False
+    return None, False
+
+
+async def conform_pending(pool):
+    # One re-encode at a time (the stream server has one core), soonest rerun first
+    reruns = await fetch_all(pool, "SELECT id, username FROM vod_reruns WHERE status = 'scheduled' ORDER BY scheduled_at ASC")
+    for rerun in reruns:
+        rerun_id = int(rerun["id"])
+        username = rerun["username"]
+        if rerun_id in _conform_settled or not _safe_username(username):
+            continue
+        items = await fetch_all(pool, "SELECT * FROM vod_rerun_items WHERE rerun_id = %s ORDER BY position ASC", (rerun_id,))
+        entries = []
+        waiting = False
+        for item in items:
+            if item["status"] in ("failed", "skipped", "cancelled"):
+                continue
+            path, item_waiting = conform_source(item, username)
+            if item_waiting:
+                waiting = True
+                break
+            if path:
+                key, duration = await asyncio.to_thread(probe_cached, path)
+                entries.append((item, path, key, duration))
+        if waiting:
+            continue
+        target = pick_target(entries)
+        if target is None:
+            _conform_settled.add(rerun_id)
+            continue
+        todo = [entry for entry in entries if entry[2] is not None and entry[2] != target and entry[0]["id"] not in _conform_failed]
+        if todo and not can_conform(target):
+            logger.warning(f"Rerun {rerun_id}: can't re-encode to {describe_key(target)}; mismatched VODs will reconnect the stream")
+            todo = []
+        if not todo:
+            _conform_settled.add(rerun_id)
+            continue
+        item, src, src_key, src_duration = todo[0]
+        reference = max((entry for entry in entries if entry[2] == target), key=lambda entry: float(entry[3] or 0))[1]
+        await conform_item(pool, rerun_id, item, src, src_key, src_duration, target, reference)
+        return
+
+
+async def conform_pending_safe(pool):
+    try:
+        await conform_pending(pool)
+    except Exception as exc:
+        logger.error(f"Re-encode error: {exc!r}")
+
+
 async def resolve_item_path(pool, session, item, username):
+    # A copy re-encoded to match the rest of the rerun wins over the original.
+    if is_conform_path(item.get("staged_path") or ""):
+        return item["staged_path"]
     if item["storage"] == "local":
         path = os.path.join(VOD_ROOT, username, item["filename"])
         return path if os.path.isfile(path) else None
@@ -957,6 +1235,7 @@ async def main():
     running = {}
     released = set()
     staging_task = None
+    conform_task = None
     try:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -980,9 +1259,12 @@ async def main():
                     await release_cancelled(pool, released)
                     if staging_task is None or staging_task.done():
                         staging_task = asyncio.create_task(stage_pending_safe(pool, session))
+                    if conform_task is None or conform_task.done():
+                        conform_task = asyncio.create_task(conform_pending_safe(pool))
                     if ticks % 6 == 0:
-                        active = await fetch_all(pool, "SELECT id FROM vod_reruns WHERE status IN ('scheduled', 'live')")
+                        active = await fetch_all(pool, "SELECT id, status FROM vod_reruns WHERE status IN ('scheduled', 'live')")
                         cleanup_stage_dirs({int(r["id"]) for r in active})
+                        stop_orphan_conforms({int(r["id"]) for r in active if r["status"] == "scheduled"})
                 except Exception as exc:
                     logger.error(f"Scheduler loop error: {exc!r}")
                 ticks += 1
