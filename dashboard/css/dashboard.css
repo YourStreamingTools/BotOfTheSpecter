@@ -6387,12 +6387,54 @@ label.checkbox input[type="checkbox"] {
 .rerun-when { align-items: flex-end; gap: 1rem; margin-bottom: 1rem; }
 .rerun-when .sp-form-group { margin-bottom: 0; }
 .rerun-total { color: var(--text-secondary); padding-bottom: 0.5rem; }
-.rerun-list-items {
-    margin: 0;
-    padding-left: 1.1rem;
+.rerun-vods-cell { min-width: 0; width: 100%; }
+.rerun-vods summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    list-style: none;
+    color: var(--text-primary);
 }
-.rerun-list-items li { margin-bottom: 0.35rem; }
-.rerun-list-items li > span:first-child { color: var(--text-primary); }
+.rerun-vods summary::-webkit-details-marker { display: none; }
+.rerun-vods summary::before {
+    content: "\25B8";
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+}
+.rerun-vods[open] summary::before { transform: rotate(90deg); }
+.rerun-vods summary:hover .rerun-vods-count { text-decoration: underline; }
+.rerun-vod-list {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+.rerun-vod-row {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+.rerun-vod-pos { color: var(--text-muted); text-align: right; }
+.rerun-vod-title {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rerun-vod-length { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rerun-vod-badge { min-width: 5.5rem; text-align: right; }
+.rerun-vod-reason {
+    grid-column: 2 / -1;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
 .rerun-list-meta {
     display: block;
     font-size: 0.85rem;

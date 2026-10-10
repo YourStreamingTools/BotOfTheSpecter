@@ -698,22 +698,45 @@ foreach ($s3Jobs as $job) {
                                     <?php $rLength = array_sum(array_map(static function ($i) { return (int) ($i['duration_seconds'] ?? 0); }, $rerun['items'])); ?>
                                     <span class="rerun-list-meta"><?php echo t('rerun_total_length'); ?> <?php echo htmlspecialchars(vod_rerun_format_length($rLength)); ?></span>
                                 </td>
-                                <td>
-                                    <ol class="rerun-list-items">
-                                        <?php foreach ($rerun['items'] as $item): ?>
-                                            <?php $iStatus = (string) $item['status']; ?>
-                                            <li>
-                                                <span><?php echo htmlspecialchars(vod_rerun_full_title((string) $item['title'])); ?></span>
-                                                <span class="rerun-list-meta"><?php echo htmlspecialchars(stream_hub_format_duration($item['duration_seconds'] !== null ? (int) $item['duration_seconds'] : null)); ?></span>
-                                                <?php if (isset($itemBadge[$iStatus]) && $rStatus !== 'cancelled'): ?>
-                                                    <span class="sp-badge sp-badge-<?php echo $itemBadge[$iStatus]; ?>"><?php echo t('rerun_item_status_' . $iStatus); ?></span>
-                                                <?php endif; ?>
-                                                <?php if ($iStatus === 'failed' && !empty($item['error_message'])): ?>
-                                                    <span class="rerun-list-meta"><?php echo htmlspecialchars(vod_rerun_reason_text($item['error_message'])); ?></span>
-                                                <?php endif; ?>
-                                            </li>
-                                        <?php endforeach; ?>
-                                    </ol>
+                                <td class="rerun-vods-cell">
+                                    <?php
+                                    // Collapsed to a count + per-status tally; the full list opens on demand (and starts open while live).
+                                    $iTally = [];
+                                    if ($rStatus !== 'cancelled') {
+                                        foreach ($rerun['items'] as $item) {
+                                            $iStatus = (string) $item['status'];
+                                            if (isset($itemBadge[$iStatus])) {
+                                                $iTally[$iStatus] = ($iTally[$iStatus] ?? 0) + 1;
+                                            }
+                                        }
+                                    }
+                                    ?>
+                                    <details class="rerun-vods"<?php echo $rStatus === 'live' ? ' open' : ''; ?>>
+                                        <summary>
+                                            <span class="rerun-vods-count"><?php echo htmlspecialchars(t($rCount === 1 ? 'rerun_vod_count_one' : 'rerun_vod_count', ['n' => (string) $rCount])); ?></span>
+                                            <?php foreach ($iTally as $iStatus => $iCount): ?>
+                                                <span class="sp-badge sp-badge-<?php echo $itemBadge[$iStatus]; ?>"><?php echo (int) $iCount; ?> <?php echo t('rerun_item_status_' . $iStatus); ?></span>
+                                            <?php endforeach; ?>
+                                        </summary>
+                                        <ol class="rerun-vod-list">
+                                            <?php foreach ($rerun['items'] as $iIndex => $item): ?>
+                                                <?php $iStatus = (string) $item['status']; ?>
+                                                <li class="rerun-vod-row">
+                                                    <span class="rerun-vod-pos"><?php echo (int) $iIndex + 1; ?>.</span>
+                                                    <span class="rerun-vod-title" title="<?php echo htmlspecialchars(vod_rerun_full_title((string) $item['title'])); ?>"><?php echo htmlspecialchars((string) $item['title']); ?></span>
+                                                    <span class="rerun-vod-length"><?php echo htmlspecialchars(stream_hub_format_duration($item['duration_seconds'] !== null ? (int) $item['duration_seconds'] : null)); ?></span>
+                                                    <span class="rerun-vod-badge">
+                                                        <?php if (isset($itemBadge[$iStatus]) && $rStatus !== 'cancelled'): ?>
+                                                            <span class="sp-badge sp-badge-<?php echo $itemBadge[$iStatus]; ?>"><?php echo t('rerun_item_status_' . $iStatus); ?></span>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                    <?php if ($iStatus === 'failed' && !empty($item['error_message'])): ?>
+                                                        <span class="rerun-vod-reason"><?php echo htmlspecialchars(vod_rerun_reason_text($item['error_message'])); ?></span>
+                                                    <?php endif; ?>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ol>
+                                    </details>
                                 </td>
                                 <td>
                                     <span class="sp-badge sp-badge-<?php echo $rerunBadge[$rStatus] ?? 'grey'; ?>"><?php echo t('rerun_status_' . $rStatus); ?></span>
