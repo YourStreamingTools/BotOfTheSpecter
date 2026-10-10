@@ -7298,6 +7298,8 @@ return [
     'rerun_list_empty' => '还没有安排重播。',
     'rerun_th_when' => '开始',
     'rerun_th_vods' => 'VOD',
+    'rerun_vod_count_one' => ':n 个 VOD',
+    'rerun_vod_count' => ':n 个 VOD',
     'rerun_th_status' => '状态',
     'rerun_no_category' => '无分类',
     'rerun_playing_of' => '正在播放第 :n 个，共 :total 个 VOD',
