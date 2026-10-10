@@ -7323,7 +7323,7 @@ return [
     'rerun_error_too_many' => '一次重播最多可播放 20 个 VOD。',
     'rerun_error_too_long' => 'Twitch 会在 48 小时后结束直播。请减少 VOD 数量。',
     'rerun_error_overlap' => '该时间与另一个已安排的重播重叠。',
-    'rerun_error_too_many_upcoming' => '最多可同时安排 10 个重播。',
+    'rerun_error_too_many_upcoming' => '一次只能安排一个重播。请先取消它或等它结束后再安排新的重播。',
     'rerun_error_db' => '无法保存重播，请重试。',
     'rerun_status_scheduled' => '已安排',
     'rerun_status_live' => '直播中',

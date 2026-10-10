@@ -2,7 +2,8 @@
 // Scheduled VOD reruns (vod_reruns + vod_rerun_items); the stream server's rerun_scheduler.py plays them
 
 const VOD_RERUN_MAX_ITEMS = 20;
-const VOD_RERUN_MAX_UPCOMING = 10;
+// One scheduled or live rerun per user: staged and re-encoded copies sit on the stream server's disk until it ends.
+const VOD_RERUN_MAX_UPCOMING = 1;
 const VOD_RERUN_MAX_DAYS_AHEAD = 30;
 const VOD_RERUN_MIN_LEAD_SECONDS = 120;
 // Twitch ends any broadcast after 48 hours.
