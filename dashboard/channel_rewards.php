@@ -369,24 +369,11 @@ ob_start();
                     <span class="icon"><i class="fas fa-code"></i></span>
                     <?php echo t('channel_rewards_custom_vars_title'); ?>
                 </p>
-                <p><?php echo t('channel_rewards_custom_vars_desc'); ?></p>
-                <ul>
-                    <li><span style="font-weight:700;">(user)</span>:
-                        <?php echo t('channel_rewards_var_user'); ?>
-                    </li>
-                    <li><span style="font-weight:700;">(usercount)</span>:
-                        <?php echo t('channel_rewards_var_usercount'); ?>
-                    </li>
-                    <li><span style="font-weight:700;">(userstreak)</span>:
-                        <?php echo t('channel_rewards_var_userstreak'); ?>
-                    </li>
-                    <li><span style="font-weight:700;">(track)</span>: <?php echo t('channel_rewards_var_track'); ?></li>
-                    <li><span style="font-weight:700;">(fortune)</span>: <?php echo t('channel_rewards_var_fortune'); ?></li>
-                    <li><span style="font-weight:700;">(lotto)</span>: <?php echo t('channel_rewards_var_lotto'); ?></li>
-                    <li><span style="font-weight:700;">(tts)</span>: <?php echo t('channel_rewards_var_tts'); ?></li>
-                    <li><span style="font-weight:700;">(tts.message)</span>: <?php echo t('channel_rewards_var_tts_message'); ?></li>
-                    <li><span style="font-weight:700;">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
-                </ul>
+                <p class="mb-3"><?php echo t('channel_rewards_custom_vars_desc'); ?></p>
+                <a href="https://support.botofthespecter.com/#variables" target="_blank" rel="noopener" class="sp-btn sp-btn-primary sp-btn-sm">
+                    <i class="fas fa-code"></i>
+                    <span><?php echo t('custom_commands_view_variables'); ?></span>
+                </a>
                 <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
                     <input type="checkbox" class="switch" id="betaBotToggle" onchange="onBetaBotToggle(this.checked)"<?php echo !empty($betaCharLimitEnabled) ? ' checked' : ''; ?>>
                     <label for="betaBotToggle"><?php echo t('channel_rewards_beta_bot_label'); ?></label>
