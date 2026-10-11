@@ -12479,17 +12479,42 @@ async def get_live_rerun_id():
         rerun_id = rerun_notice_state["rerun_id"]
     if rerun_id != rerun_notice_state["rerun_id"]:
         rerun_notice_state["notified"] = set()
+        if rerun_id:
+            await clear_old_rerun_notices(rerun_id)
     rerun_notice_state["rerun_id"] = rerun_id
     return rerun_id
+
+# Drops notice rows from earlier reruns so the table only ever holds the current rerun's chatters
+async def clear_old_rerun_notices(rerun_id):
+    try:
+        async with await mysql_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("DELETE FROM rerun_notices WHERE rerun_id <> %s", (rerun_id,))
+    except Exception as e:
+        chat_logger.warning(f"[RERUN NOTICE] Could not clear old rerun notices: {e}")
+
+# Records the notice in rerun_notices so it survives a bot restart; False means this chatter was already told
+async def claim_rerun_notice(rerun_id, user_id, username):
+    try:
+        async with await mysql_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("INSERT IGNORE INTO rerun_notices (rerun_id, user_id, user_name) VALUES (%s, %s, %s)", (rerun_id, str(user_id), username))
+                return cursor.rowcount == 1
+    except Exception as e:
+        chat_logger.warning(f"[RERUN NOTICE] Could not record rerun notice for {username}: {e}")
+        return True
 
 async def send_rerun_notice(user_id, username, display_name):
     if not stream_online or not user_id or str(user_id) == str(CHANNEL_ID):
         return
-    if not await get_live_rerun_id():
+    rerun_id = await get_live_rerun_id()
+    if not rerun_id:
         return
     if str(user_id) in rerun_notice_state["notified"]:
         return
     rerun_notice_state["notified"].add(str(user_id))
+    if not await claim_rerun_notice(rerun_id, user_id, username):
+        return
     chat_logger.info(f"[RERUN NOTICE] Letting {username} know this is a rerun")
     await send_chat_message(RERUN_NOTICE_MESSAGE.format(user=display_name or username, channel=CHANNEL_NAME))
 
