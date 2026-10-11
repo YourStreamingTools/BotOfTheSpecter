@@ -15,6 +15,9 @@ include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+require_once __DIR__ . '/includes/beta_char_limit.php';
+beta_char_limit_handle_request();
+$betaCharLimitEnabled = isset($user['beta_char_limit']) && (int) $user['beta_char_limit'] === 1;
 
 // List endpoint first so the browser can paint skeletons, then fetch rows.
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
@@ -309,7 +312,7 @@ ob_start();
                         </a>
                     </div>
                     <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
-                        <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
+                        <input type="checkbox" class="switch" id="betaBotToggle" onchange="onBetaBotToggle(this.checked)"<?php echo !empty($betaCharLimitEnabled) ? ' checked' : ''; ?>>
                         <label for="betaBotToggle"><?php echo t('timed_messages_beta_bot_toggle'); ?></label>
                     </div>
                 </div>
@@ -333,8 +336,8 @@ ob_start();
                     <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
                         <div class="sp-form-group">
                             <label class="sp-label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
-                            <input class="sp-input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); updateShoutoutHint('message', 'interval', 'shoutoutHint'); toggleAddButton();">
-                            <small id="charCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
+                            <input class="sp-input" type="text" name="message" id="message" required maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" oninput="updateCharCount('message', 'charCount'); updateShoutoutHint('message', 'interval', 'shoutoutHint'); toggleAddButton();">
+                            <small id="charCount" class="sp-help">0/<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?> <?php echo t('timed_messages_characters'); ?></small>
                             <small id="shoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i><?php echo t('timed_messages_shoutout_hint'); ?></small>
                             <small id="messageError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></small>
                         </div>
@@ -411,8 +414,8 @@ ob_start();
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint'); toggleEditButton();">
-                            <small id="editCharCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
+                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" oninput="updateCharCount('edit_message_content', 'editCharCount'); updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint'); toggleEditButton();">
+                            <small id="editCharCount" class="sp-help">0/<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?> <?php echo t('timed_messages_characters'); ?></small>
                             <small id="editShoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i><?php echo t('timed_messages_shoutout_hint'); ?></small>
                         </div>
                         <div class="sp-form-group">
@@ -498,8 +501,9 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
+<script src="js/beta_char_limit.js?v=<?php echo filemtime(__DIR__ . '/js/beta_char_limit.js'); ?>"></script>
 <script>
-var charLimit = 255;
+var charLimit = <?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>;
 var timedMessagesData = [];
 const TM_I18N = {
     charactersSuffix: <?php echo json_encode(t('timed_messages_characters')); ?>,
@@ -659,7 +663,6 @@ function loadTimedMessages() {
 }
 function applyBetaBotCharLimit(enabled) {
     charLimit = enabled ? 500 : 255;
-    localStorage.setItem('betaBotMode', enabled ? '1' : '0');
     ['message', 'edit_message_content'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.setAttribute('maxlength', charLimit);
@@ -721,7 +724,7 @@ function showResponse() {
         if (editTriggerType) editTriggerType.value = 'timer';
         var editScheduledTimeInput = document.getElementById('edit_scheduled_time');
         if (editScheduledTimeInput) editScheduledTimeInput.value = '';
-        document.getElementById('editCharCount').textContent = '0/255 ' + TM_I18N.charactersSuffix;
+        document.getElementById('editCharCount').textContent = '0/' + charLimit + ' ' + TM_I18N.charactersSuffix;
         document.getElementById('editCharCount').className = 'sp-help';
         updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint');
         toggleEditTriggerType();
@@ -813,7 +816,7 @@ function toggleEditButton() {
     var editTriggerType = document.getElementById('edit_trigger_type') ? document.getElementById('edit_trigger_type').value : 'timer';
     var editBtn = document.getElementById('editMessageButton');
     if (!editBtn) return;
-    var valid = editMessage !== "" && editMessageContent.length > 0 && editMessageContent.length <= 255 && editStatus !== "";
+    var valid = editMessage !== "" && editMessageContent.length > 0 && editMessageContent.length <= charLimit && editStatus !== "";
     var editIntMin = hasShoutoutVar('edit_message_content') ? 60 : 5;
     if (editTriggerType === 'timer' || editTriggerType === 'both') {
         var editInterval = document.getElementById('edit_interval').value;
@@ -842,7 +845,7 @@ function toggleRemoveButton() {
 function validateForm() {
     // Message length validation
     const messageInput = document.getElementById('message');
-    if (messageInput.value.length > 255) {
+    if (messageInput.value.length > charLimit) {
         document.getElementById('messageError').textContent = '<?php echo t('timed_messages_message_length_error'); ?>';
         document.getElementById('messageError').style.display = 'block';
         return false;
@@ -863,7 +866,7 @@ function validateForm() {
 // Function to validate the edit form before submission
 function validateEditForm() {
     const editMessageContent = document.getElementById('edit_message_content');
-    if (editMessageContent.value.length > 255) {
+    if (editMessageContent.value.length > charLimit) {
         alert('<?php echo t('timed_messages_char_limit_alert'); ?>');
         return false;
     }
@@ -920,10 +923,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Call the function initially to pre-fill the fields if a default message is selected
 window.onload = function() {
-    var betaEnabled = localStorage.getItem('betaBotMode') === '1';
-    var toggle = document.getElementById('betaBotToggle');
-    if (toggle) toggle.checked = betaEnabled;
-    applyBetaBotCharLimit(betaEnabled);
+    initBetaCharLimitToggle(<?php echo !empty($betaCharLimitEnabled) ? 'true' : 'false'; ?>);
     toggleAddTriggerType();
     showResponse();
     updateCharCount('message', 'charCount');
