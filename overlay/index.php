@@ -773,14 +773,6 @@ if ($username) {
                     adBreakAudio.play().catch((e) => console.error('Ad break audio error:', e));
                 }
                 container._adCelebration = 0;
-                if (config.celebration_enabled == 1 && config.celebration_effect) {
-                    const remain = Math.max(1000, endMs - Date.now());
-                    container._adCelebration = celebration.start(
-                        config.celebration_effect,
-                        config.celebration_intensity || 'medium',
-                        remain
-                    );
-                }
                 adBreakTimer = setInterval(() => {
                     if (gen !== adBreakGen) return;
                     if (paintAdClocks(container, endMs) <= 0) hideAdBreak(true);
