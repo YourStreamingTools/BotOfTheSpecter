@@ -229,10 +229,16 @@ if ($username) {
                 }, SUB_COALESCE_MS);
                 pendingSubs.set(user, entry);
             }
-            // TTS / SOUND_ALERT. Default TTS volume is 30% (same as overlay/tts.php); sound alerts use 80%.
+            // TTS stays at 30%. Sound alerts and video alerts are capped at 50%.
+            const MEDIA_ALERT_VOLUME_CAP = 0.5;
+            function capAlertVolume(volume, fallback) {
+                const n = Number(volume);
+                const v = Number.isFinite(n) ? n : fallback;
+                return Math.max(0, Math.min(MEDIA_ALERT_VOLUME_CAP, v));
+            }
             function enqueueFxAudio(url, volume) {
                 if (!url) return;
-                const vol = (volume == null ? 0.3 : volume);
+                const vol = capAlertVolume(volume, 0.3);
                 enqueueJob({
                     kind: 'audio',
                     start(done) {
@@ -283,7 +289,7 @@ if ($username) {
                         const vid = document.createElement('video');
                         currentVideo = vid;
                         vid.src = SpecterOverlayWS.playbackUrl(url);
-                        vid.volume = 0.8;
+                        vid.volume = MEDIA_ALERT_VOLUME_CAP;
                         vid.controls = false;
                         vid.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
                         vid.preload = 'auto';
@@ -714,7 +720,7 @@ if ($username) {
                 }
                 const config = container._adConfig || {};
                 const animOutDur = parseFloat(config.animation_out_duration) || 1;
-                const box = container.querySelector('.twitch-alert-box');
+                const box = container.querySelector('.ad-break-frame');
                 if (!animated || !box) {
                     container.classList.remove('show');
                     container.innerHTML = '';
@@ -741,52 +747,22 @@ if ($username) {
                 const container = document.getElementById('adBreakOverlay');
                 if (!container) return;
                 container._adConfig = config;
-                const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
-                const cssWeight = weightMap[config.font_weight] || '600';
-                if (config.font_family) loadGoogleFont(config.font_family);
-                const hex6 = /^#[0-9a-fA-F]{6}$/;
-                const bgColor = hex6.test(config.bg_color) ? config.bg_color : '#000000';
-                const bgOpacity = (config.bg_opacity || 0) / 100;
-                const r = parseInt(bgColor.substr(1, 2), 16);
-                const g = parseInt(bgColor.substr(3, 2), 16);
-                const b = parseInt(bgColor.substr(5, 2), 16);
-                const messageHtml = composeAlertMessageHtml(resolveAlertTemplate(config), data, {
-                    duration: '<span class="ad-break-clock" data-ad="duration"></span>',
-                    seconds: '<span class="ad-break-clock" data-ad="seconds"></span>'
-                });
-                const layout = config.layout_preset || 'above';
-                const imageHtml = buildAlertImageHtml(config);
-                const boxStyles = [
-                    `background:rgba(${r},${g},${b},${bgOpacity})`,
-                    `padding:${config.padding || 16}px`,
-                    `gap:${config.gap || 16}px`,
-                    `border-radius:${config.rounded_corners == 1 ? '12px' : '0'}`,
-                    `box-shadow:${config.drop_shadow == 1 ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'}`
-                ].join(';');
-                const fontFamily = String(config.font_family || 'Roboto').replace(/['"\\]/g, '');
-                const textColor = hex6.test(config.text_color) ? config.text_color : '#FFFFFF';
-                const textStyles = [
-                    `font-family:'${fontFamily}',sans-serif`,
-                    `font-weight:${cssWeight}`,
-                    `font-size:${config.font_size || 24}px`,
-                    `color:${textColor}`,
-                    `text-align:${config.text_alignment || 'center'}`,
-                    `text-shadow:${config.text_drop_shadow == 1 ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'}`
-                ].join(';');
+                container.style.left = '0';
+                container.style.top = '0';
+                container.style.right = '0';
+                container.style.bottom = '0';
+                container.style.width = '100%';
+                container.style.height = '100%';
+                container.style.transform = 'none';
+                container.style.zoom = '';
                 container.innerHTML = `
-                    <div class="twitch-alert-box layout-${layout}" style="${boxStyles}">
-                        ${imageHtml}
-                        <div class="twitch-alert-text" style="${textStyles}">${messageHtml}</div>
+                    <div class="ad-break-frame">
+                        <div class="ad-break-pill"><span class="ad-break-clock" data-ad="duration">0:00</span></div>
                     </div>
                 `;
-                container.querySelectorAll('.twitch-alert-accent').forEach((el) => {
-                    el.style.color = config.accent_color || '#A1C53A';
-                });
                 paintAdClocks(container, endMs);
-                armAlertImageAudio(container);
                 container.classList.add('show');
-                applyScreenPosition(container, config, 'ad_break');
-                const box = container.querySelector('.twitch-alert-box');
+                const box = container.querySelector('.ad-break-frame');
                 const animInDur = parseFloat(config.animation_in_duration) || 1;
                 if (box) {
                     box.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
@@ -1583,7 +1559,7 @@ if ($username) {
                             console.warn('SOUND_ALERT event missing sound:', data);
                             return;
                         }
-                        enqueueFxAudio(url, 0.8);
+                        enqueueFxAudio(url, MEDIA_ALERT_VOLUME_CAP);
                     });
 
                     // VIDEO_ALERT - full URL already resolved by the bot (media or legacy CDN).
