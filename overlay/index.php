@@ -18,6 +18,26 @@ if ($username) {
     $stmt = $db->prepare("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index");
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Called, winner and ended cards were saved with the "game started" line.
+    $bingoStartedLine = "Stream Bingo is starting!";
+    $bingoLines = [
+        "bingo_event = 'STREAM_BINGO_EVENT_CALLED'" => "Event called:\n{bingo_event_name}",
+        "bingo_event = 'STREAM_BINGO_WINNER'" => "BINGO! {username}\ngot {rank_text}!",
+        "bingo_event = 'STREAM_BINGO_ENDED'" => "Stream Bingo has ended!",
+    ];
+    $bingoFix = $db->prepare("UPDATE twitch_alerts SET message_template = ? WHERE id = ? AND message_template = ?");
+    foreach ($rows as &$row) {
+        if (($row['alert_category'] ?? '') !== 'stream_bingo' || ($row['message_template'] ?? '') !== $bingoStartedLine) {
+            continue;
+        }
+        $bingoCond = trim((string) ($row['alert_condition'] ?? ''));
+        if (!isset($bingoLines[$bingoCond])) {
+            continue;
+        }
+        $row['message_template'] = $bingoLines[$bingoCond];
+        $bingoFix->execute([$bingoLines[$bingoCond], $row['id'], $bingoStartedLine]);
+    }
+    unset($row);
     foreach ($rows as $row) {
         $alertConfigs[$row['alert_category']][] = $row;
     }
@@ -111,34 +131,132 @@ if ($username) {
             }
             const weatherTimezone = <?php echo json_encode($timezone); ?>;
             const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
-            const alertQueue = [];
-            let isShowingAlert = false;
+            // One queue for every one-shot alert: cards, sounds, TTS, videos, walk-ons,
+            // deaths and weather. The next job starts when the current one has finished.
+            // Ad breaks stay outside this queue — they last the whole Twitch break.
+            const jobQueue = [];
+            let jobActive = false;
+            let currentJob = null;
             let currentAudio = null;
-            // TTS / SOUND_ALERT share a queue separate from alert-variant sounds and walk-ons.
-            // Default TTS volume is 30% (same as overlay/tts.php); sound alerts use 80%.
             let fxAudio = null;
-            const fxQueue = [];
-            function enqueueFxAudio(url, volume) {
-                if (!url) return;
-                fxQueue.push({ url: url, volume: (volume == null ? 0.3 : volume) });
-                if (!fxAudio) playNextFxAudio();
+            let currentVideo = null;
+            function enqueueJob(job, front) {
+                if (front) jobQueue.unshift(job);
+                else jobQueue.push(job);
+                if (!jobActive) runNextJob();
             }
-            function playNextFxAudio() {
-                if (fxQueue.length === 0) {
-                    fxAudio = null;
+            function runNextJob() {
+                const job = jobQueue.shift();
+                if (!job) {
+                    jobActive = false;
+                    currentJob = null;
                     return;
                 }
-                const item = fxQueue.shift();
-                fxAudio = new Audio(SpecterOverlayWS.playbackUrl(item.url));
-                fxAudio.volume = item.volume;
-                fxAudio.addEventListener('ended', () => { fxAudio = null; playNextFxAudio(); });
-                fxAudio.addEventListener('error', (e) => {
-                    console.error('FX audio error:', e, 'src=', fxAudio && fxAudio.src);
-                    fxAudio = null;
-                    playNextFxAudio();
-                });
-                fxAudio.play().catch(err => {
-                    console.warn('FX autoplay blocked; will retry on interaction:', err && err.name);
+                jobActive = true;
+                currentJob = job;
+                let settled = false;
+                const done = () => {
+                    if (settled) return;
+                    settled = true;
+                    if (currentJob === job) currentJob = null;
+                    jobActive = false;
+                    runNextJob();
+                };
+                try {
+                    job.cancel = job.start(done) || function () {};
+                } catch (e) {
+                    console.error('Alert job failed:', e);
+                    done();
+                }
+            }
+            // A new sub and a resub for the same person often arrive together.
+            // Hold briefly, then keep the one with the higher month count.
+            const SUB_COALESCE_MS = 3000;
+            const pendingSubs = new Map();
+            function subUser(eventData) {
+                return String((eventData && eventData.username) || '').toLowerCase();
+            }
+            function subMonths(eventData) {
+                const n = parseInt(eventData && eventData.months, 10);
+                return n > 0 ? n : 1;
+            }
+            function enqueueSubscriptionJob(eventData, front) {
+                const user = subUser(eventData);
+                const job = {
+                    kind: 'subscription',
+                    user: user,
+                    months: subMonths(eventData),
+                    eventData: eventData,
+                    cancel: function () {},
+                    start(done) {
+                        const config = getMatchingVariant('subscription', this.eventData);
+                        if (!config) { done(); return; }
+                        return renderAlert(config, this.eventData, done);
+                    }
+                };
+                enqueueJob(job, front);
+            }
+            function queueSubscription(eventData) {
+                const user = subUser(eventData);
+                const months = subMonths(eventData);
+                const pending = pendingSubs.get(user);
+                if (pending) {
+                    if (months >= pending.months) {
+                        pending.months = months;
+                        pending.eventData = eventData;
+                    }
+                    return;
+                }
+                const queued = jobQueue.find(function (j) { return j.kind === 'subscription' && j.user === user; });
+                if (queued) {
+                    if (months >= queued.months) {
+                        queued.months = months;
+                        queued.eventData = eventData;
+                    }
+                    return;
+                }
+                if (currentJob && currentJob.kind === 'subscription' && currentJob.user === user) {
+                    if (months > currentJob.months) {
+                        enqueueSubscriptionJob(eventData, true);
+                        if (typeof currentJob.cancel === 'function') currentJob.cancel();
+                    }
+                    return;
+                }
+                const entry = { months: months, eventData: eventData };
+                entry.timer = setTimeout(function () {
+                    pendingSubs.delete(user);
+                    enqueueSubscriptionJob(entry.eventData, false);
+                }, SUB_COALESCE_MS);
+                pendingSubs.set(user, entry);
+            }
+            // TTS / SOUND_ALERT. Default TTS volume is 30% (same as overlay/tts.php); sound alerts use 80%.
+            function enqueueFxAudio(url, volume) {
+                if (!url) return;
+                const vol = (volume == null ? 0.3 : volume);
+                enqueueJob({
+                    kind: 'audio',
+                    start(done) {
+                        const audio = new Audio(SpecterOverlayWS.playbackUrl(url));
+                        fxAudio = audio;
+                        audio.volume = vol;
+                        let settled = false;
+                        const finish = () => {
+                            if (settled) return;
+                            settled = true;
+                            if (fxAudio === audio) fxAudio = null;
+                            done();
+                        };
+                        audio.addEventListener('ended', finish);
+                        audio.addEventListener('error', (e) => {
+                            console.error('FX audio error:', e, 'src=', audio.src);
+                            finish();
+                        });
+                        audio.play().catch(err => {
+                            console.warn('FX autoplay blocked:', err && err.name);
+                            finish();
+                        });
+                        return () => { audio.pause(); finish(); };
+                    }
                 });
             }
             // OBS browser sources often block autoplay until a context is unlocked.
@@ -155,48 +273,47 @@ if ($username) {
                     ctx.resume().then(() => ctx.close()).catch(() => {});
                 } catch (e) {}
             })();
-            // Video alerts (channel points, store) play centred, queued, with their own audio.
+            // Video alerts (channel points, store) play centred, with their own audio.
             // Same player as the retired video-alert.php browser source.
-            let currentVideo = null;
-            const videoQueue = [];
             function enqueueVideo(url) {
                 if (!url) return;
-                videoQueue.push(url);
-                if (!currentVideo) playNextVideo();
-            }
-            function playNextVideo() {
-                if (videoQueue.length === 0) {
-                    currentVideo = null;
-                    return;
-                }
-                const url = videoQueue.shift();
-                const vid = document.createElement('video');
-                currentVideo = vid;
-                vid.src = SpecterOverlayWS.playbackUrl(url);
-                vid.volume = 0.8;
-                vid.controls = false;
-                vid.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
-                vid.preload = 'auto';
-                document.body.appendChild(vid);
-                vid.addEventListener('canplaythrough', () => {
-                    if (currentVideo !== vid) return;
-                    vid.classList.remove('video-alert-overlay-page-video-pending');
-                    vid.play().catch(error => {
-                        console.warn('Video autoplay blocked; will retry on interaction:', error && error.name);
-                    });
-                }, { once: true });
-                let settled = false;
-                const finish = () => {
-                    if (settled) return;
-                    settled = true;
-                    if (vid.parentNode) vid.parentNode.removeChild(vid);
-                    if (currentVideo === vid) currentVideo = null;
-                    playNextVideo();
-                };
-                vid.addEventListener('ended', finish);
-                vid.addEventListener('error', (e) => {
-                    console.error('Video alert failed to load:', e);
-                    finish();
+                enqueueJob({
+                    kind: 'video',
+                    start(done) {
+                        const vid = document.createElement('video');
+                        currentVideo = vid;
+                        vid.src = SpecterOverlayWS.playbackUrl(url);
+                        vid.volume = 0.8;
+                        vid.controls = false;
+                        vid.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
+                        vid.preload = 'auto';
+                        document.body.appendChild(vid);
+                        let settled = false;
+                        const finish = () => {
+                            if (settled) return;
+                            settled = true;
+                            if (vid.parentNode) vid.parentNode.removeChild(vid);
+                            if (currentVideo === vid) currentVideo = null;
+                            done();
+                        };
+                        const loadStall = setTimeout(finish, 20000);
+                        vid.addEventListener('canplaythrough', () => {
+                            clearTimeout(loadStall);
+                            if (currentVideo !== vid || settled) return;
+                            vid.classList.remove('video-alert-overlay-page-video-pending');
+                            vid.play().catch(error => {
+                                console.warn('Video autoplay blocked:', error && error.name);
+                                finish();
+                            });
+                        }, { once: true });
+                        vid.addEventListener('ended', () => { clearTimeout(loadStall); finish(); });
+                        vid.addEventListener('error', (e) => {
+                            console.error('Video alert failed to load:', e);
+                            clearTimeout(loadStall);
+                            finish();
+                        });
+                        return () => { clearTimeout(loadStall); vid.pause(); finish(); };
+                    }
                 });
             }
             // Sound, video and TTS keep playing when the category row does not exist yet,
@@ -314,19 +431,18 @@ if ($username) {
                 return enabled[0];
             }
             function queueAlert(category, eventData) {
-                const config = getMatchingVariant(category, eventData);
-                if (!config) return;
-                alertQueue.push({ config, eventData });
-                if (!isShowingAlert) processAlertQueue();
-            }
-            function processAlertQueue() {
-                if (alertQueue.length === 0) {
-                    isShowingAlert = false;
+                if (category === 'subscription') {
+                    queueSubscription(eventData);
                     return;
                 }
-                isShowingAlert = true;
-                const { config, eventData } = alertQueue.shift();
-                renderAlert(config, eventData);
+                const config = getMatchingVariant(category, eventData);
+                if (!config) return;
+                enqueueJob({
+                    kind: category,
+                    start(done) {
+                        return renderAlert(config, eventData, done);
+                    }
+                });
             }
             // rawTokens inject HTML after escaping (ad countdown spans). Other tokens are text.
             function composeAlertMessageHtml(template, eventData, rawTokens) {
@@ -371,8 +487,70 @@ if ($username) {
                 });
                 return messageHtml;
             }
-            function renderAlert(config, eventData) {
+            // Ads, Discord, tips, streaks and goals keep a built-in message.
+            function resolveAlertTemplate(config) {
+                const tpl = config && config.message_template;
+                if (tpl && String(tpl).trim() !== '') return tpl;
+                const defaults = {
+                    discord_join: "{username}\nhopped into the Discord!",
+                    kofi: "{username}\nsupported on Ko-fi!",
+                    patreon: "{username}\nbecame a patron!",
+                    fourthwall: "{username}\nsupported on Fourthwall!",
+                    ad_break: "Ads are playing\nBack in {duration}",
+                    watch_streak: "{username}\nis on a {streak}-stream watch streak!",
+                    goals: "{description}\n{current_amount} / {target_amount}"
+                };
+                return defaults[config && config.alert_category] || '';
+            }
+            function buildAlertImageHtml(config) {
+                if (!config || !config.alert_image) return '';
+                const imageScale = (config.image_scale || 100) / 100;
+                const imgUrl = mediaBase + config.alert_image;
+                const ext = String(config.alert_image).split('.').pop().toLowerCase();
+                if (ext === 'webm') {
+                    const vol = Math.max(0, Math.min(100, parseInt(config.image_volume, 10) || 0));
+                    const muted = vol <= 0 ? ' muted' : '';
+                    return `<video class="twitch-alert-image" src="${imgUrl}" autoplay loop${muted} data-volume="${vol / 100}" style="transform:scale(${imageScale})"></video>`;
+                }
+                return `<img class="twitch-alert-image" src="${imgUrl}" alt="" style="transform:scale(${imageScale})">`;
+            }
+            function armAlertImageAudio(container) {
+                const vid = container.querySelector('video.twitch-alert-image');
+                if (!vid) return;
+                const vol = parseFloat(vid.getAttribute('data-volume') || '0');
+                if (!(vol > 0)) return;
+                vid.volume = vol;
+                vid.muted = false;
+                vid.play().catch(() => {
+                    vid.muted = true;
+                    vid.play().catch(() => {});
+                });
+            }
+            function renderAlert(config, eventData, done) {
                 const container = document.getElementById('alertContainer');
+                let finished = false;
+                let hideTimer = null;
+                let outTimer = null;
+                let celebrationGen = 0;
+                const finish = (cancelled) => {
+                    if (finished) return;
+                    finished = true;
+                    if (hideTimer) clearTimeout(hideTimer);
+                    if (outTimer) clearTimeout(outTimer);
+                    if (celebrationGen) celebration.stop(celebrationGen);
+                    if (currentAudio) {
+                        currentAudio.pause();
+                        currentAudio = null;
+                    }
+                    if (container) {
+                        container.querySelectorAll('video, audio').forEach((el) => { try { el.pause(); } catch (e) {} });
+                        container.classList.remove('show');
+                        container.style.animation = '';
+                        if (cancelled) container.innerHTML = '';
+                    }
+                    if (typeof done === 'function') done();
+                };
+                if (!container) { finish(false); return; }
                 applyScreenPosition(container, config, config.alert_category);
                 const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
                 const cssWeight = weightMap[config.font_weight] || '600';
@@ -388,20 +566,10 @@ if ($username) {
                 const g = parseInt(bgColor.substr(3,2), 16);
                 const b = parseInt(bgColor.substr(5,2), 16);
                 const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
-                const messageHtml = composeAlertMessageHtml(config.message_template, eventData);
+                const messageHtml = composeAlertMessageHtml(resolveAlertTemplate(config), eventData);
                 // Build layout
                 const layout = config.layout_preset || 'above';
-                const imageScale = (config.image_scale || 100) / 100;
-                let imageHtml = '';
-                if (config.alert_image) {
-                    const imgUrl = mediaBase + config.alert_image;
-                    const ext = config.alert_image.split('.').pop().toLowerCase();
-                    if (ext === 'webm') {
-                        imageHtml = `<video class="twitch-alert-image" src="${imgUrl}" autoplay loop muted style="transform:scale(${imageScale})"></video>`;
-                    } else {
-                        imageHtml = `<img class="twitch-alert-image" src="${imgUrl}" alt="" style="transform:scale(${imageScale})">`;
-                    }
-                }
+                const imageHtml = buildAlertImageHtml(config);
                 const boxStyles = [
                     `background:${bgRgba}`,
                     `padding:${config.padding || 16}px`,
@@ -430,6 +598,7 @@ if ($username) {
                 // Apply accent color
                 const accentEls = container.querySelectorAll('.twitch-alert-accent');
                 accentEls.forEach(el => el.style.color = config.accent_color || '#A1C53A');
+                armAlertImageAudio(container);
                 // Play alert sound
                 if (config.alert_sound) {
                     const soundUrl = mediaBase + config.alert_sound;
@@ -445,27 +614,22 @@ if ($username) {
                 container.offsetHeight; // Trigger reflow
                 container.classList.add('show');
                 container.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
-                // Celebration effect - spawns over the alert's full duration
+                // Celebration effect - spawns over the alert's full duration.
+                // stop() is generation-scoped so an ad break's longer effect is left alone.
                 if (config.celebration_enabled == 1 && config.celebration_effect) {
-                    celebration.start(
+                    celebrationGen = celebration.start(
                         config.celebration_effect,
                         config.celebration_intensity || 'medium',
                         duration
                     );
                 }
-                setTimeout(() => {
+                hideTimer = setTimeout(() => {
                     container.style.animation = `${config.animation_out || 'fadeOut'} ${animOutDur}s forwards`;
-                    celebration.stop();
-                    setTimeout(() => {
-                        container.classList.remove('show');
-                        container.style.animation = '';
-                        if (currentAudio) {
-                            currentAudio.pause();
-                            currentAudio = null;
-                        }
-                        processAlertQueue();
-                    }, animOutDur * 1000);
+                    if (celebrationGen) celebration.stop(celebrationGen);
+                    celebrationGen = 0;
+                    outTimer = setTimeout(() => finish(false), animOutDur * 1000);
                 }, duration);
+                return () => finish(true);
             }
             function escapeHtml(text) {
                 const div = document.createElement('div');
@@ -540,6 +704,10 @@ if ($username) {
                     adBreakAudio = null;
                 }
                 const container = document.getElementById('adBreakOverlay');
+                if (container && container._adCelebration) {
+                    celebration.stop(container._adCelebration);
+                    container._adCelebration = 0;
+                }
                 if (!container || !container.classList.contains('show')) {
                     if (container) container.innerHTML = '';
                     return;
@@ -582,22 +750,12 @@ if ($username) {
                 const r = parseInt(bgColor.substr(1, 2), 16);
                 const g = parseInt(bgColor.substr(3, 2), 16);
                 const b = parseInt(bgColor.substr(5, 2), 16);
-                const messageHtml = composeAlertMessageHtml(config.message_template, data, {
+                const messageHtml = composeAlertMessageHtml(resolveAlertTemplate(config), data, {
                     duration: '<span class="ad-break-clock" data-ad="duration"></span>',
                     seconds: '<span class="ad-break-clock" data-ad="seconds"></span>'
                 });
                 const layout = config.layout_preset || 'above';
-                const imageScale = (config.image_scale || 100) / 100;
-                let imageHtml = '';
-                if (config.alert_image) {
-                    const imgUrl = mediaBase + config.alert_image;
-                    const ext = config.alert_image.split('.').pop().toLowerCase();
-                    if (ext === 'webm') {
-                        imageHtml = `<video class="twitch-alert-image" src="${imgUrl}" autoplay loop muted style="transform:scale(${imageScale})"></video>`;
-                    } else {
-                        imageHtml = `<img class="twitch-alert-image" src="${imgUrl}" alt="" style="transform:scale(${imageScale})">`;
-                    }
-                }
+                const imageHtml = buildAlertImageHtml(config);
                 const boxStyles = [
                     `background:rgba(${r},${g},${b},${bgOpacity})`,
                     `padding:${config.padding || 16}px`,
@@ -625,6 +783,7 @@ if ($username) {
                     el.style.color = config.accent_color || '#A1C53A';
                 });
                 paintAdClocks(container, endMs);
+                armAlertImageAudio(container);
                 container.classList.add('show');
                 applyScreenPosition(container, config, 'ad_break');
                 const box = container.querySelector('.twitch-alert-box');
@@ -637,6 +796,15 @@ if ($username) {
                     adBreakAudio.volume = (config.sound_volume || 50) / 100;
                     adBreakAudio.play().catch((e) => console.error('Ad break audio error:', e));
                 }
+                container._adCelebration = 0;
+                if (config.celebration_enabled == 1 && config.celebration_effect) {
+                    const remain = Math.max(1000, endMs - Date.now());
+                    container._adCelebration = celebration.start(
+                        config.celebration_effect,
+                        config.celebration_intensity || 'medium',
+                        remain
+                    );
+                }
                 adBreakTimer = setInterval(() => {
                     if (gen !== adBreakGen) return;
                     if (paintAdClocks(container, endMs) <= 0) hideAdBreak(true);
@@ -644,7 +812,7 @@ if ($username) {
             }
             const celebration = (function () {
                 let canvas = null, ctx = null, particles = [], rafId = null;
-                let spawning = false, spawnTimer = null;
+                let spawning = false, spawnTimer = null, stopTimer = null, generation = 0;
                 const palette = ['#7c5cbf', '#9070d8', '#fbbf24', '#3ecf8e', '#5cb8ff', '#f87171', '#ffffff'];
                 const intensityScale = { light: 0.5, medium: 1, heavy: 2 };
                 function ensureCanvas() {
@@ -820,7 +988,10 @@ if ($username) {
                     };
                 }
                 function start(effect, intensity, durationMs) {
-                    if (!effect) return;
+                    if (!effect) return 0;
+                    const gen = ++generation;
+                    if (spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+                    if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
                     ensureCanvas();
                     const scale = intensityScale[intensity] || 1;
                     spawning = true;
@@ -841,11 +1012,17 @@ if ($username) {
                     const interval = effect === 'fireworks' ? 450 : (effect === 'bubbles' ? 280 : 180);
                     burst();
                     spawnTimer = setInterval(burst, interval);
-                    setTimeout(stop, durationMs);
+                    stopTimer = setTimeout(() => stop(gen), durationMs);
+                    return gen;
                 }
-                function stop() {
+                // A generation only stops its own effect, so a short alert cannot
+                // cut off an ad break that started afterwards (and the reverse).
+                function stop(gen) {
+                    if (gen != null && gen !== generation) return;
+                    generation++;
                     spawning = false;
                     if (spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+                    if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
                     // particles fade out naturally; loop tears down canvas when empty
                 }
                 return { start, stop };
@@ -988,23 +1165,16 @@ if ($username) {
                 }, 10000);
                 setTimeout(() => { weatherOverlay.style.display = 'none'; }, 11000);
             }
-            // Walk-ons - ported from overlay/walkons.php (audio-only, own queue so it
-            // never collides with alert sounds).
-            let walkonAudio = null;
-            const walkonQueue = [];
-            function enqueueWalkon(url) {
-                if (!url) return;
-                walkonQueue.push(url);
-                if (!walkonAudio) playNextWalkon();
-            }
-            function playNextWalkon() {
-                if (walkonQueue.length === 0) { walkonAudio = null; return; }
-                const url = walkonQueue.shift();
-                walkonAudio = new Audio(SpecterOverlayWS.playbackUrl(url));
-                walkonAudio.volume = 0.8;
-                walkonAudio.addEventListener('ended', () => { walkonAudio = null; playNextWalkon(); });
-                walkonAudio.addEventListener('error', () => { walkonAudio = null; playNextWalkon(); });
-                walkonAudio.play().catch(e => console.error('Walk-on audio error:', e));
+            // Walk-ons share the alert queue so they never talk over another alert.
+            function playWalkonAudio(url, done) {
+                if (!url) { done(); return; }
+                const audio = new Audio(SpecterOverlayWS.playbackUrl(url));
+                audio.volume = 0.8;
+                let settled = false;
+                const finish = () => { if (!settled) { settled = true; done(); } };
+                audio.addEventListener('ended', finish);
+                audio.addEventListener('error', finish);
+                audio.play().catch(e => { console.error('Walk-on audio error:', e); finish(); });
             }
             function walkonMediaUrl(data) {
                 if (data.media_file) {
@@ -1019,43 +1189,58 @@ if ($username) {
                     ext: e.replace('.', '').toLowerCase()
                 };
             }
-            function showWalkonVideo(url) {
+            function showWalkonVideo(url, done) {
                 const el = document.getElementById('walkonOverlay');
-                if (!el) return;
+                let settled = false;
+                const finish = () => {
+                    if (settled) return;
+                    settled = true;
+                    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+                    done();
+                };
+                if (!el) { done(); return; }
                 applyScreenPosition(el, getEnabledVariant('walkons') || {}, 'walkons');
                 el.innerHTML = `<video class="walkon-video" src="${url}" autoplay></video>`;
                 el.style.display = 'block';
                 const vid = el.querySelector('video');
-                const done = () => { el.style.display = 'none'; el.innerHTML = ''; };
-                if (vid) { vid.addEventListener('ended', done); vid.addEventListener('error', done); }
-                else done();
+                if (vid) { vid.addEventListener('ended', finish); vid.addEventListener('error', finish); }
+                else finish();
             }
-            function showWalkonCard(avatarUrl, name) {
+            function showWalkonCard(avatarUrl, name, done) {
                 const el = document.getElementById('walkonOverlay');
-                if (!el) return;
+                if (!el) { done(); return; }
                 applyScreenPosition(el, getEnabledVariant('walkons') || {}, 'walkons');
                 const avatar = avatarUrl
                     ? `<img class="walkon-card-avatar" src="${avatarUrl}" alt="">`
                     : `<div class="walkon-card-avatar"></div>`;
                 el.innerHTML = `<div class="walkon-card">${avatar}<div class="walkon-card-name">${escapeHtml(name || '')}</div></div>`;
                 el.style.display = 'block';
-                setTimeout(() => { el.style.display = 'none'; el.innerHTML = ''; }, 6000);
+                setTimeout(() => { el.style.display = 'none'; el.innerHTML = ''; done(); }, 6000);
             }
             // Three walk-on modes (mode comes from the walkons table via the bot):
             //   sound          -> play audio only
             //   sound_overlay  -> play audio + show the viewer's picture & name
             //   video          -> play the assigned video (visual + its own audio)
             function handleWalkon(data) {
-                const media = walkonMediaUrl(data);
-                const mode = data.mode || (media.ext === 'mp4' ? 'video' : 'sound');
-                if (mode === 'video' || media.ext === 'mp4') {
-                    showWalkonVideo(media.url);
-                } else if (mode === 'sound_overlay') {
-                    showWalkonCard(data.avatar_url, data.display_name || data.user);
-                    enqueueWalkon(media.url);
-                } else {
-                    enqueueWalkon(media.url);
-                }
+                enqueueJob({
+                    kind: 'walkon',
+                    start(done) {
+                        const media = walkonMediaUrl(data);
+                        const mode = data.mode || (media.ext === 'mp4' ? 'video' : 'sound');
+                        if (mode === 'video' || media.ext === 'mp4') {
+                            showWalkonVideo(media.url, done);
+                            return;
+                        }
+                        if (mode === 'sound_overlay') {
+                            let pending = 2;
+                            const part = () => { if (--pending === 0) done(); };
+                            showWalkonCard(data.avatar_url, data.display_name || data.user, part);
+                            playWalkonAudio(media.url, part);
+                            return;
+                        }
+                        playWalkonAudio(media.url, done);
+                    }
+                });
             }
             // Patreon/Fourthwall: api.py may forward Python-literal rather than strict JSON
             function _parsePatreonPayload(raw) {
@@ -1315,11 +1500,23 @@ if ($username) {
                     // when its category has an enabled variant.
                     socket.on('DEATHS', (data) => {
                         console.log('DEATHS event received:', data);
-                        if (isCategoryEnabled('deaths')) renderDeaths(data);
+                        if (isCategoryEnabled('deaths')) enqueueJob({
+                            kind: 'deaths',
+                            start(done) {
+                                renderDeaths(data);
+                                setTimeout(done, 11000);
+                            }
+                        });
                     });
                     socket.on('WEATHER_DATA', (data) => {
                         console.log('WEATHER_DATA event received:', data);
-                        if (isCategoryEnabled('weather')) renderWeather(data.weather_data);
+                        if (isCategoryEnabled('weather')) enqueueJob({
+                            kind: 'weather',
+                            start(done) {
+                                renderWeather(data.weather_data);
+                                setTimeout(done, 11000);
+                            }
+                        });
                     });
                     socket.on('WALKON', (data) => {
                         console.log('WALKON event received:', data);
