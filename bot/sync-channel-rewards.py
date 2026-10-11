@@ -103,17 +103,16 @@ async def channel_point_rewards():
                             reward_id = reward.get("id")
                             reward_title = reward.get("title")
                             reward_cost = reward.get("cost") or 0
-                            prompt = reward.get("prompt") or reward_title
                             managed_by = 'specter' if reward_id in manageable_ids else ''
 
-                            # Upsert with preserving existing managed_by when managed_by is not provided
+                            # New rows leave custom_message NULL. Never overwrite a message the streamer set.
                             upsert_sql = (
-                                "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by)"
-                                " VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE"
-                                " reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=VALUES(custom_message),"
+                                "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, managed_by)"
+                                " VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE"
+                                " reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost),"
                                 " managed_by = IF(VALUES(managed_by) <> '', VALUES(managed_by), managed_by)"
                             )
-                            await cursor.execute(upsert_sql, (reward_id, reward_title, reward_cost, prompt, managed_by))
+                            await cursor.execute(upsert_sql, (reward_id, reward_title, reward_cost, managed_by))
                             affected = cursor.rowcount
                             if affected == 1:
                                 added += 1
