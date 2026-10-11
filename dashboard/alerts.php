@@ -136,6 +136,10 @@ $variantLimits = [
     'weather'      => 1,
     'deaths'       => 1,
     'walkons'      => 1,
+    'sound_alerts' => 1,
+    'video_alerts' => 1,
+    'tts'          => 1,
+    'goals'        => 1,
 ];
 // Stream Bingo sub-events: each variant ties to one of these via the dropdown.
 // Same pattern as channel_points where the variant picks the trigger.
@@ -191,7 +195,11 @@ $simpleCategorySeeds = [
     'discord_join' => 'Discord joins',
     'kofi'         => 'Ko-fi tips',
     'patreon'      => 'Patreon',
-    'fourthwall'   => 'Fourthwall'
+    'fourthwall'   => 'Fourthwall',
+    'sound_alerts' => 'Sound alerts',
+    'video_alerts' => 'Video alerts',
+    'tts'          => 'Text to speech',
+    'goals'        => 'Goal updates',
 ];
 // Text a new variant starts with: the category's own default message, so an enabled-but-unedited variant still reads sensibly on the overlay.
 function alerts_default_template($category, $defaultAlerts, $adBreakSeedMessage)
@@ -239,8 +247,16 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             }
             $chk->close();
             if (count($existingIds) === 0) {
-                $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
-                $ins->bind_param('ss', $simpleCat, $simpleLabel);
+                if ($simpleCat === 'goals') {
+                    // Off until the streamer asks for it. Progress events are not shown.
+                    $goalEnabled = 0;
+                    $goalMsg = "{description}\n{current_amount} / {target_amount}";
+                    $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, message_template) VALUES (?, ?, 0, ?, ?)");
+                    $ins->bind_param('ssis', $simpleCat, $simpleLabel, $goalEnabled, $goalMsg);
+                } else {
+                    $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
+                    $ins->bind_param('ss', $simpleCat, $simpleLabel);
+                }
                 $ins->execute();
                 $ins->close();
             } else {
@@ -774,6 +790,10 @@ $categoryMeta = [
     'weather'           => ['icon' => 'fas fa-cloud-sun', 'label' => 'Weather'],
     'deaths'            => ['icon' => 'fas fa-skull', 'label' => 'Death counter'],
     'walkons'           => ['icon' => 'fas fa-door-open', 'label' => 'Walk-ons'],
+    'sound_alerts'      => ['icon' => 'fas fa-volume-up', 'label' => 'Sound alerts'],
+    'video_alerts'      => ['icon' => 'fas fa-film', 'label' => 'Video alerts'],
+    'tts'               => ['icon' => 'fas fa-comment-dots', 'label' => 'Text to speech'],
+    'goals'             => ['icon' => 'fas fa-bullseye', 'label' => 'Goals'],
 ];
 
 // Animation options
@@ -963,6 +983,8 @@ ob_start();
                     <div class="alerts-settings-section-body">
                         <p class="alerts-help-text" id="simple-note-positioned"><?= t('alerts_simple_note') ?></p>
                         <p class="alerts-help-text" id="simple-note-walkon" style="display:none;"><?= t('alerts_walkon_note') ?></p>
+                        <p class="alerts-help-text" id="simple-note-playback" style="display:none;"></p>
+                        <p class="alerts-help-text" id="simple-note-goals" style="display:none;"><?= t('alerts_goals_note') ?></p>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
                                 <label><?= t('alerts_enabled') ?></label>
@@ -1530,11 +1552,21 @@ $(document).ready(function() {
         makeSoundGenerating: <?php echo json_encode(t('alerts_make_sound_generating')); ?>,
         makeSoundGenerate: <?php echo json_encode(t('alerts_make_sound_generate')); ?>,
         makeSoundFailedTitle: <?php echo json_encode(t('alerts_make_sound_failed_title')); ?>,
-        makeSoundSaved: <?php echo json_encode(t('alerts_make_sound_saved')); ?>
+        makeSoundSaved: <?php echo json_encode(t('alerts_make_sound_saved')); ?>,
+        soundAlertsNote: <?php echo json_encode(t('alerts_sound_alerts_note')); ?>,
+        videoAlertsNote: <?php echo json_encode(t('alerts_video_alerts_note')); ?>,
+        ttsNote: <?php echo json_encode(t('alerts_tts_note')); ?>,
+        goalsPreview: <?php echo json_encode(t('alerts_goals_preview')); ?>
     };
-    // Enable/disable-only categories - selecting one shows just an on/off switch;
-    // the alert renders through its existing overlay theme in overlay/index.php.
-    const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break'];
+    const previewPlaceholderDefault = $('#preview-placeholder').text();
+    // Enable/disable-only categories - selecting one shows just an on/off switch.
+    // Sound, video and TTS have no card to place; the file is chosen on the Media page.
+    const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'sound_alerts', 'video_alerts', 'tts', 'goals'];
+    const playbackNotes = {
+        sound_alerts: i18n.soundAlertsNote,
+        video_alerts: i18n.videoAlertsNote,
+        tts: i18n.ttsNote
+    };
     // Drag-to-place position editor
     // A NULL screen_position (no saved x/y) falls back to the per-category default.
     const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
@@ -1653,7 +1685,8 @@ $(document).ready(function() {
                 'discord_join': 'Discord Join Alert',
                 'kofi': 'Ko-fi Support Alert',
                 'patreon': 'Patreon Support Alert',
-                'fourthwall': 'Fourthwall Support Alert'
+                'fourthwall': 'Fourthwall Support Alert',
+                'goals': i18n.goalsPreview
             };
             var lbl = genericLabels[category] || category + ' Alert';
             html = '<div style="background:var(--sp-dark-grey);color:#fff;padding:12px 24px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);font-weight:600;font-size:18px;">' + lbl + '</div>';
@@ -1804,7 +1837,8 @@ $(document).ready(function() {
         subathon:          ['{added_minutes}'],
         stream_bingo:      ['{username}', '{rank_text}', '{bingo_event_name}', '{bingo_number}', '{events_count}'],
         watch_streak:      ['{username}', '{streak}'],
-        ad_break:          ['{duration}', '{seconds}']
+        ad_break:          ['{duration}', '{seconds}'],
+        goals:             ['{description}', '{current_amount}', '{target_amount}', '{goal_type}']
     };
     function renderVariableHints(category) {
         var vars = categoryVariables[category] || ['{username}'];
@@ -1945,7 +1979,7 @@ $(document).ready(function() {
         $('#simple-settings').hide();
         $('#settings-placeholder').hide();
         $('#settings-form').show();
-        $('#preview-placeholder').hide();
+        $('#preview-placeholder').text(previewPlaceholderDefault).hide();
         $('#preview-legacy').hide();
         $('#preview-walkon-sample').hide();
         $('#preview-box').show();
@@ -2017,15 +2051,27 @@ $(document).ready(function() {
         $('#set-simple-enabled').prop('checked', a.enabled == 1);
         // Weather, deaths, walk-ons and ads have a draggable position + sample
         // preview; only the help note differs for walk-ons (mode is per-viewer).
-        $('#simple-position-group').show();
         var isWalkon = a.alert_category === 'walkons';
-        $('#simple-note-positioned').toggle(!isWalkon);
+        var isGoals = a.alert_category === 'goals';
+        var playbackNote = playbackNotes[a.alert_category] || '';
+        var isPlayback = playbackNote !== '';
+        $('#simple-position-group').toggle(!isPlayback);
+        $('#simple-note-playback').toggle(isPlayback).text(playbackNote);
+        $('#simple-note-positioned').toggle(!isWalkon && !isPlayback && !isGoals);
         $('#simple-note-walkon').toggle(isWalkon);
-        // Show the draggable sample that represents this category.
-        if (isWalkon) {
+        $('#simple-note-goals').toggle(isGoals);
+        // Sound, video and TTS have nothing to drag. The other simple categories
+        // show a sample you can place on the canvas.
+        if (isPlayback) {
+            $('#preview-legacy').hide();
+            $('#preview-walkon-sample').hide();
+            $('#preview-placeholder').text(playbackNote).show();
+        } else if (isWalkon) {
+            $('#preview-placeholder').text(previewPlaceholderDefault).hide();
             $('#preview-legacy').hide();
             $('#preview-walkon-sample').show();
         } else {
+            $('#preview-placeholder').text(previewPlaceholderDefault).hide();
             $('#preview-walkon-sample').hide();
             renderLegacyPreview(a.alert_category);
             $('#preview-legacy').show();
@@ -2715,6 +2761,7 @@ $(document).ready(function() {
             'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: String(Math.max(5, Math.min(30, parseInt($('#set-duration').val(), 10) || 15))) } },
             'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: '100.00 USD', charity_name: 'Example Charity' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
+            'subathon':          { event: 'SUBATHON_ADD_TIME', params: { added_minutes: '5' } },
         };
         var config = eventMap[a.alert_category];
         // Fourthwall variants are tied to one of four sub-types via their condition;
