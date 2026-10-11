@@ -131,13 +131,12 @@ if ($existingResult['code'] >= 200 && $existingResult['code'] < 300) {
                 $rewardId = $r['id'];
                 $rewardTitle = $r['title'];
                 $rewardCost = isset($r['cost']) ? (int)$r['cost'] : $cost;
-                $customMsg = $title; // default to the title
                 if (!$db->connect_error) {
-                    // Upsert without is_enabled column (not present in schema)
-                    $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=VALUES(custom_message), managed_by=VALUES(managed_by)";
+                    // Leave custom_message NULL on insert and do not replace one that already exists.
+                    $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, managed_by) VALUES (?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), managed_by=VALUES(managed_by)";
                     $stmtUp = $db->prepare($upsertSql);
                     if ($stmtUp) {
-                        $stmtUp->bind_param('ssis', $rewardId, $rewardTitle, $rewardCost, $customMsg);
+                        $stmtUp->bind_param('ssi', $rewardId, $rewardTitle, $rewardCost);
                         $stmtUp->execute();
                         $stmtUp->close();
                     } else {
@@ -181,14 +180,12 @@ if ($createResult['code'] < 200 || $createResult['code'] >= 300) {
                         $rewardId = $r['id'];
                         $rewardTitle = $r['title'];
                         $rewardCost = isset($r['cost']) ? (int)$r['cost'] : $cost;
-                        $customMsg = $title;
 
                         if (!$db->connect_error) {
-                            // Upsert without is_enabled column (not present in schema)
-                            $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=VALUES(custom_message), managed_by=VALUES(managed_by)";
+                            $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, managed_by) VALUES (?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), managed_by=VALUES(managed_by)";
                             $stmtUp = $db->prepare($upsertSql);
                             if ($stmtUp) {
-                                $stmtUp->bind_param('ssis', $rewardId, $rewardTitle, $rewardCost, $customMsg);
+                                $stmtUp->bind_param('ssi', $rewardId, $rewardTitle, $rewardCost);
                                 $stmtUp->execute();
                                 $stmtUp->close();
                             } else {
@@ -239,10 +236,9 @@ if ($db->connect_error) {
     exit();
 }
 
-$stmt = $db->prepare("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter')");
-$customMsg = $title; // Default custom message to the title
+$stmt = $db->prepare("INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, managed_by) VALUES (?, ?, ?, 'specter')");
 if ($stmt) {
-    $stmt->bind_param('ssis', $newRewardId, $title, $cost, $customMsg);
+    $stmt->bind_param('ssi', $newRewardId, $title, $cost);
     $stmt->execute();
     $stmt->close();
 } else {
