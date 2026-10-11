@@ -1021,6 +1021,9 @@ ob_start();
                     <div class="apwk-avatar"></div>
                     <div class="apwk-name">DisplayName</div>
                 </div>
+                <div class="alerts-ad-frame" id="preview-ad-frame" style="display:none;" aria-hidden="true">
+                    <div class="alerts-ad-pill">1:30</div>
+                </div>
                 <!-- Snap guides + expand-close, children of the canvas -->
                 <div class="alerts-pos-guide alerts-pos-guide-v" id="alerts-pos-guide-v"></div>
                 <div class="alerts-pos-guide alerts-pos-guide-h" id="alerts-pos-guide-h"></div>
@@ -1674,6 +1677,7 @@ $(document).ready(function() {
         if (!currentAlertId) return null;
         var a = alertsData[currentAlertId];
         if (!a) return null;
+        if (a.alert_category === 'ad_break') return null;
         if (a.alert_category === 'walkons') return document.getElementById('preview-walkon-sample');
         if (simpleCategories.indexOf(a.alert_category) !== -1 && a.alert_category !== 'walkons') return document.getElementById('preview-legacy');
         return document.getElementById('preview-box');
@@ -2078,7 +2082,9 @@ $(document).ready(function() {
         $('#preview-placeholder').text(previewPlaceholderDefault).hide();
         $('#preview-legacy').hide();
         $('#preview-walkon-sample').hide();
-        $('#preview-box').show();
+        var isAdFrame = a.alert_category === 'ad_break';
+        $('#preview-box').toggle(!isAdFrame);
+        $('#preview-ad-frame').toggle(isAdFrame);
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', false);
         // General
         $('#set-variant-name').val(a.variant_name);
@@ -2149,6 +2155,7 @@ $(document).ready(function() {
         $('#simple-settings').show();
         $('#preview-placeholder').hide();
         $('#preview-box').hide();
+        $('#preview-ad-frame').hide();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
         $('#set-simple-enabled').prop('checked', a.enabled == 1);
         // Weather, deaths, walk-ons and ads have a draggable position + sample
@@ -2794,7 +2801,7 @@ $(document).ready(function() {
     });
     $('#preview-alert-btn').on('click', function() {
         if (!currentAlertId) return;
-        var $box = $('#preview-box');
+        var $box = $('#preview-ad-frame').is(':visible') ? $('#preview-ad-frame') : $('#preview-box');
         var animIn = $('#set-animation-in').val();
         var animOut = $('#set-animation-out').val();
         var duration = parseInt($('#set-duration').val()) * 1000;
