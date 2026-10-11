@@ -1170,7 +1170,7 @@ ob_start();
                     </div>
                 </section>
                 <!-- Layout -->
-                <section class="alerts-settings-section">
+                <section class="alerts-settings-section" id="layout-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-th-large"></i>
                         <span><?= t('alerts_section_layout') ?></span>
@@ -1246,7 +1246,7 @@ ob_start();
                     </div>
                 </section>
                 <!-- Text & Speech -->
-                <section class="alerts-settings-section">
+                <section class="alerts-settings-section" id="text-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-font"></i>
                         <span><?= t('alerts_section_text_speech') ?></span>
@@ -1337,6 +1337,7 @@ ob_start();
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
+                        <div id="alert-image-group">
                         <div class="alerts-form-group">
                             <label><?= t('alerts_alert_image') ?></label>
                             <div class="alerts-media-upload" id="image-upload-zone">
@@ -1370,7 +1371,8 @@ ob_start();
                                 <span class="alerts-range-value" id="image-volume-val">0%</span>
                             </div>
                         </div>
-                        <div class="alerts-form-group alerts-form-group-divider">
+                        </div>
+                        <div class="alerts-form-group alerts-form-group-divider" id="alert-sound-group">
                             <label><?= t('alerts_alert_sound') ?></label>
                             <div class="alerts-media-upload" id="sound-upload-zone">
                                 <div class="alerts-media-filename" id="sound-filename"><?= t('alerts_no_sound_selected') ?></div>
@@ -1402,7 +1404,7 @@ ob_start();
                     </div>
                 </section>
                 <!-- Celebration -->
-                <section class="alerts-settings-section">
+                <section class="alerts-settings-section" id="celebration-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-wand-magic-sparkles"></i>
                         <span><?= t('alerts_section_celebration') ?></span>
@@ -1651,6 +1653,8 @@ $(document).ready(function() {
     const simpleCategories = ['weather', 'deaths', 'walkons', 'sound_alerts', 'video_alerts', 'tts'];
     // Styled cards with a fixed message. Every setting except the message template.
     const fixedMessageCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'watch_streak', 'goals'];
+    // One card each, so a condition cannot split them. Watch streaks keep theirs (streak >= N).
+    const noConditionCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'goals'];
     const fixedMessageDefaults = {
         discord_join: "{username}\nhopped into the Discord!",
         kofi: "{username}\nsupported on Ko-fi!",
@@ -1994,6 +1998,9 @@ $(document).ready(function() {
         renderVariableHints(category);
         $('#ad-break-duration-note').toggle(category === 'ad_break');
         $('#goals-settings-note').toggle(category === 'goals');
+        var adsSoundOnly = category === 'ad_break';
+        $('#layout-settings-section, #text-settings-section, #celebration-settings-section, #alert-image-group').toggle(!adsSoundOnly);
+        $('#alert-sound-group').toggleClass('alerts-form-group-divider', !adsSoundOnly);
         if (category === 'channel_points') {
             $('#variant-name-group').hide();
             $('#variant-condition-group').hide();
@@ -2013,7 +2020,7 @@ $(document).ready(function() {
             $('#variant-reward-group').hide();
             $('#variant-bingo-group').show();
             $('#set-bingo-event').val(extractBingoEvent(condition) || '');
-        } else if (category === 'follow') {
+        } else if (category === 'follow' || noConditionCategories.indexOf(category) !== -1) {
             $('#variant-name-group').show();
             $('#variant-condition-group').hide();
             $('#variant-reward-group').hide();
