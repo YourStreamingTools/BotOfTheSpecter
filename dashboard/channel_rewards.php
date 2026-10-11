@@ -32,6 +32,8 @@ include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+require_once __DIR__ . '/includes/beta_char_limit.php';
+beta_char_limit_handle_request();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -72,6 +74,7 @@ $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
+$betaCharLimitEnabled = isset($user['beta_char_limit']) && (int) $user['beta_char_limit'] === 1;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($_POST['newCustomMessage'])) {
     $rewardid = $_POST['rewardid'];
@@ -385,7 +388,7 @@ ob_start();
                     <li><span style="font-weight:700;">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
                 </ul>
                 <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
-                    <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
+                    <input type="checkbox" class="switch" id="betaBotToggle" onchange="onBetaBotToggle(this.checked)"<?php echo !empty($betaCharLimitEnabled) ? ' checked' : ''; ?>>
                     <label for="betaBotToggle"><?php echo t('channel_rewards_beta_bot_label'); ?></label>
                 </div>
             </div>
@@ -531,9 +534,9 @@ if ($httpCode == 200) {
                                                 <div class="edit-box" id="edit-box-<?php echo $rId; ?>" style="display: none;">
                                                     <textarea class="sp-input custom-message"
                                                         data-reward-id="<?php echo $rId; ?>"
-                                                        maxlength="255" style="height:auto; min-height:4rem;"><?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                                        maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" style="height:auto; min-height:4rem;"><?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                                                     <div class="character-count" id="count-<?php echo $rId; ?>"
-                                                        style="margin-top: 5px; font-size: 0.8em;"><?php echo t('channel_rewards_char_count', ['count' => '0', 'limit' => '255']); ?>
+                                                        style="margin-top: 5px; font-size: 0.8em;"><?php echo t('channel_rewards_char_count', ['count' => '0', 'limit' => !empty($betaCharLimitEnabled) ? '500' : '255']); ?>
                                                     </div>
                                                 </div>
                                             <?php else: ?>
@@ -870,6 +873,7 @@ if (!empty($twitchRewards)) {
     }
 }
 ?>
+<script src="js/beta_char_limit.js?v=<?php echo filemtime(__DIR__ . '/js/beta_char_limit.js'); ?>"></script>
 <script>
     const rewardMap = <?php echo json_encode($rewardMap); ?>;
     const allRewardIds = Object.keys(rewardMap);
@@ -877,10 +881,9 @@ if (!empty($twitchRewards)) {
     const rewardsApproveTitle = <?php echo json_encode(t('channel_rewards_approve_redemption')); ?>;
     const rewardsRejectTitle = <?php echo json_encode(t('channel_rewards_reject_refund')); ?>;
     let allRedemptions = [];
-    var charLimit = 255;
+    var charLimit = <?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>;
     function applyBetaBotCharLimit(enabled) {
         charLimit = enabled ? 500 : 255;
-        localStorage.setItem('betaBotMode', enabled ? '1' : '0');
         document.querySelectorAll('.custom-message').forEach(function(el) {
             el.setAttribute('maxlength', charLimit);
             var rewardid = el.getAttribute('data-reward-id');
@@ -888,10 +891,7 @@ if (!empty($twitchRewards)) {
         });
     }
     document.addEventListener('DOMContentLoaded', function () {
-        var betaEnabled = localStorage.getItem('betaBotMode') === '1';
-        var toggle = document.getElementById('betaBotToggle');
-        if (toggle) toggle.checked = betaEnabled;
-        applyBetaBotCharLimit(betaEnabled);
+        initBetaCharLimitToggle(<?php echo !empty($betaCharLimitEnabled) ? 'true' : 'false'; ?>);
         if (allRewardIds.length > 0) {
             fetchAllRedemptions();
         } else {
