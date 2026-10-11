@@ -1452,6 +1452,14 @@ try {
             CREATE TABLE IF NOT EXISTS tracked_game_settings (
                 id TINYINT PRIMARY KEY DEFAULT 1,
                 denylist_seeded TINYINT(1) NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'rerun_notices' => "
+            CREATE TABLE IF NOT EXISTS rerun_notices (
+                rerun_id INT NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                user_name VARCHAR(255) DEFAULT NULL,
+                notified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (rerun_id, user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
