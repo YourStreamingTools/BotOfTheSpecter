@@ -1705,6 +1705,12 @@ async def process_twitch_eventsub_message(message):
                                     ws_msg = "Congrats (user) on watching (value) consecutive streams!"
                             ws_msg = ws_msg.replace("(user)", ws_display).replace("(value)", str(ws_value)).replace("(total)", str(ws_new_total))
                         safe_create_task(send_chat_message(ws_msg))
+                        if not ws_streak_lost and ws_value > 0:
+                            safe_create_task(websocket_notice(
+                                event="WATCH_STREAK",
+                                user=ws_display,
+                                additional_data={"streak": ws_value, "username": ws_display},
+                            ))
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     safe_create_task(process_cheer_event(
@@ -17971,6 +17977,16 @@ async def websocket_notice(
                             if _ad_val is None:
                                 continue
                             params[_ad_key] = _ad_val
+                elif event == "WATCH_STREAK":
+                    if user:
+                        params['user'] = user
+                        params['username'] = user
+                        params['twitch-username'] = user
+                    if additional_data:
+                        for _ws_key, _ws_val in additional_data.items():
+                            if _ws_val is None:
+                                continue
+                            params[_ws_key] = _ws_val
                 else:
                     websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters or is not recognized")
                     return

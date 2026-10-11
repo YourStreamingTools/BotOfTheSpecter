@@ -163,6 +163,11 @@ try {
             // Hide the ad card. No extra fields.
         } elseif ($event === "TTS" && isset($_POST['text'])) {
             $params['text'] = $_POST['text'];
+        } elseif ($event === "SUBATHON_ADD_TIME" && isset($_POST['added_minutes'])) {
+            $mins = intval($_POST['added_minutes']);
+            if ($mins < 1) $mins = 1;
+            if ($mins > 10080) $mins = 10080;
+            $params['added_minutes'] = $mins;
         } elseif (in_array($event, ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]) && isset($_POST['additional_data'])) {
             $additional_data = json_decode($_POST['additional_data'], true);
             if (is_array($additional_data)) {

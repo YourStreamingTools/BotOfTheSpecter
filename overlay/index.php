@@ -155,9 +155,64 @@ if ($username) {
                     ctx.resume().then(() => ctx.close()).catch(() => {});
                 } catch (e) {}
             })();
+            // Video alerts (channel points, store) play centred, queued, with their own audio.
+            // Same player as the retired video-alert.php browser source.
+            let currentVideo = null;
+            const videoQueue = [];
+            function enqueueVideo(url) {
+                if (!url) return;
+                videoQueue.push(url);
+                if (!currentVideo) playNextVideo();
+            }
+            function playNextVideo() {
+                if (videoQueue.length === 0) {
+                    currentVideo = null;
+                    return;
+                }
+                const url = videoQueue.shift();
+                const vid = document.createElement('video');
+                currentVideo = vid;
+                vid.src = SpecterOverlayWS.playbackUrl(url);
+                vid.volume = 0.8;
+                vid.controls = false;
+                vid.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
+                vid.preload = 'auto';
+                document.body.appendChild(vid);
+                vid.addEventListener('canplaythrough', () => {
+                    if (currentVideo !== vid) return;
+                    vid.classList.remove('video-alert-overlay-page-video-pending');
+                    vid.play().catch(error => {
+                        console.warn('Video autoplay blocked; will retry on interaction:', error && error.name);
+                    });
+                }, { once: true });
+                let settled = false;
+                const finish = () => {
+                    if (settled) return;
+                    settled = true;
+                    if (vid.parentNode) vid.parentNode.removeChild(vid);
+                    if (currentVideo === vid) currentVideo = null;
+                    playNextVideo();
+                };
+                vid.addEventListener('ended', finish);
+                vid.addEventListener('error', (e) => {
+                    console.error('Video alert failed to load:', e);
+                    finish();
+                });
+            }
+            // Sound, video and TTS keep playing when the category row does not exist yet,
+            // so a stream that has not opened Alerts since this shipped does not go silent.
+            // Once the row exists, the on/off switch is the only authority.
+            function isPlaybackEnabled(category) {
+                const variants = alertConfigs[category];
+                if (!variants || variants.length === 0) return true;
+                return variants.some(v => v.enabled == 1);
+            }
             document.addEventListener('click', () => {
                 if (fxAudio) {
                     fxAudio.play().catch(() => {});
+                }
+                if (currentVideo) {
+                    currentVideo.play().catch(() => {});
                 }
             }, { capture: true, once: true });
             const loadedFonts = {};
@@ -245,12 +300,16 @@ if ($username) {
                         const wanted = rewardMatch ? String(rewardMatch[1]).toLowerCase() : '';
                         const got = String(eventData.reward_id || '').toLowerCase();
                         if (wanted && got && wanted === got) return variant;
+                    } else if (category === 'watch_streak') {
+                        const streak = parseInt(eventData.streak, 10) || 0;
+                        const streakMatch = cond.match(/streak\s*>=\s*(\d+)/);
+                        if (streakMatch && streak >= parseInt(streakMatch[1], 10)) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
                 }
-                // Channel-point alerts are one reward each. No match means no alert.
-                if (category === 'channel_points') return null;
+                // These categories must not fall through to a variant whose condition missed.
+                if (category === 'channel_points' || category === 'watch_streak') return null;
                 // Fallback to first enabled variant
                 return enabled[0];
             }
@@ -295,7 +354,11 @@ if ($username) {
                     .replace(/\{bingo_number\}/g, eventData.bingo_number || '')
                     .replace(/\{events_count\}/g, eventData.events_count || '')
                     .replace(/\{duration\}/g, eventData.duration || '')
-                    .replace(/\{seconds\}/g, eventData.seconds || '');
+                    .replace(/\{seconds\}/g, eventData.seconds || '')
+                    .replace(/\{description\}/g, eventData.description || '')
+                    .replace(/\{current_amount\}/g, eventData.current_amount || '')
+                    .replace(/\{target_amount\}/g, eventData.target_amount || '')
+                    .replace(/\{goal_type\}/g, eventData.goal_type || '');
                 const lines = message.split('\n');
                 let messageHtml = '';
                 if (lines.length > 1) {
@@ -1263,10 +1326,49 @@ if ($username) {
                         if (isCategoryEnabled('walkons')) handleWalkon(data);
                     });
 
+                    // Subathon time added is a normal alert card. The countdown clock
+                    // stays on the subathon overlay; this is only the "minutes added" moment.
+                    socket.on('SUBATHON_ADD_TIME', (data) => {
+                        console.log('SUBATHON_ADD_TIME event received:', data);
+                        const minutes = data && (data.added_minutes || data.minutes);
+                        queueAlert('subathon', { added_minutes: minutes != null ? String(minutes) : '' });
+                    });
+
+                    // Watch streaks. The variant condition (streak >= N) decides the threshold.
+                    socket.on('WATCH_STREAK', (data) => {
+                        console.log('WATCH_STREAK event received:', data);
+                        const streak = parseInt((data && (data.streak || data.streak_count)) || 0, 10);
+                        queueAlert('watch_streak', {
+                            username: (data && (data.username || data.user || data['twitch-username'])) || '',
+                            streak: streak
+                        });
+                    });
+
+                    // Goal started and goal completed. Progress is ignored so the card
+                    // does not fire on every tick. Off until the Goals switch is on.
+                    function handleGoal(data) {
+                        if (!isCategoryEnabled('goals')) return;
+                        data = data || {};
+                        queueAlert('goals', {
+                            description: data.description || '',
+                            current_amount: data.current_amount != null ? String(data.current_amount) : '',
+                            target_amount: data.target_amount != null ? String(data.target_amount) : '',
+                            goal_type: data.goal_type || ''
+                        });
+                    }
+                    socket.on('TWITCH_GOAL_BEGIN', (data) => {
+                        console.log('TWITCH_GOAL_BEGIN event received:', data);
+                        handleGoal(data);
+                    });
+                    socket.on('TWITCH_GOAL_END', (data) => {
+                        console.log('TWITCH_GOAL_END event received:', data);
+                        handleGoal(data);
+                    });
+
                     // TTS - generated audio URL from websocket tts_handler (tts.botofthespecter.com).
-                    // Specter Alerts previously lacked this handler, so channel-point TTS never played.
                     socket.on('TTS', (data) => {
                         console.log('TTS event received:', data);
+                        if (!isPlaybackEnabled('tts')) return;
                         const url = (data && (data.audio_file || data.audio_url || data.url)) || null;
                         if (!url) {
                             console.warn('TTS event missing audio_file:', data);
@@ -1278,12 +1380,25 @@ if ($username) {
                     // SOUND_ALERT - full URL already resolved by the bot (media or legacy CDN).
                     socket.on('SOUND_ALERT', (data) => {
                         console.log('SOUND_ALERT event received:', data);
+                        if (!isPlaybackEnabled('sound_alerts')) return;
                         const url = (data && data.sound) || null;
                         if (!url) {
                             console.warn('SOUND_ALERT event missing sound:', data);
                             return;
                         }
                         enqueueFxAudio(url, 0.8);
+                    });
+
+                    // VIDEO_ALERT - full URL already resolved by the bot (media or legacy CDN).
+                    socket.on('VIDEO_ALERT', (data) => {
+                        console.log('VIDEO_ALERT event received:', data);
+                        if (!isPlaybackEnabled('video_alerts')) return;
+                        const url = (data && data.video) || null;
+                        if (!url) {
+                            console.warn('VIDEO_ALERT event missing video:', data);
+                            return;
+                        }
+                        enqueueVideo(url);
                     });
 
                     // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches configs
