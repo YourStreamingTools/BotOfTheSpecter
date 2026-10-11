@@ -161,6 +161,16 @@ try {
             $params['ends_at'] = time() + $duration;
         } elseif ($event === "TWITCH_AD_BREAK_END") {
             // Hide the ad card. No extra fields.
+        } elseif ($event === "DISCORD_JOIN") {
+            $params['member'] = $_POST['member'] ?? 'TestUser';
+        } elseif ($event === "WATCH_STREAK") {
+            $params['username'] = $_POST['username'] ?? ($_POST['user'] ?? 'TestUser');
+            $params['streak'] = isset($_POST['streak']) ? intval($_POST['streak']) : 7;
+        } elseif ($event === "TWITCH_GOAL_BEGIN" || $event === "TWITCH_GOAL_END") {
+            $params['description'] = $_POST['description'] ?? 'Follower goal';
+            $params['current_amount'] = $_POST['current_amount'] ?? '10';
+            $params['target_amount'] = $_POST['target_amount'] ?? '100';
+            $params['goal_type'] = $_POST['goal_type'] ?? 'follower';
         } elseif ($event === "TTS" && isset($_POST['text'])) {
             $params['text'] = $_POST['text'];
         } elseif ($event === "SUBATHON_ADD_TIME" && isset($_POST['added_minutes'])) {

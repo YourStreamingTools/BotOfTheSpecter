@@ -131,8 +131,9 @@ $variantLimits = [
     'watch_streak' => 1,
     'ad_break'     => 1,
     'stream_bingo' => 4,   // one per bingo sub-event (Started / Event / Winner / Ended)
-    // Enable/disable-only categories: they render through their own overlay theme
-    // (ported into overlay/index.php), so a single on/off variant is all that fits.
+    // One row each. Weather, deaths and walk-ons keep their own overlay theme.
+    // Sound, video and TTS are playback switches. Discord, tips, ads, streaks
+    // and goals are styled cards with a fixed message (no template editor).
     'weather'      => 1,
     'deaths'       => 1,
     'walkons'      => 1,
@@ -184,28 +185,45 @@ $defaultAlerts = [
     ['deaths', 'Death counter', 0, null, null],
     ['walkons', 'Walk-ons', 0, null, null],
 ];
-// Enable/disable-only categories (weather, deaths, walk-ons) render through their own
-// overlay theme. Users seeded before these categories existed won't have rows, so make
-// sure a single on/off variant exists for each.
+// Own-theme and playback categories. One on/off row, name locked to the label.
+// Users seeded before these categories existed won't have a row yet.
 $simpleCategorySeeds = [
     'weather'      => 'Weather',
     'deaths'       => 'Death counter',
     'walkons'      => 'Walk-ons',
-    'watch_streak' => 'Watch streak',
-    'discord_join' => 'Discord joins',
-    'kofi'         => 'Ko-fi tips',
-    'patreon'      => 'Patreon',
-    'fourthwall'   => 'Fourthwall',
     'sound_alerts' => 'Sound alerts',
     'video_alerts' => 'Video alerts',
     'tts'          => 'Text to speech',
-    'goals'        => 'Goal updates',
+];
+// Styled cards whose wording is fixed. Layout, visuals, sound and celebration
+// are editable; the message template is not. Insert only when the row is missing,
+// and fill a blank template without renaming a card the streamer already has.
+$fixedMessageCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'watch_streak', 'goals'];
+$fixedMessageMeta = [
+    'discord_join' => ['label' => 'Discord joins', 'condition' => null, 'enabled' => 1],
+    'kofi'         => ['label' => 'Ko-fi tips', 'condition' => null, 'enabled' => 1],
+    'patreon'      => ['label' => 'Patreon', 'condition' => null, 'enabled' => 1],
+    'fourthwall'   => ['label' => 'Fourthwall', 'condition' => null, 'enabled' => 1],
+    'watch_streak' => ['label' => 'Watch streak', 'condition' => 'streak >= 7', 'enabled' => 1],
+    'ad_break'     => ['label' => 'Ads playing', 'condition' => null, 'enabled' => 1],
+    'goals'        => ['label' => 'Goal updates', 'condition' => null, 'enabled' => 0],
 ];
 // Text a new variant starts with: the category's own default message, so an enabled-but-unedited variant still reads sensibly on the overlay.
-function alerts_default_template($category, $defaultAlerts, $adBreakSeedMessage)
+function alerts_default_template($category, $defaultAlerts, $adBreakSeedMessage, $condition = null)
 {
     if ($category === 'ad_break') {
         return $adBreakSeedMessage;
+    }
+    if ($category === 'goals') {
+        return "{description}\n{current_amount} / {target_amount}";
+    }
+    $condition = trim((string) $condition);
+    if ($condition !== '') {
+        foreach ($defaultAlerts as $alert) {
+            if ($alert[0] === $category && $alert[4] !== null && trim((string) $alert[3]) === $condition) {
+                return $alert[4];
+            }
+        }
     }
     foreach ($defaultAlerts as $alert) {
         if ($alert[0] === $category && $alert[4] !== null) {
@@ -216,7 +234,6 @@ function alerts_default_template($category, $defaultAlerts, $adBreakSeedMessage)
 }
 // Old "Add variant" placeholder (real newline, or a literal backslash-n). Variants still carrying it get their category default.
 $alertsOldPlaceholders = ["{username}\nfired this alert!", '{username}\nfired this alert!'];
-$adBreakSeedName = 'Ads playing';
 $adBreakSeedMessage = "Ads are playing\nBack in {duration}";
 
 // List endpoint first so the browser can paint skeletons, then fetch variants + library + rewards.
@@ -247,16 +264,8 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             }
             $chk->close();
             if (count($existingIds) === 0) {
-                if ($simpleCat === 'goals') {
-                    // Off until the streamer asks for it. Progress events are not shown.
-                    $goalEnabled = 0;
-                    $goalMsg = "{description}\n{current_amount} / {target_amount}";
-                    $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, message_template) VALUES (?, ?, 0, ?, ?)");
-                    $ins->bind_param('ssis', $simpleCat, $simpleLabel, $goalEnabled, $goalMsg);
-                } else {
-                    $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
-                    $ins->bind_param('ss', $simpleCat, $simpleLabel);
-                }
+                $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
+                $ins->bind_param('ss', $simpleCat, $simpleLabel);
                 $ins->execute();
                 $ins->close();
             } else {
@@ -272,30 +281,86 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
                 }
             }
         }
-        $adChk = $db->prepare("SELECT id FROM twitch_alerts WHERE alert_category = 'ad_break' LIMIT 1");
-        $adChk->execute();
-        $adRes = $adChk->get_result();
-        $adExists = $adRes && $adRes->fetch_assoc();
-        $adChk->close();
-        if (!$adExists) {
-            $adIns = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, message_template) VALUES ('ad_break', ?, 0, 1, ?)");
-            $adIns->bind_param('ss', $adBreakSeedName, $adBreakSeedMessage);
-            $adIns->execute();
-            $adIns->close();
+        foreach ($fixedMessageMeta as $fixedCat => $fixedMeta) {
+            $fixedChk = $db->prepare("SELECT id, message_template FROM twitch_alerts WHERE alert_category = ? ORDER BY id ASC");
+            $fixedChk->bind_param('s', $fixedCat);
+            $fixedChk->execute();
+            $fixedRes = $fixedChk->get_result();
+            $fixedRows = [];
+            while ($fixedRow = $fixedRes->fetch_assoc()) {
+                $fixedRows[] = $fixedRow;
+            }
+            $fixedChk->close();
+            $fixedMessage = alerts_default_template($fixedCat, $defaultAlerts, $adBreakSeedMessage);
+            if (count($fixedRows) === 0) {
+                $fixedEnabled = (int) $fixedMeta['enabled'];
+                $fixedCondition = $fixedMeta['condition'];
+                $fixedLabel = $fixedMeta['label'];
+                $fixedIns = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, alert_condition, message_template) VALUES (?, ?, 0, ?, ?, ?)");
+                $fixedIns->bind_param('ssiss', $fixedCat, $fixedLabel, $fixedEnabled, $fixedCondition, $fixedMessage);
+                $fixedIns->execute();
+                $fixedIns->close();
+            } else {
+                if (trim((string) ($fixedRows[0]['message_template'] ?? '')) === '') {
+                    $fixedTplUp = $db->prepare("UPDATE twitch_alerts SET message_template = ? WHERE id = ?");
+                    $fixedPrimaryId = (int) $fixedRows[0]['id'];
+                    $fixedTplUp->bind_param('si', $fixedMessage, $fixedPrimaryId);
+                    $fixedTplUp->execute();
+                    $fixedTplUp->close();
+                }
+                if (count($fixedRows) > 1) {
+                    $fixedExtraIds = [];
+                    foreach (array_slice($fixedRows, 1) as $fixedExtra) {
+                        $fixedExtraIds[] = (int) $fixedExtra['id'];
+                    }
+                    $db->query("DELETE FROM twitch_alerts WHERE id IN (" . implode(',', $fixedExtraIds) . ")");
+                }
+            }
         }
-        $phStmt = $db->prepare("SELECT id, alert_category FROM twitch_alerts WHERE message_template IN (?, ?)");
+        $phStmt = $db->prepare("SELECT id, alert_category, alert_condition FROM twitch_alerts WHERE message_template IN (?, ?)");
         $phStmt->bind_param('ss', $alertsOldPlaceholders[0], $alertsOldPlaceholders[1]);
         $phStmt->execute();
         $phRes = $phStmt->get_result();
         $phRows = $phRes ? $phRes->fetch_all(MYSQLI_ASSOC) : [];
         $phStmt->close();
         foreach ($phRows as $phRow) {
-            $phTpl = alerts_default_template($phRow['alert_category'], $defaultAlerts, $adBreakSeedMessage);
+            $phTpl = alerts_default_template($phRow['alert_category'], $defaultAlerts, $adBreakSeedMessage, $phRow['alert_condition']);
             $phId = (int)$phRow['id'];
             $phUp = $db->prepare("UPDATE twitch_alerts SET message_template = ? WHERE id = ?");
             $phUp->bind_param('si', $phTpl, $phId);
             $phUp->execute();
             $phUp->close();
+        }
+        // A placeholder repair used to stamp every variant in a category with the
+        // first variant's text. Bingo called/winner/ended all said the game was starting.
+        $firstTemplate = [];
+        foreach ($defaultAlerts as $alert) {
+            if ($alert[4] !== null && !isset($firstTemplate[$alert[0]])) {
+                $firstTemplate[$alert[0]] = $alert[4];
+            }
+        }
+        $stampRows = [];
+        if ($stampRes = $db->query("SELECT id, alert_category, alert_condition, message_template FROM twitch_alerts")) {
+            while ($stampRow = $stampRes->fetch_assoc()) {
+                $stampRows[] = $stampRow;
+            }
+            $stampRes->free();
+        }
+        foreach ($stampRows as $stampRow) {
+            $stampCat = $stampRow['alert_category'];
+            $stampFirst = $firstTemplate[$stampCat] ?? null;
+            if ($stampFirst === null || $stampRow['message_template'] !== $stampFirst) {
+                continue;
+            }
+            $stampBetter = alerts_default_template($stampCat, $defaultAlerts, $adBreakSeedMessage, $stampRow['alert_condition']);
+            if ($stampBetter === $stampFirst) {
+                continue;
+            }
+            $stampUp = $db->prepare("UPDATE twitch_alerts SET message_template = ? WHERE id = ? AND message_template = ?");
+            $stampId = (int) $stampRow['id'];
+            $stampUp->bind_param('sis', $stampBetter, $stampId, $stampFirst);
+            $stampUp->execute();
+            $stampUp->close();
         }
         $allAlerts = [];
         if ($result = $db->query("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index")) {
@@ -445,7 +510,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $gap = intval($_POST['gap'] ?? 16);
         $rounded_corners = intval($_POST['rounded_corners'] ?? 1);
         $drop_shadow = intval($_POST['drop_shadow'] ?? 1);
+        $existingLookup = $db->prepare("SELECT alert_category, message_template FROM twitch_alerts WHERE id = ?");
+        $existingLookup->bind_param('i', $id);
+        $existingLookup->execute();
+        $existingAlert = $existingLookup->get_result()->fetch_assoc();
+        $existingLookup->close();
+        if (!$existingAlert) {
+            $stmt->close();
+            echo json_encode(['success' => false, 'message' => 'Invalid alert ID.']);
+            exit;
+        }
+        $existingAlertCategory = $existingAlert['alert_category'];
+        $existingAlertTemplate = $existingAlert['message_template'];
         $message_template = $_POST['message_template'] ?? '';
+        if (in_array($existingAlertCategory, $fixedMessageCategories, true) && trim($message_template) === '') {
+            $keptTemplate = trim((string) ($existingAlertTemplate ?? ''));
+            $message_template = $keptTemplate !== ''
+                ? $existingAlertTemplate
+                : alerts_default_template($existingAlertCategory, $defaultAlerts, $adBreakSeedMessage);
+        }
         $font_family = $_POST['font_family'] ?? 'Roboto';
         $font_weight = $_POST['font_weight'] ?? 'Semi-Bold';
         $font_size = intval($_POST['font_size'] ?? 24);
@@ -1045,6 +1128,7 @@ ob_start();
                             <input type="number" class="sp-input" id="set-duration" min="1" max="99" value="8">
                             <small class="alerts-help-text" id="ad-break-duration-note" style="display:none;"><?= t('alerts_ad_break_note') ?></small>
                         </div>
+                        <p class="alerts-help-text" id="goals-settings-note" style="display:none;"><?= t('alerts_goals_note') ?></p>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
                                 <label><?= t('alerts_in_animation') ?></label>
@@ -1166,7 +1250,7 @@ ob_start();
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
-                        <div class="alerts-form-group">
+                        <div class="alerts-form-group" id="message-template-group">
                             <label><?= t('alerts_message_template') ?></label>
                             <textarea id="set-message-template" placeholder="<?= t('alerts_message_template_placeholder') ?>"></textarea>
                             <div class="variable-hints" id="variable-hints">
@@ -1353,7 +1437,7 @@ ob_start();
                     </div>
                 </section>
                 <!-- Danger zone: delete variant -->
-                <section class="alerts-settings-section alerts-settings-danger">
+                <section class="alerts-settings-section alerts-settings-danger" id="delete-variant-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-trash"></i>
                         <span><?= t('alerts_delete_variant') ?></span>
@@ -1559,9 +1643,20 @@ $(document).ready(function() {
         goalsPreview: <?php echo json_encode(t('alerts_goals_preview')); ?>
     };
     const previewPlaceholderDefault = $('#preview-placeholder').text();
-    // Enable/disable-only categories - selecting one shows just an on/off switch.
+    // Own-theme or playback-only categories. Selecting one shows just an on/off switch.
     // Sound, video and TTS have no card to place; the file is chosen on the Media page.
-    const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'sound_alerts', 'video_alerts', 'tts', 'goals'];
+    const simpleCategories = ['weather', 'deaths', 'walkons', 'sound_alerts', 'video_alerts', 'tts'];
+    // Styled cards with a fixed message. Every setting except the message template.
+    const fixedMessageCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'watch_streak', 'goals'];
+    const fixedMessageDefaults = {
+        discord_join: "{username}\nhopped into the Discord!",
+        kofi: "{username}\nsupported on Ko-fi!",
+        patreon: "{username}\nbecame a patron!",
+        fourthwall: "{username}\nsupported on Fourthwall!",
+        ad_break: "Ads are playing\nBack in {duration}",
+        watch_streak: "{username}\nis on a {streak}-stream watch streak!",
+        goals: "{description}\n{current_amount} / {target_amount}"
+    };
     const playbackNotes = {
         sound_alerts: i18n.soundAlertsNote,
         video_alerts: i18n.videoAlertsNote,
@@ -1894,6 +1989,7 @@ $(document).ready(function() {
     function applyCategoryUI(category, condition) {
         renderVariableHints(category);
         $('#ad-break-duration-note').toggle(category === 'ad_break');
+        $('#goals-settings-note').toggle(category === 'goals');
         if (category === 'channel_points') {
             $('#variant-name-group').hide();
             $('#variant-condition-group').hide();
@@ -2006,6 +2102,12 @@ $(document).ready(function() {
         $('#set-drop-shadow').prop('checked', a.drop_shadow == 1);
         // Text
         $('#set-message-template').val((a.message_template || '').replace(/\\n/g, '\n'));
+        var lockMessage = fixedMessageCategories.indexOf(a.alert_category) !== -1;
+        $('#message-template-group').toggle(!lockMessage);
+        $('#delete-variant-section').toggle(!lockMessage);
+        if (lockMessage && !String($('#set-message-template').val() || '').trim()) {
+            $('#set-message-template').val(fixedMessageDefaults[a.alert_category] || '');
+        }
         $('#set-font-family').val(a.font_family);
         $('#set-font-weight').val(a.font_weight);
         $('#set-font-size').val(a.font_size);
@@ -2207,6 +2309,17 @@ $(document).ready(function() {
             .replace(/\{streak\}/g, '<span class="preview-accent">7</span>')
             .replace(/\{duration\}/g, '<span class="preview-accent">1:30</span>')
             .replace(/\{seconds\}/g, '<span class="preview-accent">90</span>')
+            .replace(/\{message\}/g, '<span class="preview-accent">Hello!</span>')
+            .replace(/\{tier_name\}/g, '<span class="preview-accent">Gold</span>')
+            .replace(/\{lifetime\}/g, '<span class="preview-accent">50</span>')
+            .replace(/\{item\}/g, '<span class="preview-accent">Hoodie</span>')
+            .replace(/\{interval\}/g, '<span class="preview-accent">monthly</span>')
+            .replace(/\{level\}/g, '<span class="preview-accent">5</span>')
+            .replace(/\{charity_name\}/g, '<span class="preview-accent">Example Charity</span>')
+            .replace(/\{description\}/g, '<span class="preview-accent">Follower goal</span>')
+            .replace(/\{current_amount\}/g, '<span class="preview-accent">10</span>')
+            .replace(/\{target_amount\}/g, '<span class="preview-accent">100</span>')
+            .replace(/\{goal_type\}/g, '<span class="preview-accent">follower</span>')
             .replace(/\n/g, '<br>');
         var $text = $('#preview-text');
         $text.html(displayMsg);
@@ -2761,6 +2874,8 @@ $(document).ready(function() {
             'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: String(Math.max(5, Math.min(30, parseInt($('#set-duration').val(), 10) || 15))) } },
             'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: '100.00 USD', charity_name: 'Example Charity' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
+            'watch_streak':      { event: 'WATCH_STREAK', params: { username: 'TestUser', streak: '7' } },
+            'goals':             { event: 'TWITCH_GOAL_BEGIN', params: { description: 'Follower goal', current_amount: '10', target_amount: '100', goal_type: 'follower' } },
             'subathon':          { event: 'SUBATHON_ADD_TIME', params: { added_minutes: '5' } },
         };
         var config = eventMap[a.alert_category];
