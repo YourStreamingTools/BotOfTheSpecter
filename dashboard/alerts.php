@@ -411,6 +411,29 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             sort($libraryImages, SORT_STRING | SORT_FLAG_CASE);
             sort($librarySounds, SORT_STRING | SORT_FLAG_CASE);
         }
+        // Live tests play a sound and video the streamer has mapped, the same files the bot sends.
+        $testMedia = ['sound' => null, 'video' => null];
+        try {
+            if ($r = $db->query("SELECT sound_mapping FROM sound_alerts WHERE sound_mapping IS NOT NULL AND sound_mapping <> '' ORDER BY reward_id LIMIT 1")) {
+                $testRow = $r->fetch_row();
+                $testMedia['sound'] = $testRow ? $testRow[0] : null;
+            }
+            if ($r = $db->query("SELECT video_mapping FROM video_alerts WHERE video_mapping IS NOT NULL AND video_mapping <> '' ORDER BY reward_id LIMIT 1")) {
+                $testRow = $r->fetch_row();
+                $testMedia['video'] = $testRow ? $testRow[0] : null;
+            }
+        } catch (mysqli_sql_exception $e) {
+            $testMedia = ['sound' => null, 'video' => null];
+        }
+        // The TTS test speaks in the streamer's saved voice.
+        $testTtsVoice = null;
+        try {
+            if ($r = $db->query("SELECT voice, language, style, expressive_voice FROM tts_settings LIMIT 1")) {
+                $testTtsVoice = $r->fetch_assoc() ?: null;
+            }
+        } catch (mysqli_sql_exception $e) {
+            $testTtsVoice = null;
+        }
         echo json_encode([
             'success' => true,
             'alerts' => empty($allAlerts) ? new stdClass() : $allAlerts,
@@ -418,6 +441,8 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             'libraryImages' => $libraryImages,
             'librarySounds' => $librarySounds,
             'channelPointRewards' => array_values($channelPointRewards),
+            'testMedia' => $testMedia,
+            'testTtsVoice' => $testTtsVoice,
         ]);
     } catch (mysqli_sql_exception $e) {
         http_response_code(500);
@@ -1587,6 +1612,8 @@ $(document).ready(function() {
     let libraryImages = [];
     let librarySounds = [];
     let channelPointRewards = [];
+    let testMedia = {};
+    let testTtsVoice = null;
     let libraryListReady = false;
     let libraryListFailed = false;
     function normalizeAlertsMap(raw) {
@@ -1613,6 +1640,8 @@ $(document).ready(function() {
                 libraryImages = Array.isArray(data.libraryImages) ? data.libraryImages : [];
                 librarySounds = Array.isArray(data.librarySounds) ? data.librarySounds : [];
                 channelPointRewards = Array.isArray(data.channelPointRewards) ? data.channelPointRewards : [];
+                testMedia = data.testMedia || {};
+                testTtsVoice = data.testTtsVoice || null;
                 alertsData = normalizeAlertsMap(data.alerts);
                 categoryRandomize = (data.categoryRandomize && !Array.isArray(data.categoryRandomize))
                     ? data.categoryRandomize
@@ -1685,6 +1714,12 @@ $(document).ready(function() {
         ttsNote: <?php echo json_encode(t('alerts_tts_note')); ?>,
         testSaveFirstTitle: <?php echo json_encode(t('alerts_test_save_first_title')); ?>,
         testSaveFirstText: <?php echo json_encode(t('alerts_test_save_first_text')); ?>,
+        testSwitchedOffTitle: <?php echo json_encode(t('alerts_test_switched_off_title')); ?>,
+        testSwitchedOffText: <?php echo json_encode(t('alerts_test_switched_off_text')); ?>,
+        testNoSound: <?php echo json_encode(t('alerts_test_no_sound')); ?>,
+        testNoVideo: <?php echo json_encode(t('alerts_test_no_video')); ?>,
+        testSentFile: <?php echo json_encode(t('alerts_test_sent_file')); ?>,
+        testTtsText: <?php echo json_encode(t('alerts_test_tts_text')); ?>,
         goalsPreview: <?php echo json_encode(t('alerts_goals_preview')); ?>
     };
     const previewPlaceholderDefault = $('#preview-placeholder').text();
@@ -2222,6 +2257,7 @@ $(document).ready(function() {
         $('#preview-box').hide();
         $('#preview-ad-frame').hide();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
+        $('#test-alert-btn').prop('disabled', testablePlayback.indexOf(a.alert_category) === -1);
         $('#set-simple-enabled').prop('checked', a.enabled == 1);
         // Weather, deaths, walk-ons and ads have a draggable position + sample
         // preview; only the help note differs for walk-ons (mode is per-viewer).
@@ -2976,6 +3012,10 @@ $(document).ready(function() {
             $btn.prop('disabled', false);
         });
     });
+    // Playback categories with a live test. Walk-ons are a per-viewer module with no test.
+    const testablePlayback = ['sound_alerts', 'video_alerts', 'tts'];
+    // The overlay ignores these while their switch is off, so a test would do nothing.
+    const switchGatedCategories = ['sound_alerts', 'video_alerts', 'tts', 'deaths', 'weather', 'goals'];
     // A test value that meets the variant's condition, so the card reads like the real thing.
     function conditionValue(cond, field, fallback) {
         var m = String(cond || '').match(new RegExp(field + '\\s*>?=\\s*(\\d+(?:\\.\\d+)?)'));
@@ -2989,7 +3029,17 @@ $(document).ready(function() {
             Swal.fire({ icon: 'info', title: i18n.testSaveFirstTitle, text: i18n.testSaveFirstText });
             return;
         }
+        if (switchGatedCategories.indexOf(a.alert_category) !== -1 && a.enabled != 1) {
+            Swal.fire({ icon: 'info', title: i18n.testSwitchedOffTitle, text: i18n.testSwitchedOffText });
+            return;
+        }
         var cond = a.alert_condition || '';
+        var ttsParams = { text: i18n.testTtsText };
+        if (testTtsVoice) {
+            ['voice', 'language', 'style', 'expressive_voice'].forEach(function(k) {
+                if (testTtsVoice[k]) ttsParams[k] = testTtsVoice[k];
+            });
+        }
         var eventMap = {
             'follow':            { event: 'TWITCH_FOLLOW', params: { user: 'TestUser' } },
             'subscription':      { event: 'TWITCH_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: conditionValue(cond, 'months', 1) } },
@@ -3006,8 +3056,20 @@ $(document).ready(function() {
             'subathon':          { event: 'SUBATHON_ADD_TIME', params: { added_minutes: '5' } },
             'deaths':            { event: 'DEATHS', params: { death: '42', game: 'Test Game' } },
             'weather':           { event: 'WEATHER_DATA', params: {} },
+            'tts':               { event: 'TTS', params: ttsParams },
         };
         var config = eventMap[a.alert_category];
+        if (!config && (a.alert_category === 'sound_alerts' || a.alert_category === 'video_alerts')) {
+            var isSound = a.alert_category === 'sound_alerts';
+            var testFile = isSound ? testMedia.sound : testMedia.video;
+            if (!testFile) {
+                Swal.fire({ icon: 'info', title: i18n.testUnavailableTitle, text: isSound ? i18n.testNoSound : i18n.testNoVideo });
+                return;
+            }
+            config = isSound
+                ? { event: 'SOUND_ALERT', params: { sound: testFile }, file: testFile }
+                : { event: 'VIDEO_ALERT', params: { video: testFile }, file: testFile };
+        }
         // Fourthwall variants are tied to one of four sub-types via their condition;
         // pick the matching sub-type for the live test from the variant itself.
         if (!config && a.alert_category === 'fourthwall') {
@@ -3054,7 +3116,8 @@ $(document).ready(function() {
         var params = Object.assign({ event: config.event, api_key: apiKey, channel_name: channelName, test_variant: currentAlertId }, config.params);
         $.post('/api/notify_event.php', params, function(resp) {
             if (resp.success) {
-                Swal.fire({ icon: 'success', title: i18n.testSentTitle, text: i18n.testSentText, timer: 2000, showConfirmButton: false });
+                var sentText = config.file ? i18n.testSentFile.replace(':file', config.file) : i18n.testSentText;
+                Swal.fire({ icon: 'success', title: i18n.testSentTitle, text: sentText, timer: 2500, showConfirmButton: false });
             } else {
                 Swal.fire({ icon: 'error', title: i18n.errorTitle, text: resp.message || i18n.testSendFailed });
             }
