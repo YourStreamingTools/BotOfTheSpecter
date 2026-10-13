@@ -1313,10 +1313,12 @@ ob_start();
                                 <button type="button" class="text-align-btn active" data-align="center" title="<?= htmlspecialchars(t('alerts_align_center')) ?>"><i class="fas fa-align-center"></i></button>
                                 <button type="button" class="text-align-btn" data-align="right" title="<?= htmlspecialchars(t('alerts_align_right')) ?>"><i class="fas fa-align-right"></i></button>
                                 <button type="button" class="text-align-btn" data-align="justify" title="<?= htmlspecialchars(t('alerts_align_justify')) ?>"><i class="fas fa-align-justify"></i></button>
-                                <span class="text-align-divider"></span>
-                                <button type="button" class="text-align-btn valign-btn" data-valign="top" title="<?= htmlspecialchars(t('alerts_align_top')) ?>"><i class="fas fa-arrow-up"></i></button>
-                                <button type="button" class="text-align-btn valign-btn active" data-valign="center" title="<?= htmlspecialchars(t('alerts_align_middle')) ?>"><i class="fas fa-arrows-up-down"></i></button>
-                                <button type="button" class="text-align-btn valign-btn" data-valign="bottom" title="<?= htmlspecialchars(t('alerts_align_bottom')) ?>"><i class="fas fa-arrow-down"></i></button>
+                                <span class="text-align-valign" id="valign-btns">
+                                    <span class="text-align-divider"></span>
+                                    <button type="button" class="text-align-btn valign-btn" data-valign="top" title="<?= htmlspecialchars(t('alerts_align_top')) ?>"><i class="fas fa-arrow-up"></i></button>
+                                    <button type="button" class="text-align-btn valign-btn active" data-valign="center" title="<?= htmlspecialchars(t('alerts_align_middle')) ?>"><i class="fas fa-arrows-up-down"></i></button>
+                                    <button type="button" class="text-align-btn valign-btn" data-valign="bottom" title="<?= htmlspecialchars(t('alerts_align_bottom')) ?>"><i class="fas fa-arrow-down"></i></button>
+                                </span>
                             </div>
                         </div>
                         <div class="alerts-form-row">
@@ -2324,6 +2326,10 @@ $(document).ready(function() {
         var accentColor = $('#set-accent-color').val();
         var textShadow = $('#set-text-drop-shadow').is(':checked');
         var textAlign = $('.text-align-btn[data-align].active').data('align') || 'center';
+        // Vertical alignment only has room to act when the image sits beside the text.
+        var sideLayout = layout === 'left' || layout === 'right';
+        var valign = { top: 'flex-start', bottom: 'flex-end' }[$('.valign-btn.active').data('valign')] || 'center';
+        $('#valign-btns').toggle(sideLayout);
         var msg = $('#set-message-template').val() || '';
         var imageScale = parseInt($('#set-image-scale').val()) || 100;
         var weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
@@ -2393,6 +2399,7 @@ $(document).ready(function() {
             'font-size': fontSize + 'px',
             'color': textColor,
             'text-align': textAlign,
+            'align-self': sideLayout ? valign : '',
             'text-shadow': textShadow ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'
         });
         $('.preview-accent').css('color', accentColor);

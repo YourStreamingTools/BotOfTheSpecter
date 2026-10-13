@@ -597,11 +597,16 @@ if ($username) {
                     `color:${textColor}`,
                     `text-align:${config.text_alignment || 'center'}`,
                     `text-shadow:${config.text_drop_shadow == 1 ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'}`
-                ].join(';');
+                ];
+                // Vertical alignment only has room to act when the image sits beside the text.
+                if (layout === 'left' || layout === 'right') {
+                    const valign = { top: 'flex-start', bottom: 'flex-end' }[config.text_vertical_alignment] || 'center';
+                    textStyles.push(`align-self:${valign}`);
+                }
                 container.innerHTML = `
                     <div class="twitch-alert-box layout-${layout}" style="${boxStyles}">
                         ${imageHtml}
-                        <div class="twitch-alert-text" style="${textStyles}">${messageHtml}</div>
+                        <div class="twitch-alert-text" style="${textStyles.join(';')}">${messageHtml}</div>
                     </div>
                 `;
                 // Apply accent color
