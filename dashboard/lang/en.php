@@ -1352,7 +1352,7 @@ return [
     'bot_use_self' => 'Use Self',
     'bot_use_custom_module' => 'Custom Module',
     'bot_use_custom_module_title' => 'Load your channel-specific custom module when the bot starts (operator-deployed)',
-    'bot_use_custom_module_note_enabled' => '<strong>Custom module is on.</strong> It loads with this bot when it starts (stable, beta and v6).',
+    'bot_use_custom_module_note_enabled' => '<strong>Custom module is on.</strong> It loads with this bot when it starts.',
     'bot_use_custom_module_note_disabled' => '<strong>Custom module is off.</strong> This bot will not load your channel module.',
     'bot_use_custom_module_note_pending_start' => '<strong>Setting saved.</strong> Start the bot to apply it (module load is decided at start).',
     'bot_use_custom_module_note_pending_restart' => '<strong>Setting saved.</strong> Restart the bot to apply it (the running process still uses the previous setting).',

@@ -1293,7 +1293,7 @@ return [
     'bot_update_available' => 'Mise a jour disponible',
     'bot_use_custom_module' => 'Module personnalise',
     'bot_use_custom_module_title' => 'Charger le module specifique a votre chaine au demarrage du bot',
-    'bot_use_custom_module_note_enabled' => '<strong>Module personnalise active.</strong> Il se charge avec ce bot au demarrage (stable, beta et v6).',
+    'bot_use_custom_module_note_enabled' => '<strong>Module personnalise active.</strong> Il se charge avec ce bot au demarrage.',
     'bot_use_custom_module_note_disabled' => '<strong>Module personnalise desactive.</strong> Ce bot ne chargera pas le module de chaine.',
     'bot_use_custom_module_note_pending_start' => '<strong>Reglage enregistre.</strong> Demarrez le bot pour l\'appliquer (le chargement du module se decide au demarrage).',
     'bot_use_custom_module_note_pending_restart' => '<strong>Reglage enregistre.</strong> Redemarrez le bot pour l\'appliquer (le processus en cours utilise encore l\'ancien reglage).',

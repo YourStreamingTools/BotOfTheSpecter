@@ -1293,7 +1293,7 @@ return [
     'bot_update_available' => 'Update verfugbar',
     'bot_use_custom_module' => 'Custom-Modul',
     'bot_use_custom_module_title' => 'Kanalspezifisches Modul beim Bot-Start laden',
-    'bot_use_custom_module_note_enabled' => '<strong>Custom-Modul ist an.</strong> Es wird beim Start dieses Bots geladen (Stable, Beta und v6).',
+    'bot_use_custom_module_note_enabled' => '<strong>Custom-Modul ist an.</strong> Es wird beim Start dieses Bots geladen.',
     'bot_use_custom_module_note_disabled' => '<strong>Custom-Modul ist aus.</strong> Dieser Bot lädt Ihr Kanalmodul nicht.',
     'bot_use_custom_module_note_pending_start' => '<strong>Einstellung gespeichert.</strong> Starten Sie den Bot, damit sie greift (Modul-Laden wird beim Start entschieden).',
     'bot_use_custom_module_note_pending_restart' => '<strong>Einstellung gespeichert.</strong> Starten Sie den Bot neu, damit sie greift (der laufende Prozess nutzt noch die vorherige Einstellung).',

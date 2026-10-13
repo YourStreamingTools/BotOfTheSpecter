@@ -1349,7 +1349,7 @@ return [
     'bot_update_available' => 'Actualización disponible',
     'bot_use_custom_module' => 'Módulo personalizado',
     'bot_use_custom_module_title' => 'Cargar el módulo específico del canal al iniciar el bot',
-    'bot_use_custom_module_note_enabled' => '<strong>Módulo personalizado activado.</strong> Se carga con este bot al iniciar (stable, beta y v6).',
+    'bot_use_custom_module_note_enabled' => '<strong>Módulo personalizado activado.</strong> Se carga con este bot al iniciar.',
     'bot_use_custom_module_note_disabled' => '<strong>Módulo personalizado desactivado.</strong> Este bot no cargará el módulo del canal.',
     'bot_use_custom_module_note_pending_start' => '<strong>Ajuste guardado.</strong> Inicia el bot para aplicarlo (la carga del módulo se decide al arrancar).',
     'bot_use_custom_module_note_pending_restart' => '<strong>Ajuste guardado.</strong> Reinicia el bot para aplicarlo (el proceso en ejecución sigue con el ajuste anterior).',
