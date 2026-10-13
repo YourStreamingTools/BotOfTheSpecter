@@ -299,7 +299,22 @@ if ($username) {
                     ctx.resume().then(() => ctx.close()).catch(() => {});
                 } catch (e) {}
             })();
-            // Video alerts (channel points, store) play centred, with their own audio.
+            // Video size is a share of the screen, so it looks the same on any canvas.
+            // No saved position means centred.
+            function placeVideoAlert(vid) {
+                const cfg = (alertConfigs.video_alerts || [])[0] || {};
+                const size = configNumber(cfg.video_size, 70, 10, 100);
+                const free = 100 - size;
+                const hasPos = cfg.position_x !== null && cfg.position_x !== undefined && cfg.position_x !== ''
+                    && cfg.position_y !== null && cfg.position_y !== undefined && cfg.position_y !== '';
+                const x = hasPos ? Math.max(0, Math.min(free, parseFloat(cfg.position_x) || 0)) : free / 2;
+                const y = hasPos ? Math.max(0, Math.min(free, parseFloat(cfg.position_y) || 0)) : free / 2;
+                vid.style.width = size + 'vw';
+                vid.style.height = size + 'vh';
+                vid.style.left = x + 'vw';
+                vid.style.top = y + 'vh';
+            }
+            // Video alerts (channel points, store) play with their own audio.
             // Same player as the retired video-alert.php browser source.
             function enqueueVideo(url) {
                 if (!url) return;
@@ -312,8 +327,7 @@ if ($username) {
                         vid.volume = mediaVolume('video_alerts');
                         vid.controls = false;
                         vid.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
-                        const videoScale = Math.max(10, Math.min(200, mediaLevel('video_alerts', 'image_scale', 100))) / 100;
-                        vid.style.transform = `translate(-50%, -50%) scale(${videoScale})`;
+                        placeVideoAlert(vid);
                         vid.preload = 'auto';
                         document.body.appendChild(vid);
                         let settled = false;
@@ -1101,9 +1115,36 @@ if ($username) {
                 el.style.transform = (tx === '0' && ty === '0') ? 'none' : `translate(${tx}, ${ty})`;
             }
             // Deaths - ported from overlay/deaths.php
-            function renderDeaths(data) {
+            // Deaths and weather keep their own card. The Alerts page adds a sound,
+            // the time on screen and a celebration.
+            function playModuleCard(el, category, done) {
+                const cfg = getEnabledVariant(category) || {};
+                const shownMs = configNumber(cfg.duration, 10, 1, 99) * 1000;
+                if (cfg.alert_sound) {
+                    const audio = new Audio(SpecterOverlayWS.playbackUrl(mediaBase + cfg.alert_sound));
+                    audio.volume = configNumber(cfg.sound_volume, 50, 0, 100) / 100;
+                    audio.play().catch(e => console.error(category + ' sound error:', e));
+                }
+                let gen = 0;
+                if (cfg.celebration_enabled == 1 && cfg.celebration_effect) {
+                    gen = celebration.start(cfg.celebration_effect, cfg.celebration_intensity || 'medium', shownMs);
+                }
+                el.classList.remove('hide');
+                el.classList.add('show');
+                el.style.display = 'block';
+                setTimeout(() => {
+                    el.classList.remove('show');
+                    el.classList.add('hide');
+                    if (gen) celebration.stop(gen);
+                }, shownMs);
+                setTimeout(() => {
+                    el.style.display = 'none';
+                    done();
+                }, shownMs + 1000);
+            }
+            function renderDeaths(data, done) {
                 const deathOverlay = document.getElementById('deathOverlay');
-                if (!deathOverlay) return;
+                if (!deathOverlay) { done(); return; }
                 applyScreenPosition(deathOverlay, getEnabledVariant('deaths') || {}, 'deaths');
                 deathOverlay.innerHTML = `
                     <div class="deaths-overlay-page-content">
@@ -1115,14 +1156,7 @@ if ($username) {
                         <div>${escapeHtml(data['death-text'])}</div>
                     </div>
                 `;
-                deathOverlay.classList.remove('hide');
-                deathOverlay.classList.add('show');
-                deathOverlay.style.display = 'block';
-                setTimeout(() => {
-                    deathOverlay.classList.remove('show');
-                    deathOverlay.classList.add('hide');
-                }, 10000);
-                setTimeout(() => { deathOverlay.style.display = 'none'; }, 11000);
+                playModuleCard(deathOverlay, 'deaths', done);
             }
             // Weather - ported from overlay/weather.php (incl. the live clock)
             let weatherTimerId = null;
@@ -1137,17 +1171,17 @@ if ($username) {
                 updateTime();
                 weatherTimerId = setInterval(updateTime, 1000);
             }
-            function renderWeather(rawWeatherData) {
+            function renderWeather(rawWeatherData, done) {
                 let weather;
                 try {
                     weather = JSON.parse(rawWeatherData);
                 } catch (_) {
                     // Legacy payload: api.py used to send str(dict) via urlencode.
                     try { weather = JSON.parse(String(rawWeatherData).replace(/'/g, '"')); }
-                    catch (e) { console.warn('WEATHER_DATA unparseable:', e); return; }
+                    catch (e) { console.warn('WEATHER_DATA unparseable:', e); done(); return; }
                 }
                 const weatherOverlay = document.getElementById('weatherOverlay');
-                if (!weatherOverlay) return;
+                if (!weatherOverlay) { done(); return; }
                 applyScreenPosition(weatherOverlay, getEnabledVariant('weather') || {}, 'weather');
                 weatherOverlay.innerHTML = `
                     <div class="weather-overlay-page-content">
@@ -1164,15 +1198,8 @@ if ($username) {
                         </div>
                     </div>
                 `;
-                weatherOverlay.classList.remove('hide');
-                weatherOverlay.classList.add('show');
-                weatherOverlay.style.display = 'block';
                 if (weatherTimezone) startWeatherClock(weatherTimezone);
-                setTimeout(() => {
-                    weatherOverlay.classList.add('hide');
-                    weatherOverlay.classList.remove('show');
-                }, 10000);
-                setTimeout(() => { weatherOverlay.style.display = 'none'; }, 11000);
+                playModuleCard(weatherOverlay, 'weather', done);
             }
             // Walk-ons share the alert queue so they never talk over another alert.
             function playWalkonAudio(url, done) {
@@ -1513,8 +1540,7 @@ if ($username) {
                         if (isCategoryEnabled('deaths')) enqueueJob({
                             kind: 'deaths',
                             start(done) {
-                                renderDeaths(data);
-                                setTimeout(done, 11000);
+                                renderDeaths(data, done);
                             }
                         });
                     });
@@ -1523,8 +1549,7 @@ if ($username) {
                         if (isCategoryEnabled('weather')) enqueueJob({
                             kind: 'weather',
                             start(done) {
-                                renderWeather(data.weather_data);
-                                setTimeout(done, 11000);
+                                renderWeather(data.weather_data, done);
                             }
                         });
                     });

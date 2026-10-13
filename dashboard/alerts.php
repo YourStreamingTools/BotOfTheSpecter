@@ -850,12 +850,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'set_media_levels') {
-        // Playback rows only: volume for sound, video, walk-ons and TTS, plus size for video alerts.
+        // Playback rows only: volume for sound, video, walk-ons and TTS, plus the video's share of the screen.
         $id = intval($_POST['id'] ?? 0);
-        $image_scale = max(10, min(200, intval($_POST['image_scale'] ?? 100)));
+        $video_size = max(10, min(100, intval($_POST['video_size'] ?? 70)));
         $sound_volume = max(0, min(100, intval($_POST['sound_volume'] ?? 50)));
-        $stmt = $db->prepare("UPDATE twitch_alerts SET image_scale = ?, sound_volume = ? WHERE id = ? AND alert_category IN ('sound_alerts', 'video_alerts', 'walkons', 'tts')");
-        $stmt->bind_param('iii', $image_scale, $sound_volume, $id);
+        $stmt = $db->prepare("UPDATE twitch_alerts SET video_size = ?, sound_volume = ? WHERE id = ? AND alert_category IN ('sound_alerts', 'video_alerts', 'walkons', 'tts')");
+        $stmt->bind_param('iii', $video_size, $sound_volume, $id);
         $ok = $stmt->execute();
         $stmt->close();
         echo json_encode(['success' => (bool) $ok]);
@@ -1030,6 +1030,10 @@ ob_start();
                 </div>
                 <!-- Sample preview for the legacy-themed categories (weather, deaths) -->
                 <div class="alerts-preview-legacy alerts-pos-draggable" id="preview-legacy" style="display:none;"></div>
+                <!-- Video alert area, sized as a share of the screen; drag target for video alerts -->
+                <div class="alerts-preview-video alerts-pos-draggable" id="preview-video-sample" style="display:none;">
+                    <i class="fas fa-film"></i>
+                </div>
                 <!-- Representative walk-on card; drag target for the walk-ons category -->
                 <div class="alerts-preview-walkon alerts-pos-draggable" id="preview-walkon-sample" style="display:none;">
                     <div class="apwk-avatar"></div>
@@ -1102,8 +1106,8 @@ ob_start();
                         <div class="alerts-form-group" id="simple-scale-group" style="display:none;">
                             <label><?= t('alerts_video_scale') ?></label>
                             <div class="alerts-range-wrap">
-                                <input type="range" id="set-simple-scale" min="10" max="200" value="100">
-                                <span class="alerts-range-value" id="simple-scale-val">100%</span>
+                                <input type="range" id="set-simple-scale" min="10" max="100" value="70">
+                                <span class="alerts-range-value" id="simple-scale-val">70%</span>
                             </div>
                         </div>
                         <div class="alerts-form-group" id="simple-volume-group" style="display:none;">
@@ -1161,6 +1165,8 @@ ob_start();
                             <small class="alerts-help-text" id="ad-break-duration-note" style="display:none;"><?= t('alerts_ad_break_note') ?></small>
                         </div>
                         <p class="alerts-help-text" id="goals-settings-note" style="display:none;"><?= t('alerts_goals_note') ?></p>
+                        <p class="alerts-help-text" id="module-settings-note" style="display:none;"><i class="fas fa-up-down-left-right"></i> <?= t('alerts_module_note') ?></p>
+                        <div id="animation-settings-group">
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
                                 <label><?= t('alerts_in_animation') ?></label>
@@ -1186,6 +1192,7 @@ ob_start();
                                     <input type="number" class="sp-input alerts-inline-pair-mini" id="set-animation-out-duration" min="0.1" max="5" step="0.1" value="1">
                                 </div>
                             </div>
+                        </div>
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
@@ -1681,7 +1688,9 @@ $(document).ready(function() {
     const previewPlaceholderDefault = $('#preview-placeholder').text();
     // Own-theme or playback-only categories. Selecting one shows just an on/off switch.
     // Sound, video and TTS have no card to place; the file is chosen on the Media page.
-    const simpleCategories = ['weather', 'deaths', 'walkons', 'sound_alerts', 'video_alerts', 'tts'];
+    const simpleCategories = ['walkons', 'sound_alerts', 'video_alerts', 'tts'];
+    // Deaths and weather keep their own card: placement, sound, time on screen and celebration only.
+    const moduleCategories = ['weather', 'deaths'];
     // Styled cards with a fixed message. Every setting except the message template.
     const fixedMessageCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'watch_streak', 'goals'];
     // One card each, so a condition cannot split them.
@@ -1714,7 +1723,9 @@ $(document).ready(function() {
         if (!a) return null;
         if (a.alert_category === 'ad_break') return null;
         if (a.alert_category === 'walkons') return document.getElementById('preview-walkon-sample');
-        if (simpleCategories.indexOf(a.alert_category) !== -1 && a.alert_category !== 'walkons') return document.getElementById('preview-legacy');
+        if (a.alert_category === 'video_alerts') return document.getElementById('preview-video-sample');
+        if (moduleCategories.indexOf(a.alert_category) !== -1) return document.getElementById('preview-legacy');
+        if (simpleCategories.indexOf(a.alert_category) !== -1) return null;
         return document.getElementById('preview-box');
     }
     // True-to-scale: a box on a smaller OBS canvas is relatively larger, so scale the
@@ -1831,7 +1842,7 @@ $(document).ready(function() {
     (function setupPositionEditor() {
         var canvas = document.getElementById('preview-area');
         if (!canvas) return;
-        var boxes = ['preview-box', 'preview-legacy', 'preview-walkon-sample']
+        var boxes = ['preview-box', 'preview-legacy', 'preview-walkon-sample', 'preview-video-sample']
             .map(function(id) { return document.getElementById(id); })
             .filter(Boolean);
         var guideV = document.getElementById('alerts-pos-guide-v');
@@ -1911,7 +1922,7 @@ $(document).ready(function() {
                 if (!currentAlertId) return;
                 var a = alertsData[currentAlertId];
                 if (simpleCategories.indexOf(a.alert_category) !== -1) {
-                    // weather/deaths/walk-ons: single field, save immediately like the toggle.
+                    // Walk-ons and video alerts: single field, save immediately like the toggle.
                     $.post('', { action: 'set_alert_position', id: currentAlertId, x: a.position_x, y: a.position_y }, null, 'json');
                 } else {
                     markDirty();
@@ -2030,9 +2041,15 @@ $(document).ready(function() {
         $('#ad-break-duration-note').toggle(category === 'ad_break');
         $('#goals-settings-note').toggle(category === 'goals');
         var adsSoundOnly = category === 'ad_break';
-        $('#layout-settings-section, #text-settings-section, #celebration-settings-section, #alert-image-group').toggle(!adsSoundOnly);
-        $('#alert-sound-group').toggleClass('alerts-form-group-divider', !adsSoundOnly);
-        if (category === 'channel_points') {
+        var isModule = moduleCategories.indexOf(category) !== -1;
+        $('#layout-settings-section, #text-settings-section, #alert-image-group').toggle(!adsSoundOnly && !isModule);
+        $('#celebration-settings-section').toggle(!adsSoundOnly);
+        $('#animation-settings-group').toggle(!isModule);
+        $('#module-settings-note').toggle(isModule);
+        $('#alert-sound-group').toggleClass('alerts-form-group-divider', !adsSoundOnly && !isModule);
+        if (isModule) {
+            $('#variant-name-group, #variant-condition-group, #variant-reward-group, #variant-bingo-group').hide();
+        } else if (category === 'channel_points') {
             $('#variant-name-group').hide();
             $('#variant-condition-group').hide();
             $('#variant-bingo-group').hide();
@@ -2118,12 +2135,19 @@ $(document).ready(function() {
         $('#settings-placeholder').hide();
         $('#settings-form').show();
         $('#preview-placeholder').text(previewPlaceholderDefault).hide();
-        $('#preview-legacy').hide();
-        $('#preview-walkon-sample').hide();
+        $('#preview-walkon-sample, #preview-video-sample').hide();
         var isAdFrame = a.alert_category === 'ad_break';
-        $('#preview-box').toggle(!isAdFrame);
+        var isModule = moduleCategories.indexOf(a.alert_category) !== -1;
+        $('#preview-box').toggle(!isAdFrame && !isModule);
         $('#preview-ad-frame').toggle(isAdFrame);
-        $('#preview-alert-btn, #test-alert-btn').prop('disabled', false);
+        if (isModule) {
+            renderLegacyPreview(a.alert_category);
+            $('#preview-legacy').show();
+        } else {
+            $('#preview-legacy').hide();
+        }
+        $('#test-alert-btn').prop('disabled', false);
+        $('#preview-alert-btn').prop('disabled', isModule);
         // General
         $('#set-variant-name').val(a.variant_name);
         $('#set-alert-condition').val(a.alert_condition || '');
@@ -2148,7 +2172,7 @@ $(document).ready(function() {
         $('#set-message-template').val((a.message_template || '').replace(/\\n/g, '\n'));
         var lockMessage = fixedMessageCategories.indexOf(a.alert_category) !== -1;
         $('#message-template-group').toggle(!lockMessage);
-        $('#delete-variant-section').toggle(!lockMessage);
+        $('#delete-variant-section').toggle(!lockMessage && !isModule);
         if (lockMessage && !String($('#set-message-template').val() || '').trim()) {
             $('#set-message-template').val(fixedMessageDefaults[a.alert_category] || '');
         }
@@ -2203,13 +2227,14 @@ $(document).ready(function() {
         var isGoals = a.alert_category === 'goals';
         var playbackNote = playbackNotes[a.alert_category] || '';
         var isPlayback = playbackNote !== '';
-        $('#simple-position-group').toggle(!isPlayback);
+        var isVideo = a.alert_category === 'video_alerts';
+        $('#simple-position-group').toggle(!isPlayback || isVideo);
         $('#simple-note-playback').toggle(isPlayback).text(playbackNote);
         $('#simple-note-positioned').toggle(!isWalkon && !isPlayback && !isGoals);
         $('#simple-note-walkon').toggle(isWalkon);
         $('#simple-note-goals').toggle(isGoals);
         var hasVolume = mediaLevelCategories.indexOf(a.alert_category) !== -1;
-        var scale = parseInt(a.image_scale, 10) || 100;
+        var scale = parseInt(a.video_size, 10) || 70;
         var volume = parseInt(a.sound_volume, 10);
         if (isNaN(volume)) volume = 50;
         $('#simple-scale-group').toggle(a.alert_category === 'video_alerts');
@@ -2220,7 +2245,12 @@ $(document).ready(function() {
         $('#simple-volume-val').text(volume + '%');
         // Sound, video and TTS have nothing to drag. The other simple categories
         // show a sample you can place on the canvas.
-        if (isPlayback) {
+        $('#preview-video-sample').toggle(isVideo);
+        if (isVideo) {
+            $('#preview-legacy').hide();
+            $('#preview-walkon-sample').hide();
+            sizeVideoSample(scale);
+        } else if (isPlayback) {
             $('#preview-legacy').hide();
             $('#preview-walkon-sample').hide();
             $('#preview-placeholder').text(playbackNote).show();
@@ -2249,14 +2279,25 @@ $(document).ready(function() {
     });
     // Volume and video size also save on release, so the overlay refresh picks them up.
     var mediaLevelCategories = ['sound_alerts', 'video_alerts', 'walkons', 'tts'];
-    $('#set-simple-scale').on('input', function() { $('#simple-scale-val').text(this.value + '%'); });
+    // The video area is a share of the canvas, so it is not scaled for the canvas size.
+    function sizeVideoSample(pct) {
+        var el = document.getElementById('preview-video-sample');
+        if (!el) return;
+        el.style.width = pct + '%';
+        el.style.height = pct + '%';
+    }
+    $('#set-simple-scale').on('input', function() {
+        $('#simple-scale-val').text(this.value + '%');
+        sizeVideoSample(this.value);
+        repositionActiveBox();
+    });
     $('#set-simple-volume').on('input', function() { $('#simple-volume-val').text(this.value + '%'); });
     $('#set-simple-scale, #set-simple-volume').on('change', function() {
         var a = alertsData[currentAlertId];
         if (!a || mediaLevelCategories.indexOf(a.alert_category) === -1) return;
-        a.image_scale = $('#set-simple-scale').val();
+        a.video_size = $('#set-simple-scale').val();
         a.sound_volume = $('#set-simple-volume').val();
-        $.post('', { action: 'set_media_levels', id: currentAlertId, image_scale: a.image_scale, sound_volume: a.sound_volume }, null, 'json');
+        $.post('', { action: 'set_media_levels', id: currentAlertId, video_size: a.video_size, sound_volume: a.sound_volume }, null, 'json');
     });
     // A file uploaded seconds ago can still be syncing to storage, so the media host answers 404 at first.
     // Retry media from the library that fails to load (cache-busted) for about 20 seconds before giving up.

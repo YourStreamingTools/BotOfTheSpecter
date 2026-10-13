@@ -909,6 +909,16 @@
     padding: 14px 18px;
     border-radius: 12px;
 }
+.alerts-preview-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.55);
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-size: 2rem;
+}
 .alerts-preview-walkon .apwk-avatar {
     width: 64px;
     height: 64px;
