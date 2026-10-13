@@ -31,6 +31,27 @@
     }
 }
 
+# Access logs never keep credentials: keys in headers, query strings and the Referer become REDACTED.
+(log_redact) {
+    format filter {
+        wrap json
+        fields {
+            request>headers>X-Api-Key replace REDACTED
+            request>headers>X-Ws-Control-Key replace REDACTED
+            request>headers>Referer regexp "(?i)([?&](code|api_key|admin_key|token|server_token|auth_data|password)=)[^&#]*" "${1}REDACTED"
+            request>uri query {
+                replace code REDACTED
+                replace api_key REDACTED
+                replace admin_key REDACTED
+                replace token REDACTED
+                replace server_token REDACTED
+                replace auth_data REDACTED
+                replace password REDACTED
+            }
+        }
+    }
+}
+
 (php_app) {
     @blocked {
         path *.conf *.env *.sql *.md *.ini *.log /database.php
@@ -117,6 +138,7 @@ botofthespecter.com, www.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/botofthespecter.log
+        import log_redact
     }
 }
 
@@ -133,6 +155,7 @@ dashboard.botofthespecter.com {
     }
     log {
         output file /var/log/caddy/dashboard.log
+        import log_redact
     }
 }
 
@@ -164,6 +187,7 @@ admin.botofthespecter.com {
     }
     log {
         output file /var/log/caddy/admin.log
+        import log_redact
     }
 }
 
@@ -172,6 +196,7 @@ members.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/members.log
+        import log_redact
     }
 }
 
@@ -180,6 +205,7 @@ overlay.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/overlay.log
+        import log_redact
     }
 }
 
@@ -209,6 +235,7 @@ support.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/support.log
+        import log_redact
     }
 }
 
@@ -217,6 +244,7 @@ roadmap.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/roadmap.log
+        import log_redact
     }
 }
 
@@ -226,6 +254,7 @@ www.specterbot.app {
     import security
     log {
         output file /var/log/caddy/specterbotapp.log
+        import log_redact
     }
 }
 
@@ -237,6 +266,7 @@ specterbot.app {
     import php_app
     log {
         output file /var/log/caddy/specterbotapp.log
+        import log_redact
     }
 }
 
@@ -257,6 +287,7 @@ specterbot.app {
     import php_app
     log {
         output file /var/log/caddy/specterbotapp-users.log
+        import log_redact
     }
 }
 
@@ -273,6 +304,7 @@ specterbot.systems, www.specterbot.systems {
     import php_app
     log {
         output file /var/log/caddy/specterbot-systems.log
+        import log_redact
     }
 }
 
@@ -281,6 +313,7 @@ mybot.specterbot.systems {
     import php_app
     log {
         output file /var/log/caddy/mybot-specterbot-systems.log
+        import log_redact
     }
 }
 
@@ -289,6 +322,7 @@ yourchat.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/yourchat.log
+        import log_redact
     }
 }
 
@@ -302,6 +336,7 @@ yourlinks.click {
     import php_app
     log {
         output file /var/log/caddy/yourlinks.log
+        import log_redact
     }
 }
 
@@ -330,6 +365,7 @@ www.yourlinks.click {
     import php_app
     log {
         output file /var/log/caddy/yourlinks.log
+        import log_redact
     }
 }
 
@@ -338,6 +374,7 @@ yourstreamingtools.com, www.yourstreamingtools.com {
     import php_app
     log {
         output file /var/log/caddy/yourstreamingtools.log
+        import log_redact
     }
 }
 
@@ -346,6 +383,7 @@ streamersconnect.com, www.streamersconnect.com {
     import php_app
     log {
         output file /var/log/caddy/streamersconnect.log
+        import log_redact
     }
 }
 
@@ -389,6 +427,7 @@ vods.botofthespecter.com {
     header @mp4 Content-Type "video/mp4"
     log {
         output file /var/log/caddy/vods.log
+        import log_redact
     }
 }
 
@@ -400,6 +439,7 @@ cdn.botofthespecter.com {
     header /css/fontawesome* Access-Control-Allow-Methods "GET, OPTIONS"
     log {
         output file /var/log/caddy/cdn.log
+        import log_redact
     }
 }
 
@@ -407,6 +447,7 @@ walkons.botofthespecter.com {
     import storage_origin walkons
     log {
         output file /var/log/caddy/walkons.log
+        import log_redact
     }
 }
 
@@ -415,6 +456,7 @@ media.botofthespecter.com {
     import storage_origin media
     log {
         output file /var/log/caddy/media.log
+        import log_redact
     }
 }
 
@@ -422,6 +464,7 @@ music.botspecter.com, music.botofthespecter.com {
     import storage_origin usermusic
     log {
         output file /var/log/caddy/usermusic.log
+        import log_redact
     }
 }
 
@@ -429,6 +472,7 @@ soundalerts.botofthespecter.com {
     import storage_origin soundalerts
     log {
         output file /var/log/caddy/soundalerts.log
+        import log_redact
     }
 }
 
@@ -446,6 +490,7 @@ tts.botofthespecter.com {
     header Access-Control-Allow-Methods "GET, OPTIONS"
     log {
         output file /var/log/caddy/tts.log
+        import log_redact
     }
 }
 
@@ -453,6 +498,7 @@ videoalerts.botofthespecter.com {
     import storage_origin videoalerts
     log {
         output file /var/log/caddy/videoalerts.log
+        import log_redact
     }
 }
 
@@ -465,6 +511,7 @@ videoalerts.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/multilevel.log
+        import log_redact
     }
 }
 
@@ -477,6 +524,7 @@ videoalerts.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/wildcard-botofthespecter.log
+        import log_redact
     }
 }
 
@@ -486,5 +534,6 @@ videoalerts.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/fallback.log
+        import log_redact
     }
 }

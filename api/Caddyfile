@@ -25,10 +25,32 @@
     }
 }
 
+# Access logs never keep credentials: keys in headers, query strings and the Referer become REDACTED.
+(log_redact) {
+    format filter {
+        wrap json
+        fields {
+            request>headers>X-Api-Key replace REDACTED
+            request>headers>X-Ws-Control-Key replace REDACTED
+            request>headers>Referer regexp "(?i)([?&](code|api_key|admin_key|token|server_token|auth_data|password)=)[^&#]*" "${1}REDACTED"
+            request>uri query {
+                replace code REDACTED
+                replace api_key REDACTED
+                replace admin_key REDACTED
+                replace token REDACTED
+                replace server_token REDACTED
+                replace auth_data REDACTED
+                replace password REDACTED
+            }
+        }
+    }
+}
+
 api.botofthespecter.com {
     reverse_proxy 127.0.0.1:8080
     import security
     log {
         output file /var/log/caddy/api.log
+        import log_redact
     }
 }
