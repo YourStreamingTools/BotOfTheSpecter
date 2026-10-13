@@ -364,7 +364,7 @@ try {
                 stream_bounty_api_key VARCHAR(255),
                 tanggle_api_token VARCHAR(255) DEFAULT NULL,
                 tanggle_community_uuid VARCHAR(255) DEFAULT NULL,
-                media_migrated TINYINT(1) DEFAULT 0
+                media_migrated TINYINT(1) DEFAULT 1
             ) ENGINE=InnoDB",
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
@@ -1601,7 +1601,7 @@ try {
     // Migration: add media_migrated column to profile if missing
     $col_check = $usrDBconn->query("SHOW COLUMNS FROM profile LIKE 'media_migrated'");
     if ($col_check && $col_check->num_rows == 0) {
-        $usrDBconn->query("ALTER TABLE profile ADD COLUMN media_migrated TINYINT(1) DEFAULT 0");
+        $usrDBconn->query("ALTER TABLE profile ADD COLUMN media_migrated TINYINT(1) DEFAULT 1");
         usr_schema_log('Added media_migrated column to profile table.');
     }
     // Special handling for profile table - remove deprecated discord columns

@@ -18,9 +18,6 @@ function getMenuItems($role = 'default') {
         ]],
         [ 'label' => t('menu_group_alerts_media'), 'icon' => 'fas fa-bolt', 'submenu' => [
             [ 'label' => t('menu_alerts'), 'icon' => 'fas fa-bell', 'href' => 'alerts.php' ],
-            [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
-            [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
-            [ 'label' => t('navbar_walkon_alerts'), 'icon' => 'fas fa-door-open', 'href' => 'walkons.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_media'), 'icon' => 'fas fa-photo-film', 'href' => 'media.php' ],
             [ 'label' => t('navbar_emote_vault'), 'icon' => 'fas fa-icons', 'href' => 'emote-vault.php' ],

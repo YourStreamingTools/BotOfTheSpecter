@@ -216,8 +216,8 @@ if ($resp && $http === 200) {
                                 "INSERT INTO users
                                     (id, username, access_token, refresh_token, api_key,
                                      profile_image, twitch_user_id, twitch_display_name,
-                                     email, is_admin, last_login)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)"
+                                     email, is_admin, last_login, new_media)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1)"
                             );
                             if (!$ins) {
                                 throw new Exception('users INSERT prepare failed: '
