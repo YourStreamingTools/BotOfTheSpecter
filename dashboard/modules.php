@@ -868,9 +868,9 @@ ob_start();
                                                 <?php echo t('modules_welcome_new_member_label'); ?>
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
-                                                name="new_default_welcome_message" maxlength="255"
+                                                name="new_default_welcome_message" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="new_default_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="new_default_welcome_message">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -878,9 +878,9 @@ ob_start();
                                                 <?php echo t('modules_welcome_returning_member_label'); ?>
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
-                                                name="default_welcome_message" maxlength="255"
+                                                name="default_welcome_message" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="default_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="default_welcome_message">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                     </div>
                                     <!-- VIP Members Column -->
@@ -901,9 +901,9 @@ ob_start();
                                                 <?php echo t('modules_welcome_new_vip_label'); ?>
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
-                                                name="new_default_vip_welcome_message" maxlength="255"
+                                                name="new_default_vip_welcome_message" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="new_default_vip_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="new_default_vip_welcome_message">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -911,9 +911,9 @@ ob_start();
                                                 <?php echo t('modules_welcome_returning_vip_label'); ?>
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
-                                                name="default_vip_welcome_message" maxlength="255"
+                                                name="default_vip_welcome_message" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="default_vip_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="default_vip_welcome_message">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -936,9 +936,9 @@ ob_start();
                                                 <?php echo t('modules_welcome_new_mod_label'); ?>
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
-                                                name="new_default_mod_welcome_message" maxlength="255"
+                                                name="new_default_mod_welcome_message" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="new_default_mod_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="new_default_mod_welcome_message">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -946,9 +946,9 @@ ob_start();
                                                 <?php echo t('modules_welcome_returning_mod_label'); ?>
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
-                                                name="default_mod_welcome_message" maxlength="255"
+                                                name="default_mod_welcome_message" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="default_mod_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="default_mod_welcome_message">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1473,10 +1473,10 @@ ob_start();
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_upcoming_message"
-                                            maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>"
+                                            maxlength="500" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_upcoming_message">0</span><?= t('modules_char_count_255') ?>
+                                            <span class="char-count" data-field="ad_upcoming_message">0</span><?= t('modules_char_count_500') ?>
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
@@ -1493,10 +1493,10 @@ ob_start();
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_1min_message"
-                                            maxlength="255" placeholder="<?php echo t('modules_ad_1min_message_placeholder'); ?>"
+                                            maxlength="500" placeholder="<?php echo t('modules_ad_1min_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_1min_message">0</span><?= t('modules_char_count_255') ?>
+                                            <span class="char-count" data-field="ad_1min_message">0</span><?= t('modules_char_count_500') ?>
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
@@ -1513,10 +1513,10 @@ ob_start();
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_start_message"
-                                            maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>"
+                                            maxlength="500" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_start_message">0</span><?= t('modules_char_count_255') ?>
+                                            <span class="char-count" data-field="ad_start_message">0</span><?= t('modules_char_count_500') ?>
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
@@ -1533,10 +1533,10 @@ ob_start();
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_end_message"
-                                            maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>"
+                                            maxlength="500" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_end_message">0</span><?= t('modules_char_count_255') ?>
+                                            <span class="char-count" data-field="ad_end_message">0</span><?= t('modules_char_count_500') ?>
                                         </p>
                                     </div>
                                 </div>
@@ -1557,10 +1557,10 @@ ob_start();
                                         </label>
                                     </div>
                                     <textarea class="sp-textarea ad-notice-input" name="ad_snoozed_message"
-                                        maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>"
+                                        maxlength="500" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>"
                                         rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                     <p class="field-help">
-                                        <span class="char-count" data-field="ad_snoozed_message">0</span><?= t('modules_char_count_255') ?>
+                                        <span class="char-count" data-field="ad_snoozed_message">0</span><?= t('modules_char_count_500') ?>
                                     </p>
                                 </div>
                                 <!-- Raid auto-snooze -->
@@ -1619,10 +1619,10 @@ ob_start();
                                         </label>
                                     </div>
                                     <textarea class="sp-textarea ad-notice-input" name="raid_ad_snooze_message"
-                                        maxlength="255" placeholder="<?php echo t('modules_raid_ad_snooze_message_placeholder'); ?>"
+                                        maxlength="500" placeholder="<?php echo t('modules_raid_ad_snooze_message_placeholder'); ?>"
                                         rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                     <p class="field-help">
-                                        <span class="char-count" data-field="raid_ad_snooze_message">0</span><?= t('modules_char_count_255') ?>
+                                        <span class="char-count" data-field="raid_ad_snooze_message">0</span><?= t('modules_char_count_500') ?>
                                     </p>
                                     <p class="field-help">
                                         <?= t('modules_raid_ad_snooze_variables_note') ?>
@@ -1808,27 +1808,27 @@ ob_start();
                                                 <i class="fas fa-heart"></i>
                                                 <?php echo t('modules_follower_alert'); ?>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="follower_alert" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="follower_alert" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="follower_alert">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="follower_alert">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-gem"></i>
                                                 <?php echo t('modules_cheer_alert'); ?>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="cheer_alert" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="cheer_alert" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="cheer_alert">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="cheer_alert">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-user-friends"></i>
                                                 <?php echo t('modules_raid_alert'); ?>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="raid_alert" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="raid_alert" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="raid_alert">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="raid_alert">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                     </div>
                                     <!-- Subscription Events Column -->
@@ -1849,9 +1849,9 @@ ob_start();
                                                 <?php echo t('modules_subscription_alert'); ?>
                                                 <span class="sp-badge sp-badge-red" style="font-size:0.7rem;">*</span>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="subscription_alert" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="subscription_alert" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="subscription_alert">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="subscription_alert">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -1860,9 +1860,9 @@ ob_start();
                                                 <span class="sp-badge sp-badge-red" style="font-size:0.7rem;">*</span>
                                                 <i class="fas fa-info-circle" style="color:var(--amber);" title="<?= htmlspecialchars(t('modules_gift_sub_info_tooltip')) ?>"></i>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="gift_subscription_alert" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="gift_subscription_alert" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="gift_subscription_alert">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="gift_subscription_alert">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1884,18 +1884,18 @@ ob_start();
                                                 <i class="fas fa-play"></i>
                                                 <?php echo t('modules_hype_train_start'); ?>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="hype_train_start" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="hype_train_start" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="hype_train_start">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="hype_train_start">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-stop"></i>
                                                 <?php echo t('modules_hype_train_end'); ?>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="hype_train_end" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="hype_train_end" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="hype_train_end">0</span><?= t('modules_char_count_255') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="hype_train_end">0</span><?= t('modules_char_count_500') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1921,27 +1921,27 @@ ob_start();
                                                 <i class="fas fa-arrow-up"></i>
                                                 <?= t('modules_gift_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="gift_paid_upgrade" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="gift_paid_upgrade" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="gift_paid_upgrade">0</span><?= t('modules_char_count_255_placeholders_user_tier') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="gift_paid_upgrade">0</span><?= t('modules_char_count_500_placeholders_user_tier') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-arrow-up"></i>
                                                 <?= t('modules_prime_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="prime_paid_upgrade" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="prime_paid_upgrade" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="prime_paid_upgrade">0</span><?= t('modules_char_count_255_placeholders_user_tier') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="prime_paid_upgrade">0</span><?= t('modules_char_count_500_placeholders_user_tier') ?></p>
                                         </div>
                                         <div class="sp-form-group" style="grid-column: 1 / -1;">
                                             <label class="sp-label">
                                                 <i class="fas fa-gift"></i>
                                                 <?= t('modules_pay_it_forward_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
-                                            <input class="sp-input chat-alert-input" type="text" name="pay_it_forward" maxlength="255"
+                                            <input class="sp-input chat-alert-input" type="text" name="pay_it_forward" maxlength="500"
                                                 value="">
-                                            <p class="field-help"><span class="char-count" data-field="pay_it_forward">0</span><?= t('modules_char_count_255_placeholders_user_tier_gifter') ?></p>
+                                            <p class="field-help"><span class="char-count" data-field="pay_it_forward">0</span><?= t('modules_char_count_500_placeholders_user_tier_gifter') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -2920,8 +2920,8 @@ ob_start();
             const helpText = counter ? counter.closest('.field-help') : null;
             if (counter && helpText) {
                 counter.textContent = currentLength;
-                // Calculate percentage of 255 character limit
-                const percentage = (currentLength / 255) * 100;
+                // Calculate percentage of 500 character limit
+                const percentage = (currentLength / 500) * 100;
                 // Remove existing color classes from help text
                 helpText.classList.remove('text-success', 'text-warning', 'text-danger');
                 // Apply color based on percentage thresholds to entire help text
@@ -2942,9 +2942,9 @@ ob_start();
             input.addEventListener('input', function () {
                 updateCharCount(this);
             });
-            // Prevent typing beyond 255 characters
+            // Prevent typing beyond 500 characters
             input.addEventListener('keydown', function (e) {
-                if (this.value.length >= 255 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
+                if (this.value.length >= 500 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
                 }
             });
@@ -2957,9 +2957,9 @@ ob_start();
             input.addEventListener('input', function () {
                 updateCharCount(this);
             });
-            // Prevent typing beyond 255 characters
+            // Prevent typing beyond 500 characters
             input.addEventListener('keydown', function (e) {
-                if (this.value.length >= 255 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
+                if (this.value.length >= 500 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
                 }
             });
@@ -2971,7 +2971,7 @@ ob_start();
                 updateCharCount(this);
             });
             input.addEventListener('keydown', function (e) {
-                if (this.value.length >= 255 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
+                if (this.value.length >= 500 && e.key !== 'Backspace' && e.key !== 'Delete' && !e.ctrlKey && !e.metaKey) {
                     e.preventDefault();
                 }
             });

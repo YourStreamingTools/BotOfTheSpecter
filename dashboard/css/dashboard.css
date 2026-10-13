@@ -2683,26 +2683,6 @@ input[type="checkbox"].switch:disabled + label {
     background: var(--bg-surface);
 }
 
-/* Beta Bot toggle row inside the info card */
-.sp-betabot-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-top: 0.9rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border);
-}
-
-.sp-betabot-toggle label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0;
-}
-
-.sp-betabot-toggle label strong {
-    color: var(--text-primary);
-}
-
 /* Searchable "Command to Edit" picker (combobox) */
 .cc-combobox {
     position: relative;
