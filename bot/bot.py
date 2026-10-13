@@ -67,7 +67,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.27"
+VERSION = "5.7.28"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -9099,7 +9099,6 @@ async def websocket_notice(
         async with connection.cursor(DictCursor) as cursor:
             async with httpClientSession() as session:
                 params = {
-                    'code': API_TOKEN,
                     'event': event
                 }
                 # Event-specific parameter handling
@@ -9182,9 +9181,10 @@ async def websocket_notice(
                     return
                 # URL-encode the parameters
                 encoded_params = urlencode(params)
+                # V2: the key goes in the X-API-KEY header so it stays out of URLs and logs.
                 url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
                 # Send the HTTP request
-                async with session.get(url) as response:
+                async with session.get(url, headers={'X-API-KEY': API_TOKEN}) as response:
                     if response.status == 200:
                         websocket_logger.info(f"HTTP event '{event}' sent successfully with params: {params}")
                     else:
