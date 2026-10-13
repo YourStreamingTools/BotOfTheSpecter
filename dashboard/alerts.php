@@ -1585,7 +1585,7 @@ ob_start();
         </div>
     </div>
 </div>
-<!-- "Make Your Sound": ElevenLabs sound effect generator; the result is saved to the media library and set on the alert -->
+<!-- "Make Your Sound": sound effect generator; the result is saved to the media library and set on the alert -->
 <div class="sp-modal-backdrop" id="alerts-make-sound-modal" style="display:none;">
     <div class="sp-modal alerts-make-sound-card" role="dialog" aria-modal="true" aria-labelledby="alerts-make-sound-title">
         <header class="sp-modal-head">
