@@ -10,7 +10,7 @@
     </div>
 
     <h2>What is TTS &amp; How to Set It Up</h2>
-    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the Specter Alerts overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
+    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the Specter Alerts overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
 
     <h3>Setting Up TTS</h3>
     <ol>
@@ -32,8 +32,8 @@
     <h3 style="margin-top:1.25rem;">Using TTS with Channel Points</h3>
     <p>TTS is triggered through Twitch Channel Points redemptions. Viewers redeem a reward to have their message read with the <strong>style and voice</strong> you saved in TTS settings.</p>
 
-    <h3 style="margin-top:1.25rem;">Using TTS with the Point Store <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
-    <p>On the beta bot, viewers can also trigger TTS by buying a TTS item from your <strong>Point Store</strong>, spending bot loyalty points instead of Twitch Channel Points. Their message uses the same style and voice as Channel Points TTS.</p>
+    <h3 style="margin-top:1.25rem;">Using TTS with the Point Store</h3>
+    <p>Viewers can also trigger TTS by buying a TTS item from your <strong>Point Store</strong>, spending bot loyalty points instead of Twitch Channel Points. Their message uses the same style and voice as Channel Points TTS.</p>
 
     <hr class="sp-divider">
 
@@ -43,7 +43,7 @@
 
     <hr class="sp-divider">
 
-    <h2>Expressive Voices <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h2>
+    <h2>Expressive Voices</h2>
     <p>Expressive is multilingual: it follows the language of the message (including mixed-language lines when it can). Words in ALL CAPS with three or more letters are shouted. If Expressive cannot generate a line, that line falls back to your saved Normal voice.</p>
     <p>These laugh words are <strong>not spoken</strong>. The voice laughs instead:</p>
     <ul>
@@ -59,8 +59,8 @@
     <h2>Troubleshooting TTS</h2>
     <ul>
         <li><strong>No audio output:</strong> Verify that the Specter Alerts overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
-        <li><strong>Wrong voice or style:</strong> In <strong>Modules → TTS Settings</strong>, confirm style (Normal or Expressive), the matching voice, and that you clicked Save. Expressive is beta-only.</li>
+        <li><strong>Wrong voice or style:</strong> In <strong>Modules → TTS Settings</strong>, confirm style (Normal or Expressive), the matching voice, and that you clicked Save.</li>
         <li><strong>Laugh words still spoken:</strong> Those tokens are stripped only on Expressive. On Normal, <code>lol</code> is read as text.</li>
         <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the Specter Alerts source in OBS.</li>
-        <li><strong>TTS not responding:</strong> Ensure the bot is running (beta if you use Expressive) and the overlay is connected.</li>
+        <li><strong>TTS not responding:</strong> Ensure the bot is running and the overlay is connected.</li>
     </ul>
