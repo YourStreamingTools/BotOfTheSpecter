@@ -46,6 +46,16 @@ if ($username) {
     $tzRow = $tzStmt ? $tzStmt->fetch(PDO::FETCH_ASSOC) : null;
     $timezone = $tzRow['timezone'] ?? null;
 }
+// Voice for "Read message aloud": the same saved TTS settings the API's TTS trigger uses.
+$ttsVoice = null;
+if ($username) {
+    try {
+        $ttsStmt = $db->query("SELECT voice, language, style, expressive_voice FROM tts_settings LIMIT 1");
+        $ttsVoice = $ttsStmt ? ($ttsStmt->fetch(PDO::FETCH_ASSOC) ?: null) : null;
+    } catch (Throwable $e) {
+        $ttsVoice = null;
+    }
+}
 $alertDisplayScale = 1;
 if ($username) {
     try {
@@ -130,6 +140,8 @@ if ($username) {
                 return;
             }
             const weatherTimezone = <?php echo json_encode($timezone); ?>;
+            const ttsVoice = <?php echo json_encode($ttsVoice); ?> || {};
+            let alertSocket = null;
             const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
             // One queue for every one-shot alert: cards, sounds, TTS, videos, walk-ons,
             // deaths and weather. The next job starts when the current one has finished.
@@ -613,6 +625,7 @@ if ($username) {
                 const accentEls = container.querySelectorAll('.twitch-alert-accent');
                 accentEls.forEach(el => el.style.color = config.accent_color || '#A1C53A');
                 armAlertImageAudio(container);
+                if (config.tts_enabled == 1) speakAlertText(messageHtml);
                 // Play alert sound
                 if (config.alert_sound) {
                     const soundUrl = mediaBase + config.alert_sound;
@@ -644,6 +657,21 @@ if ($username) {
                     outTimer = setTimeout(() => finish(false), animOutDur * 1000);
                 }, duration);
                 return () => finish(true);
+            }
+            // "Read message aloud": the TTS server voices the text and sends it back as a TTS event,
+            // which joins the alert queue and plays at the Text to speech volume.
+            function speakAlertText(messageHtml) {
+                if (!alertSocket || !isPlaybackEnabled('tts')) return;
+                const html = String(messageHtml || '').replace(/<br\s*\/?>/gi, ' ');
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const text = (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+                if (!text) return;
+                const payload = { text: text };
+                if (ttsVoice.voice) payload.voice = ttsVoice.voice;
+                if (ttsVoice.language) payload.language = ttsVoice.language;
+                if (ttsVoice.style) payload.style = ttsVoice.style;
+                if (ttsVoice.expressive_voice) payload.expressive_voice = ttsVoice.expressive_voice;
+                alertSocket.emit('TTS', payload);
             }
             function escapeHtml(text) {
                 const div = document.createElement('div');
@@ -1251,6 +1279,7 @@ if ($username) {
                 name: 'Twitch Alerts',
                 onStatus: setConnectionStatus,
                 bind: function (socket) {
+                    alertSocket = socket;
                     socket.on('WELCOME', (data) => {
                         console.log('Server says:', data.message);
                     });
