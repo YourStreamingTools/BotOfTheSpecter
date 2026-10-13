@@ -56,6 +56,18 @@ if ($username) {
         $ttsVoice = null;
     }
 }
+// Categories set to Randomize pick any matching variant instead of the first.
+$alertRandomize = [];
+if ($username) {
+    try {
+        $randStmt = $db->query("SELECT category, randomize FROM twitch_alert_category_settings");
+        foreach (($randStmt ? $randStmt->fetchAll(PDO::FETCH_ASSOC) : []) as $randRow) {
+            if ((int) $randRow['randomize'] === 1) $alertRandomize[$randRow['category']] = true;
+        }
+    } catch (Throwable $e) {
+        $alertRandomize = [];
+    }
+}
 $alertDisplayScale = 1;
 if ($username) {
     try {
@@ -142,6 +154,9 @@ if ($username) {
             const weatherTimezone = <?php echo json_encode($timezone); ?>;
             const ttsVoice = <?php echo json_encode($ttsVoice); ?> || {};
             let alertSocket = null;
+            const alertRandomize = <?php echo json_encode((object) $alertRandomize); ?>;
+            // Set by a live test from the Alerts page so the selected variant plays.
+            let testVariant = null;
             const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
             // One queue for every one-shot alert: cards, sounds, TTS, videos, walk-ons,
             // deaths and weather. The next job starts when the current one has finished.
@@ -383,9 +398,89 @@ if ($username) {
                 link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(fontName) + ':wght@300;400;500;600;700;800&display=swap';
                 document.head.appendChild(link);
             }
+            function variantMatches(category, variant, eventData) {
+                const cond = variant.alert_condition;
+                if (!cond) {
+                    // A channel-point variant with no reward must not catch every redemption.
+                    if (category === 'channel_points') return false;
+                    return true; // No condition = matches all
+                }
+                // Parse simple conditions
+                if (category === 'bits') {
+                    const amount = parseInt(eventData.amount) || 0;
+                    if (cond === 'is_first = 1' && eventData.is_first) return true;
+                    const bitsMatch = cond.match(/bits\s*>=\s*(\d+)/);
+                    if (bitsMatch && amount >= parseInt(bitsMatch[1])) return true;
+                } else if (category === 'subscription') {
+                    const months = parseInt(eventData.months) || 1;
+                    if (cond === 'months = 1' && months === 1) return true;
+                    const monthsMatch = cond.match(/months\s*>=\s*(\d+)/);
+                    if (monthsMatch && months >= parseInt(monthsMatch[1])) return true;
+                } else if (category === 'gift_subscription') {
+                    const giftCount = parseInt(eventData.amount) || 1;
+                    const giftMatch = cond.match(/gift_count\s*>=\s*(\d+)/);
+                    if (giftMatch && giftCount >= parseInt(giftMatch[1])) return true;
+                    if (!giftMatch) return true;
+                } else if (category === 'raid') {
+                    const viewers = parseInt(eventData.viewers) || 0;
+                    const viewerMatch = cond.match(/viewers\s*>=\s*(\d+)/);
+                    if (viewerMatch && viewers >= parseInt(viewerMatch[1])) return true;
+                } else if (category === 'hype_train') {
+                    const level = parseInt(eventData.level) || 1;
+                    const levelMatch = cond.match(/level\s*>=\s*(\d+)/);
+                    if (levelMatch && level >= parseInt(levelMatch[1])) return true;
+                    const eqMatch = cond.match(/level\s*=\s*(\d+)/);
+                    if (eqMatch && level === parseInt(eqMatch[1])) return true;
+                } else if (category === 'charity') {
+                    const donation = parseFloat(eventData.amount_value) || 0;
+                    const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                    if (amountMatch && donation >= parseFloat(amountMatch[1])) return true;
+                } else if (category === 'stream_bingo') {
+                    const bingoMatch = cond.match(/bingo_event\s*=\s*['"]?([^'"\s]+)['"]?/);
+                    if (bingoMatch && eventData.bingo_event && bingoMatch[1] === eventData.bingo_event) return true;
+                } else if (category === 'kofi') {
+                    const typeMatch   = cond.match(/kofi_type\s*=\s*['"]([^'"]+)['"]/);
+                    const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                    const val = parseFloat(eventData.amount_value) || 0;
+                    const typeOk   = !typeMatch   || (typeMatch[1] === eventData.kofi_type);
+                    const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
+                    if (typeOk && amountOk && (typeMatch || amountMatch)) return true;
+                } else if (category === 'patreon') {
+                    const typeMatch   = cond.match(/patreon_type\s*=\s*['"]([^'"]+)['"]/);
+                    const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                    const val = parseFloat(eventData.amount_value) || 0;
+                    const typeOk   = !typeMatch   || (typeMatch[1] === eventData.patreon_type);
+                    const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
+                    if (typeOk && amountOk && (typeMatch || amountMatch)) return true;
+                } else if (category === 'fourthwall') {
+                    const typeMatch   = cond.match(/fourthwall_type\s*=\s*['"]([^'"]+)['"]/);
+                    const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                    const val = parseFloat(eventData.amount_value) || 0;
+                    const typeOk   = !typeMatch   || (typeMatch[1] === eventData.fourthwall_type);
+                    const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
+                    if (typeOk && amountOk && (typeMatch || amountMatch)) return true;
+                } else if (category === 'channel_points') {
+                    // Dashboard stores: reward_id = 'uuid'. Misses do not fall through.
+                    const rewardMatch = cond.match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
+                    const wanted = rewardMatch ? String(rewardMatch[1]).toLowerCase() : '';
+                    const got = String(eventData.reward_id || '').toLowerCase();
+                    if (wanted && got && wanted === got) return true;
+                } else {
+                    return true; // Unknown condition type, use variant
+                }
+                return false;
+            }
             function getMatchingVariant(category, eventData) {
                 const variants = alertConfigs[category];
                 if (!variants || variants.length === 0) return null;
+                // A live test from the Alerts page names the variant to play, switched on or not.
+                if (testVariant && Date.now() - testVariant.at < 30000) {
+                    const forced = variants.find(v => String(v.id) === testVariant.id);
+                    if (forced) {
+                        testVariant = null;
+                        return forced;
+                    }
+                }
                 // Filter enabled variants
                 const enabled = variants.filter(v => v.enabled == 1);
                 if (enabled.length === 0) return null;
@@ -394,76 +489,9 @@ if ($username) {
                 // Conditional variants first so a newer catch-all can't shadow them, then highest index first
                 const sorted = enabled.slice().sort((a, b) =>
                     (!a.alert_condition - !b.alert_condition) || (b.variant_index - a.variant_index));
-                for (const variant of sorted) {
-                    const cond = variant.alert_condition;
-                    if (!cond) {
-                        // A channel-point variant with no reward must not catch every redemption.
-                        if (category === 'channel_points') continue;
-                        return variant; // No condition = matches all
-                    }
-                    // Parse simple conditions
-                    if (category === 'bits') {
-                        const amount = parseInt(eventData.amount) || 0;
-                        if (cond === 'is_first = 1' && eventData.is_first) return variant;
-                        const bitsMatch = cond.match(/bits\s*>=\s*(\d+)/);
-                        if (bitsMatch && amount >= parseInt(bitsMatch[1])) return variant;
-                    } else if (category === 'subscription') {
-                        const months = parseInt(eventData.months) || 1;
-                        if (cond === 'months = 1' && months === 1) return variant;
-                        const monthsMatch = cond.match(/months\s*>=\s*(\d+)/);
-                        if (monthsMatch && months >= parseInt(monthsMatch[1])) return variant;
-                    } else if (category === 'gift_subscription') {
-                        const giftCount = parseInt(eventData.amount) || 1;
-                        const giftMatch = cond.match(/gift_count\s*>=\s*(\d+)/);
-                        if (giftMatch && giftCount >= parseInt(giftMatch[1])) return variant;
-                        if (!giftMatch) return variant;
-                    } else if (category === 'raid') {
-                        const viewers = parseInt(eventData.viewers) || 0;
-                        const viewerMatch = cond.match(/viewers\s*>=\s*(\d+)/);
-                        if (viewerMatch && viewers >= parseInt(viewerMatch[1])) return variant;
-                    } else if (category === 'hype_train') {
-                        const level = parseInt(eventData.level) || 1;
-                        const levelMatch = cond.match(/level\s*>=\s*(\d+)/);
-                        if (levelMatch && level >= parseInt(levelMatch[1])) return variant;
-                        const eqMatch = cond.match(/level\s*=\s*(\d+)/);
-                        if (eqMatch && level === parseInt(eqMatch[1])) return variant;
-                    } else if (category === 'charity') {
-                        const donation = parseFloat(eventData.amount_value) || 0;
-                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
-                        if (amountMatch && donation >= parseFloat(amountMatch[1])) return variant;
-                    } else if (category === 'stream_bingo') {
-                        const bingoMatch = cond.match(/bingo_event\s*=\s*['"]?([^'"\s]+)['"]?/);
-                        if (bingoMatch && eventData.bingo_event && bingoMatch[1] === eventData.bingo_event) return variant;
-                    } else if (category === 'kofi') {
-                        const typeMatch   = cond.match(/kofi_type\s*=\s*['"]([^'"]+)['"]/);
-                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
-                        const val = parseFloat(eventData.amount_value) || 0;
-                        const typeOk   = !typeMatch   || (typeMatch[1] === eventData.kofi_type);
-                        const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
-                        if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
-                    } else if (category === 'patreon') {
-                        const typeMatch   = cond.match(/patreon_type\s*=\s*['"]([^'"]+)['"]/);
-                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
-                        const val = parseFloat(eventData.amount_value) || 0;
-                        const typeOk   = !typeMatch   || (typeMatch[1] === eventData.patreon_type);
-                        const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
-                        if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
-                    } else if (category === 'fourthwall') {
-                        const typeMatch   = cond.match(/fourthwall_type\s*=\s*['"]([^'"]+)['"]/);
-                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
-                        const val = parseFloat(eventData.amount_value) || 0;
-                        const typeOk   = !typeMatch   || (typeMatch[1] === eventData.fourthwall_type);
-                        const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
-                        if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
-                    } else if (category === 'channel_points') {
-                        // Dashboard stores: reward_id = 'uuid'. Misses do not fall through.
-                        const rewardMatch = cond.match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
-                        const wanted = rewardMatch ? String(rewardMatch[1]).toLowerCase() : '';
-                        const got = String(eventData.reward_id || '').toLowerCase();
-                        if (wanted && got && wanted === got) return variant;
-                    } else {
-                        return variant; // Unknown condition type, use variant
-                    }
+                const matches = sorted.filter(v => variantMatches(category, v, eventData));
+                if (matches.length > 0) {
+                    return alertRandomize[category] ? matches[Math.floor(Math.random() * matches.length)] : matches[0];
                 }
                 // Channel points must not fall through to a variant whose condition missed.
                 if (category === 'channel_points') return null;
@@ -1643,7 +1671,10 @@ if ($username) {
                     });
 
                     // Log all events
+                    // Any-listeners run before the event's own handler, so the test variant is set in time.
                     socket.onAny((event, ...args) => {
+                        const payload = args[0];
+                        if (payload && payload.test_variant) testVariant = { id: String(payload.test_variant), at: Date.now() };
                         if (event.startsWith('CLOSED_CAPTION')) return;
                         console.log(`[onAny] Event: ${event}`, ...args);
                     });
