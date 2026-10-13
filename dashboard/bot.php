@@ -382,18 +382,6 @@ ob_start();
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
               <?php echo t('bot_stable_description'); ?>
             </p>
-            <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
-              <i class="fas fa-info-circle"></i>
-              <?= t('bot_custom_bot_warning') ?>
-            </div>
-            <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
-              <i class="fas fa-info-circle"></i>
-              <?= t('bot_use_self_warning') ?>
-            </div>
-            <div id="custom-module-warning" class="sp-alert sp-alert-info" style="display: none;">
-              <i class="fas fa-info-circle"></i>
-              <span class="custom-module-note-text"><?= t('bot_use_custom_module_note_disabled') ?></span>
-            </div>
           <?php elseif ($selectedBot === 'beta'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
               <?php echo t('bot_beta_controls'); ?> <span id="bot-beta-version-label" style="color:var(--blue);"></span>
@@ -432,6 +420,20 @@ ob_start();
               <?php echo t('bot_kick_not_connected'); ?>
             </div>
             <?php endif; ?>
+          <?php endif; ?>
+          <?php if ($selectedBot === 'stable' || $selectedBot === 'beta'): ?>
+            <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <?= t('bot_custom_bot_warning') ?>
+            </div>
+            <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <?= t('bot_use_self_warning') ?>
+            </div>
+            <div id="custom-module-warning" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <span class="custom-module-note-text"><?= t('bot_use_custom_module_note_disabled') ?></span>
+            </div>
           <?php endif; ?>
           <?php 
           // Only show bot status and controls if the bot is properly configured
@@ -685,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCustomBotToggleVisibility() {
     const currentBot = getCurrentBotType();
     if (customBotToggleContainer) {
-      if (currentBot === 'stable') {
+      if (currentBot === 'stable' || currentBot === 'beta') {
         customBotToggleContainer.style.display = 'block';
       } else {
         customBotToggleContainer.style.display = 'none';
@@ -695,7 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to update custom bot warning visibility
   function updateCustomBotWarningVisibility() {
     const currentBot = getCurrentBotType();
-    if (customBotWarning && currentBot === 'stable') {
+    if (customBotWarning && (currentBot === 'stable' || currentBot === 'beta')) {
       const isEnabled = customBotToggle ? customBotToggle.checked : false;
       customBotWarning.style.display = isEnabled ? 'block' : 'none';
     } else if (customBotWarning) {
@@ -783,13 +785,13 @@ document.addEventListener('DOMContentLoaded', function() {
       const currentBot = getCurrentBotType();
       const container = document.getElementById('use-self-toggle-container');
       if (container) {
-        container.style.display = (currentBot === 'stable') ? 'flex' : 'none';
+        container.style.display = (currentBot === 'stable' || currentBot === 'beta') ? 'flex' : 'none';
       }
     }
     function updateUseSelfWarningVisibility() {
       const currentBot = getCurrentBotType();
       const warning = document.getElementById('use-self-warning');
-      if (warning && currentBot === 'stable') {
+      if (warning && (currentBot === 'stable' || currentBot === 'beta')) {
         warning.style.display = useSelfToggle.checked ? 'block' : 'none';
       } else if (warning) {
         warning.style.display = 'none';
@@ -869,7 +871,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (e) { /* ignore */ }
   }
-  // Custom channel module toggle (shown only when bots API reports file present; stable/v6)
+  // Custom channel module toggle (shown only when bots API reports file present; stable/beta/v6)
   const customModuleToggleContainer = document.getElementById('custom-module-toggle-container');
   const customModuleToggle = document.getElementById('custom-module-toggle');
   function customModuleNoteText() {
@@ -887,13 +889,13 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function updateCustomModuleToggleVisibility() {
     const currentBot = getCurrentBotType();
-    const show = window.customModuleAvailable && (currentBot === 'stable' || currentBot === 'v6');
+    const show = window.customModuleAvailable && (currentBot === 'stable' || currentBot === 'beta' || currentBot === 'v6');
     if (customModuleToggleContainer) {
       customModuleToggleContainer.style.display = show ? 'flex' : 'none';
     }
     const warnStable = document.getElementById('custom-module-warning');
     const warnV6 = document.getElementById('custom-module-warning-v6');
-    if (warnStable) warnStable.style.display = (show && currentBot === 'stable') ? 'block' : 'none';
+    if (warnStable) warnStable.style.display = (show && (currentBot === 'stable' || currentBot === 'beta')) ? 'block' : 'none';
     if (warnV6) warnV6.style.display = (show && currentBot === 'v6') ? 'block' : 'none';
     updateCustomModuleNote();
   }
