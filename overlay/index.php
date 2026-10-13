@@ -358,6 +358,8 @@ if ($username) {
                 // Filter enabled variants
                 const enabled = variants.filter(v => v.enabled == 1);
                 if (enabled.length === 0) return null;
+                // Watch streaks have one card and no condition: every shared streak alerts.
+                if (category === 'watch_streak') return enabled[0];
                 // Conditional variants first so a newer catch-all can't shadow them, then highest index first
                 const sorted = enabled.slice().sort((a, b) =>
                     (!a.alert_condition - !b.alert_condition) || (b.variant_index - a.variant_index));
@@ -428,16 +430,12 @@ if ($username) {
                         const wanted = rewardMatch ? String(rewardMatch[1]).toLowerCase() : '';
                         const got = String(eventData.reward_id || '').toLowerCase();
                         if (wanted && got && wanted === got) return variant;
-                    } else if (category === 'watch_streak') {
-                        const streak = parseInt(eventData.streak, 10) || 0;
-                        const streakMatch = cond.match(/streak\s*>=\s*(\d+)/);
-                        if (streakMatch && streak >= parseInt(streakMatch[1], 10)) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
                 }
-                // These categories must not fall through to a variant whose condition missed.
-                if (category === 'channel_points' || category === 'watch_streak') return null;
+                // Channel points must not fall through to a variant whose condition missed.
+                if (category === 'channel_points') return null;
                 // Fallback to first enabled variant
                 return enabled[0];
             }
@@ -1504,7 +1502,7 @@ if ($username) {
                         queueAlert('subathon', { added_minutes: minutes != null ? String(minutes) : '' });
                     });
 
-                    // Watch streaks. The variant condition (streak >= N) decides the threshold.
+                    // Watch streaks. Every shared streak shows the card.
                     socket.on('WATCH_STREAK', (data) => {
                         console.log('WATCH_STREAK event received:', data);
                         const streak = parseInt((data && (data.streak || data.streak_count)) || 0, 10);
