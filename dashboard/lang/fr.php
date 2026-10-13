@@ -4279,6 +4279,8 @@ return [
     'premium_plan_tier1_feature_beta_tip' => 'Accès anticipé aux nouvelles fonctionnalités expérimentales.',
     'premium_plan_tier1_feature_storage' => '50Mo de stockage total',
     'premium_plan_tier1_feature_storage_tip' => 'Stockez vos propres effets sonores et musiques pour les alertes et walk-ons.',
+    'premium_feature_sound_gen' => 'Créez votre son : %d sons par jour',
+    'premium_feature_sound_gen_tip' => 'Décrivez un son sur la page Alertes et nous le créons pour vous. Jusqu\'à %d sur 24 heures.',
     'premium_plan_tier1_feature_shared_bot' => 'Bot partagé (BotOfTheSpecter)',
     'premium_plan_tier1_feature_shared_bot_tip' => 'Le nom du bot sera le même sur toutes les chaînes.',
     'premium_plan_tier2_name' => 'Twitch Tier 2',

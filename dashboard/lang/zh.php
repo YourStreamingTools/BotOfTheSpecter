@@ -4315,6 +4315,8 @@ return [
     'premium_plan_tier1_feature_beta_tip' => '尽早访问新的实验性机器人功能。',
     'premium_plan_tier1_feature_storage' => '50MB 总存储空间',
     'premium_plan_tier1_feature_storage_tip' => '存储您自己的声音效果和音乐文件，以用于警报和行走声音。',
+    'premium_feature_sound_gen' => '制作你的音效：每天 %d 个',
+    'premium_feature_sound_gen_tip' => '在提醒页面描述一个音效，我们会为你制作。任意 24 小时内最多 %d 个。',
     'premium_plan_tier1_feature_shared_bot' => '共享机器人 (BotOfTheSpecter)',
     'premium_plan_tier1_feature_shared_bot_tip' => '所有渠道的机器人用户名都相同。',
     'premium_plan_tier2_name' => 'Twitch 2 级',
