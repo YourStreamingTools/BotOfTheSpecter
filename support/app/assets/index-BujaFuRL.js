@@ -1717,7 +1717,7 @@ Error generating stack: `+e.message+`
     <ol>
         <li>Find the reward in the Channel Rewards table.</li>
         <li>Click the <strong>Edit</strong> button next to the reward.</li>
-        <li>Enter your custom message in the text area (up to 255 characters).</li>
+        <li>Enter your custom message in the text area (up to 500 characters).</li>
         <li>Click <strong>Save</strong> to apply the changes.</li>
     </ol>
     <h3>Message Variables</h3>
