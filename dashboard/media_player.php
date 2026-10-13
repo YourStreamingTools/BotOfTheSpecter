@@ -17,7 +17,7 @@ session_write_close();
 // The media tables (media_queue / media_request_settings / media_banlist) are created
 // centrally by usr_database.php. Here we only handle settings/ban-list edits and load
 // current state. $db is the channel's own per-user database connection (same one music.php uses).
-$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream', 'artist_limit_scope' => 'all'];
+$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream', 'artist_limit_scope' => 'all', 'same_song_minutes' => 720];
 $banlist = [];
 $artistLimits = [];
 // Same normalisation as clean_request_artist()/artist_list_key() in bot/modules/media_helpers.py, so list entries match what the bot sees.
@@ -41,6 +41,7 @@ try {
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
+        "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
     ] as $artistLimitSql) {
         try {
             $db->query($artistLimitSql);
@@ -62,8 +63,9 @@ try {
         if (!in_array($als, ['all', 'listed', 'except_listed'], true)) {
             $als = 'all';
         }
-        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period), artist_limit_scope=VALUES(artist_limit_scope)");
-        $stmt->bind_param("iiiiiiss", $en, $mss, $mql, $pvl, $vol, $alc, $alp, $als);
+        $ssm = max(0, (int) ($_POST['same_song_minutes'] ?? 720));
+        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period), artist_limit_scope=VALUES(artist_limit_scope), same_song_minutes=VALUES(same_song_minutes)");
+        $stmt->bind_param("iiiiiissi", $en, $mss, $mql, $pvl, $vol, $alc, $alp, $als, $ssm);
         $stmt->execute();
         $stmt->close();
     }
@@ -85,7 +87,7 @@ try {
         $stmt->close();
     }
 
-    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope FROM media_request_settings WHERE id=1");
+    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1");
     if ($res && ($row = $res->fetch_assoc())) {
         $mediaSettings = $row;
     }
@@ -186,6 +188,9 @@ ob_start();
                     <option value="except_listed" <?php echo $artistScope === 'except_listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_except'); ?></option>
                 </select>
                 <span class="sp-help"><?php echo t('media_player_artist_scope_help'); ?></span></label>
+            <label class="sp-label"><?php echo t('media_player_same_song'); ?>
+                <input class="sp-input" type="number" name="same_song_minutes" min="0" value="<?php echo (int)($mediaSettings['same_song_minutes'] ?? 720); ?>">
+                <span class="sp-help"><?php echo t('media_player_same_song_help'); ?></span></label>
             <label class="sp-label"><?php echo t('media_player_artist_period'); ?>
                 <select class="sp-select" name="artist_limit_period">
                     <?php $artistPeriod = (string)($mediaSettings['artist_limit_period'] ?? 'stream'); ?>

@@ -93,6 +93,7 @@ function getMenuItems($role = 'default') {
         [ 'divider' => true ],
         [ 'label' => t('menu_admin_user_management'), 'icon' => 'fas fa-users-cog', 'href' => 'users.php' ],
         [ 'label' => t('menu_admin_start_user_bots'), 'icon' => 'fas fa-play-circle', 'href' => 'start_bots.php' ],
+        [ 'label' => t('menu_admin_media_migrate'), 'icon' => 'fas fa-photo-film', 'href' => 'media_migrate.php' ],
         [ 'label' => t('menu_admin_eventsub_connections'), 'icon' => 'fas fa-bell', 'href' => 'event_sub.php' ],
         [ 'divider' => true ],
         [ 'label' => t('menu_admin_log_management'), 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],

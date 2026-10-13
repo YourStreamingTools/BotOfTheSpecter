@@ -1294,7 +1294,8 @@ try {
                 volume INT NOT NULL DEFAULT 30,
                 artist_limit_count INT NOT NULL DEFAULT 0,
                 artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream',
-                artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'
+                artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all',
+                same_song_minutes INT NOT NULL DEFAULT 720
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_artist_limits' => "
             CREATE TABLE IF NOT EXISTS media_artist_limits (

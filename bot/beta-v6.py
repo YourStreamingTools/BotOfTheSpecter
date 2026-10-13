@@ -43,7 +43,7 @@ from geopy.geocoders import Nominatim
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, sync_song_request_cache
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from openai import AsyncOpenAI
 
@@ -271,7 +271,7 @@ mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
-    "puzzledone", "warn", "addbirthday"
+    "puzzledone", "warn", "addbirthday", "permitsong"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -392,6 +392,7 @@ shoutout_queue = Queue()                                # Queue for shoutouts
 shoutout_queued_ids = set()                             # User IDs currently waiting in or being processed by the shoutout queue
 recent_shoutouts = {}                                   # Dictionary for recent shoutouts
 permitted_users = {}                                    # Dictionary for permitted users
+song_request_permits = {}                               # login -> one-use bypass of the same-song gap
 connected = set()                                       # Set for connected users
 pending_removals = {}                                   # Dictionary for pending removals
 shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
@@ -5986,6 +5987,53 @@ class TwitchBot(commands.AutoBot):
             if connection:
                 await connection.release()
 
+    @commands.command(name='permitsong')
+    async def permitsong_command(self, ctx: commands.Context, permit_user: str = None):
+        global bot_owner, song_request_permits
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("permitsong",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if await command_permissions(permissions, ctx.author):
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                        if not await check_cooldown('permitsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('permitsong', bucket_key, cooldown_bucket)
+                        permit_user = (permit_user or '').lstrip('@').strip()
+                        if not permit_user:
+                            await send_chat_message("Usage: !permitsong @username")
+                            return
+                        lookup = permit_user.lower()
+                        try:
+                            user_info = await self.fetch_users(logins=[lookup])
+                        except Exception as fetch_err:
+                            chat_logger.warning(f"[PERMIT SONG] Could not fetch Twitch user for {lookup}: {fetch_err}")
+                            user_info = None
+                        if not user_info:
+                            await send_chat_message(f"User {lookup} not found.")
+                            return
+                        lookup = user_info[0].name.lower()
+                        song_request_permits[lookup] = 1
+                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} one blocked song request")
+                        await send_chat_message(f"@{lookup} can request one song that was played too soon.")
+                    else:
+                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} tried to use permitsong but lacked permissions.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"[PERMIT SONG] An error occurred during the execution of the permitsong command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
     @commands.command(name='warn', aliases=['warning'])
     async def warn_command(self, ctx: commands.Context, target_user: str = None, *, reason: str = None):
         global bot_owner
@@ -6602,6 +6650,13 @@ class TwitchBot(commands.AutoBot):
                 artist_block = await artist_request_block_message(connection, artist_name, settings)
                 if artist_block:
                     await send_chat_message(artist_block)
+                    return
+            song_block = await same_song_block_message(connection, song_id, song_name, artist_name, settings.get("same_song_minutes"))
+            if song_block:
+                if consume_song_permit(song_request_permits, ctx.author.name):
+                    chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {song_name}")
+                else:
+                    await send_chat_message(song_block)
                     return
             artist_name = clean_request_artist(artist_name) or artist_name
             song_requests[song_id] = {"user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
@@ -16123,8 +16178,8 @@ async def send_timed_message(message_id, message, delay):
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
-_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope FROM media_request_settings WHERE id=1"
-_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all"}
+_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1"
+_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all", "same_song_minutes": 720}
 
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
@@ -16135,6 +16190,7 @@ async def get_media_settings(connection):
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
+                "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
             ):
                 try:
                     await cursor.execute(alter)
@@ -16147,6 +16203,7 @@ async def get_media_settings(connection):
     row.setdefault("artist_limit_count", 0)
     row.setdefault("artist_limit_period", "stream")
     row.setdefault("artist_limit_scope", "all")
+    row.setdefault("same_song_minutes", 720)
     return row
 
 async def artist_request_block_message(connection, artist_name, settings):
@@ -16286,6 +16343,13 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
             if artist_block:
                 await send_chat_message(artist_block)
                 return
+        song_block = await same_song_block_message(connection, resolved["video_id"], resolved["title"], request_artist, settings.get("same_song_minutes"))
+        if song_block:
+            if consume_song_permit(song_request_permits, ctx.author.name):
+                chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {resolved['title']}")
+            else:
+                await send_chat_message(song_block)
+                return
         async with connection.cursor() as cursor:
             await cursor.execute(
                 "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
@@ -16298,8 +16362,8 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
         try:
             async with connection.cursor() as acur:
                 await acur.execute(
-                    "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
-                    (resolved["title"], request_artist, ctx.author.name))
+                    "INSERT INTO song_request_analytics (song_name, artist_name, requested_by, song_id) VALUES (%s, %s, %s, %s)",
+                    (resolved["title"], request_artist, ctx.author.name, resolved["video_id"]))
         except Exception as analytics_err:
             api_logger.error(f"[MEDIA REQUEST] analytics insert failed: {analytics_err}")
     except Exception as e:

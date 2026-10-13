@@ -382,19 +382,10 @@ ob_start();
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
               <?php echo t('bot_stable_description'); ?>
             </p>
-          <?php elseif ($selectedBot === 'beta'): ?>
-            <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-              <?php echo t('bot_beta_controls'); ?> <span id="bot-beta-version-label" style="color:var(--blue);"></span>
-            </h3>
-            <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
-              <?php echo t('bot_beta_description'); ?>
-            </p>
-            <!-- Custom Bot Name -->
             <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
               <?= t('bot_custom_bot_warning') ?>
             </div>
-            <!-- Use Self -->
             <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
               <?= t('bot_use_self_warning') ?>
@@ -403,6 +394,13 @@ ob_start();
               <i class="fas fa-info-circle"></i>
               <span class="custom-module-note-text"><?= t('bot_use_custom_module_note_disabled') ?></span>
             </div>
+          <?php elseif ($selectedBot === 'beta'): ?>
+            <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
+              <?php echo t('bot_beta_controls'); ?> <span id="bot-beta-version-label" style="color:var(--blue);"></span>
+            </h3>
+            <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
+              <?php echo t('bot_beta_description'); ?>
+            </p>
           <?php elseif ($selectedBot === 'v6'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
               <?php echo t('bot_v6_controls'); ?> <span id="bot-v6-version-label" style="color:var(--blue);"></span>
@@ -687,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCustomBotToggleVisibility() {
     const currentBot = getCurrentBotType();
     if (customBotToggleContainer) {
-      if (currentBot === 'beta') {
+      if (currentBot === 'stable') {
         customBotToggleContainer.style.display = 'block';
       } else {
         customBotToggleContainer.style.display = 'none';
@@ -697,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to update custom bot warning visibility
   function updateCustomBotWarningVisibility() {
     const currentBot = getCurrentBotType();
-    if (customBotWarning && currentBot === 'beta') {
+    if (customBotWarning && currentBot === 'stable') {
       const isEnabled = customBotToggle ? customBotToggle.checked : false;
       customBotWarning.style.display = isEnabled ? 'block' : 'none';
     } else if (customBotWarning) {
@@ -785,13 +783,13 @@ document.addEventListener('DOMContentLoaded', function() {
       const currentBot = getCurrentBotType();
       const container = document.getElementById('use-self-toggle-container');
       if (container) {
-        container.style.display = (currentBot === 'beta') ? 'flex' : 'none';
+        container.style.display = (currentBot === 'stable') ? 'flex' : 'none';
       }
     }
     function updateUseSelfWarningVisibility() {
       const currentBot = getCurrentBotType();
       const warning = document.getElementById('use-self-warning');
-      if (warning && currentBot === 'beta') {
+      if (warning && currentBot === 'stable') {
         warning.style.display = useSelfToggle.checked ? 'block' : 'none';
       } else if (warning) {
         warning.style.display = 'none';
@@ -871,7 +869,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (e) { /* ignore */ }
   }
-  // Custom channel module toggle (shown only when bots API reports file present; beta/v6)
+  // Custom channel module toggle (shown only when bots API reports file present; stable/v6)
   const customModuleToggleContainer = document.getElementById('custom-module-toggle-container');
   const customModuleToggle = document.getElementById('custom-module-toggle');
   function customModuleNoteText() {
@@ -889,13 +887,13 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function updateCustomModuleToggleVisibility() {
     const currentBot = getCurrentBotType();
-    const show = window.customModuleAvailable && (currentBot === 'beta' || currentBot === 'v6');
+    const show = window.customModuleAvailable && (currentBot === 'stable' || currentBot === 'v6');
     if (customModuleToggleContainer) {
       customModuleToggleContainer.style.display = show ? 'flex' : 'none';
     }
-    const warnBeta = document.getElementById('custom-module-warning');
+    const warnStable = document.getElementById('custom-module-warning');
     const warnV6 = document.getElementById('custom-module-warning-v6');
-    if (warnBeta) warnBeta.style.display = (show && currentBot === 'beta') ? 'block' : 'none';
+    if (warnStable) warnStable.style.display = (show && currentBot === 'stable') ? 'block' : 'none';
     if (warnV6) warnV6.style.display = (show && currentBot === 'v6') ? 'block' : 'none';
     updateCustomModuleNote();
   }
@@ -1004,10 +1002,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
+      let useCustomNow;
+      if (typeof customBotToggle !== 'undefined' && customBotToggle) {
+        useCustomNow = customBotToggle.checked;
+      } else {
+        useCustomNow = (typeof serverUseCustom !== 'undefined') ? (serverUseCustom === 1) : false;
+      }
+      let useSelfNow;
+      if (typeof useSelfToggle !== 'undefined' && useSelfToggle) {
+        useSelfNow = useSelfToggle.checked ? 1 : 0;
+      } else {
+        useSelfNow = (typeof serverUseSelf !== 'undefined' && serverUseSelf === 1) ? 1 : 0;
+      }
+      let loadModuleNow = 0;
+      if (typeof customModuleToggle !== 'undefined' && customModuleToggle) {
+        loadModuleNow = customModuleToggle.checked ? 1 : 0;
+      } else {
+        loadModuleNow = (typeof window.serverUseCustomModule !== 'undefined' && window.serverUseCustomModule === 1) ? 1 : 0;
+      }
       fetchWithTimeout('/api/bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=stable`
+        body: `action=${encodeURIComponent(action)}&bot=stable&use_custom_bot=${useCustomNow ? 1 : 0}&use_self=${useSelfNow}&load_custom_module=${loadModuleNow}`
       }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
@@ -1022,6 +1038,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Immediately update UI optimistically
             const expectedRunning = (action === 'run');
             updateUIOptimistically(expectedRunning, 'Stable');
+            window.botProcessRunning = expectedRunning;
+            if (action === 'run' && typeof window.markCustomModuleApplied === 'function') {
+              window.markCustomModuleApplied();
+            } else if (typeof updateCustomModuleNote === 'function') {
+              updateCustomModuleNote();
+            }
             // Show success message from backend
             if (data.message) {
               showNotification(data.message, 'success');

@@ -3173,7 +3173,7 @@ return [
     'bot_stable_controls' => 'Controles de bot estables',
     'bot_beta_controls' => 'Controles de bots beta',
     'bot_kick_controls' => 'Controles del bot Kick',
-    'bot_kick_description' => 'El bot Kick es el bot de chat estable de Kick.com. Funciona junto a tu bot de Twitch y usa el mismo versionado por parches que Twitch Stable.',
+    'bot_kick_description' => 'El bot de Kick funciona en su canal de Kick. Puede ejecutarlo al mismo tiempo que su bot de Twitch.',
     'bot_kick_version_info' => 'Información de versión del bot Kick',
     'bot_kick_not_connected' => 'La vinculación de Kick estará disponible pronto.',
     'bot_kick_app_not_configured' => 'Las credenciales de la aplicación Kick no están configuradas en el servidor.',

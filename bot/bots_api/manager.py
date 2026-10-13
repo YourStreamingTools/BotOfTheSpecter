@@ -125,6 +125,31 @@ def _is_custom(cmdline: list[str]) -> bool:
     return "-custom" in lower or "--custom" in lower
 
 
+def _custom_pids_for_script(channel: str, script_name: str) -> list[int]:
+    """PIDs for this channel running script_name with -custom."""
+    channel = channel.lower()
+    script_name = script_name.lower()
+    pids: list[int] = []
+    for proc in psutil.process_iter(attrs=["pid", "cmdline"]):
+        try:
+            cmdline = _cmdline_list(proc)
+            if not cmdline or not _is_custom(cmdline):
+                continue
+            script = None
+            for arg in cmdline:
+                if arg.endswith(".py") or ".py" in arg:
+                    script = _script_basename(arg)
+                    break
+            if script != script_name:
+                continue
+            if _channel_from_cmdline(cmdline, kick=False) != channel:
+                continue
+            pids.append(proc.pid)
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            continue
+    return pids
+
+
 def _has_flag(cmdline: list[str], *flags: str) -> bool:
     if not cmdline:
         return False
@@ -184,10 +209,9 @@ def _matches_bot_type(cmdline: list[str], bot_type: str, channel: str) -> bool:
     if bot_type == "custom":
         return _is_custom(cmdline) and script in ("bot.py", "beta.py")
     if bot_type == "stable":
-        return script == "bot.py" and not _is_custom(cmdline)
+        return script == "bot.py"
     if bot_type == "beta":
-        # Exclude -custom (those are bot_type "custom"; stop_bot(beta) still merges custom pids).
-        return script == "beta.py" and not _is_custom(cmdline)
+        return script == "beta.py"
     if bot_type == "v6":
         return script in ("beta-v6.py", "beta_v6.py")
     return False
@@ -619,9 +643,7 @@ def _scan_running_bots() -> dict[str, Any]:
             if not ch:
                 continue
 
-            if custom and script in ("bot.py", "beta.py"):
-                btype = "custom"
-            elif script == "bot.py":
+            if script == "bot.py":
                 btype = "stable"
             elif script == "beta.py":
                 btype = "beta"
@@ -793,13 +815,9 @@ def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, A
     # Process status + update-notice mtimes (local files only). Unfiltered scan: custom before beta.
     channel = channel.lower()
     if bot_type:
-        # beta control also finds -custom; still report true type as "custom" when that is running.
-        if bot_type == "beta":
-            types = ["custom", "beta"]
-        else:
-            types = [bot_type]
+        types = [bot_type]
     else:
-        types = ["stable", "custom", "beta", "v6"]
+        types = ["stable", "beta", "v6", "custom"]
     found_type = None
     found_pid = None
     for t in types:
@@ -880,8 +898,10 @@ async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
 
     # For beta, also catch custom-flag processes on beta.py
     pids = find_pids(bot_type, channel)
-    if bot_type == "beta":
-        pids = list(dict.fromkeys(pids + find_pids("custom", channel)))
+    if bot_type == "stable":
+        pids = list(dict.fromkeys(pids + _custom_pids_for_script(channel, "bot.py")))
+    elif bot_type == "beta":
+        pids = list(dict.fromkeys(pids + _custom_pids_for_script(channel, "beta.py")))
 
     session = screen_session_name(channel, bot_type)
     if not pids:
@@ -908,7 +928,9 @@ async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
     def _still_running() -> list[int]:
         remaining = find_pids(bot_type, channel)
         if bot_type == "beta":
-            remaining = list(dict.fromkeys(remaining + find_pids("custom", channel)))
+            remaining = list(dict.fromkeys(remaining + _custom_pids_for_script(channel, "beta.py")))
+        if bot_type == "stable":
+            remaining = list(dict.fromkeys(remaining + _custom_pids_for_script(channel, "bot.py")))
         return remaining
 
     # A denied kill can't be retried into working, so skip the poll and fail fast.
@@ -976,8 +998,10 @@ async def start_bot(
         return {"success": False, "state": "error", "message": f"Invalid bot_type: {bot_type}"}
     if custom and self_mode:
         return {"success": False, "state": "error", "message": "custom and self are mutually exclusive"}
-    if bot_type != "beta" and (custom or self_mode):
-        return {"success": False, "state": "error", "message": "custom/self only valid for bot_type=beta"}
+    if self_mode and bot_type != "beta":
+        return {"success": False, "state": "error", "message": "self is only valid for bot_type=beta"}
+    if custom and bot_type not in ("beta", "stable"):
+        return {"success": False, "state": "error", "message": "custom is only valid for bot_type=stable or beta"}
 
     missing = [n for n, v in (
         ("channel", channel),
@@ -1132,10 +1156,12 @@ async def start_bot(
         write_version(bot_type, channel, version)
 
     new_pids = find_pids(bot_type, channel)
-    if bot_type == "beta" and not new_pids:
-        new_pids = find_pids("custom", channel)
+    if not new_pids and custom and bot_type == "beta":
+        new_pids = _custom_pids_for_script(channel, "beta.py")
+    if not new_pids and custom and bot_type == "stable":
+        new_pids = _custom_pids_for_script(channel, "bot.py")
 
-    effective_type = "custom" if custom else bot_type
+    effective_type = bot_type
     if new_pids:
         ver = read_version(bot_type, channel)
         snapshot_mark_started(
