@@ -179,7 +179,7 @@ $defaultAlerts = [
     ['stream_bingo', 'Game Event',   1, "bingo_event = 'STREAM_BINGO_EVENT_CALLED'", "Event called:\n{bingo_event_name}"],
     ['stream_bingo', 'Game Winner',  2, "bingo_event = 'STREAM_BINGO_WINNER'",       "BINGO! {username}\ngot {rank_text}!"],
     ['stream_bingo', 'Game Ended',   3, "bingo_event = 'STREAM_BINGO_ENDED'",        "Stream Bingo has ended!"],
-    ['watch_streak', 'Watch streak', 0, 'streak >= 7', "{username}\nis on a {streak}-stream watch streak!"],
+    ['watch_streak', 'Watch streak', 0, null, "{username}\nis on a {streak}-stream watch streak!"],
     // Enable/disable-only: these render in their existing overlay theme via overlay/index.php.
     ['weather', 'Weather', 0, null, null],
     ['deaths', 'Death counter', 0, null, null],
@@ -204,7 +204,7 @@ $fixedMessageMeta = [
     'kofi'         => ['label' => 'Ko-fi tips', 'condition' => null, 'enabled' => 1],
     'patreon'      => ['label' => 'Patreon', 'condition' => null, 'enabled' => 1],
     'fourthwall'   => ['label' => 'Fourthwall', 'condition' => null, 'enabled' => 1],
-    'watch_streak' => ['label' => 'Watch streak', 'condition' => 'streak >= 7', 'enabled' => 1],
+    'watch_streak' => ['label' => 'Watch streak', 'condition' => null, 'enabled' => 1],
     'ad_break'     => ['label' => 'Ads playing', 'condition' => null, 'enabled' => 1],
     'goals'        => ['label' => 'Goal updates', 'condition' => null, 'enabled' => 0],
 ];
@@ -317,6 +317,8 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
                 }
             }
         }
+        // Watch streaks alert on every shared streak, so the old streak >= 7 threshold is cleared.
+        $db->query("UPDATE twitch_alerts SET alert_condition = NULL WHERE alert_category = 'watch_streak' AND alert_condition IS NOT NULL");
         $phStmt = $db->prepare("SELECT id, alert_category, alert_condition FROM twitch_alerts WHERE message_template IN (?, ?)");
         $phStmt->bind_param('ss', $alertsOldPlaceholders[0], $alertsOldPlaceholders[1]);
         $phStmt->execute();
@@ -1680,8 +1682,8 @@ $(document).ready(function() {
     const simpleCategories = ['weather', 'deaths', 'walkons', 'sound_alerts', 'video_alerts', 'tts'];
     // Styled cards with a fixed message. Every setting except the message template.
     const fixedMessageCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'watch_streak', 'goals'];
-    // One card each, so a condition cannot split them. Watch streaks keep theirs (streak >= N).
-    const noConditionCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'goals'];
+    // One card each, so a condition cannot split them.
+    const noConditionCategories = ['discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break', 'watch_streak', 'goals'];
     const fixedMessageDefaults = {
         discord_join: "{username}\nhopped into the Discord!",
         kofi: "{username}\nsupported on Ko-fi!",
