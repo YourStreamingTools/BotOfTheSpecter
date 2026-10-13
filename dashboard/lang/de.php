@@ -1338,8 +1338,8 @@ return [
     'notifications_th_actions' => 'Aktionen',
     'notifications_loading' => 'Wird geladen ...',
     // premium.php
-    'premium_plan_free_feature_custom_bot' => 'Eigener Bot-Name (Dein eigener Bot-Name, experimentell/in Kürze)',
-    'premium_plan_free_feature_custom_bot_tip' => 'Eigener Bot-Name - Experimentell oder in Kürze',
+    'premium_plan_free_feature_custom_bot' => 'Eigener Bot-Name',
+    'premium_plan_free_feature_custom_bot_tip' => 'Lass den Bot unter deinem eigenen verifizierten Bot-Konto laufen. Richte ihn auf deiner Profilseite ein.',
     'premium_plan_free_note' => '<strong>90-95 % des Bots sind KOSTENLOS!</strong>',
     'premium_beta_access' => 'Beta-Zugang',
     'premium_plus_beta' => '+ Beta',

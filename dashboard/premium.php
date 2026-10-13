@@ -29,7 +29,7 @@ $plans = [
             ['text' => t('premium_plan_free_feature_commands'), 'tip' => t('premium_plan_free_feature_commands_tip')],
             ['text' => t('premium_plan_free_feature_support'), 'tip' => t('premium_plan_free_feature_support_tip')],
             ['text' => t('premium_plan_free_feature_shared_bot'), 'tip' => t('premium_plan_free_feature_shared_bot_tip')],
-            ['text' => t('premium_plan_free_feature_custom_bot'), 'tip' => t('premium_plan_free_feature_custom_bot_tip'), 'icon' => 'fas fa-flask sp-plan-feature-icon--amber'],
+            ['text' => t('premium_plan_free_feature_custom_bot'), 'tip' => t('premium_plan_free_feature_custom_bot_tip')],
         ],
         'note' => t('premium_plan_free_note'),
     ],
