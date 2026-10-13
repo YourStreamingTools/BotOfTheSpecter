@@ -1687,6 +1687,9 @@ $(document).ready(function() {
         noRewardsSynced: <?php echo json_encode(t('alerts_no_rewards_synced')); ?>,
         unknownReward: <?php echo json_encode(t('alerts_unknown_reward')); ?>,
         unsavedSwitchConfirm: <?php echo json_encode(t('alerts_unsaved_switch_confirm')); ?>,
+        unsavedSwitchTitle: <?php echo json_encode(t('alerts_unsaved_switch_title')); ?>,
+        unsavedSaveSwitch: <?php echo json_encode(t('alerts_unsaved_save_switch')); ?>,
+        unsavedDiscardSwitch: <?php echo json_encode(t('alerts_unsaved_discard_switch')); ?>,
         previewUser: <?php echo json_encode(t('alerts_preview_user')); ?>,
         alertImageAlt: <?php echo json_encode(t('alerts_alert_image')); ?>,
         mediaProcessing: <?php echo json_encode(t('alerts_media_processing')); ?>,
@@ -2180,12 +2183,34 @@ $(document).ready(function() {
     $(document).on('click', '.alerts-variant-item', function(e) {
         if ($(e.target).closest('.alerts-mini-toggle').length) return;
         if ($(e.target).closest('.alerts-variant-handle').length) return;
-        var id = $(this).data('id');
-        if (isDirty && !confirm(i18n.unsavedSwitchConfirm)) return;
-        $('.alerts-variant-item').removeClass('active');
-        $(this).addClass('active');
-        loadVariant(id);
+        var $item = $(this);
+        var id = $item.data('id');
+        if (!isDirty) {
+            switchToVariant($item, id);
+            return;
+        }
+        Swal.fire({
+            title: i18n.unsavedSwitchTitle,
+            text: i18n.unsavedSwitchConfirm,
+            icon: 'warning',
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: i18n.unsavedSaveSwitch,
+            denyButtonText: i18n.unsavedDiscardSwitch,
+            cancelButtonText: i18n.keepEditing
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                saveCurrentAlert(function() { switchToVariant($item, id); });
+            } else if (result.isDenied) {
+                switchToVariant($item, id);
+            }
+        });
     });
+    function switchToVariant($item, id) {
+        $('.alerts-variant-item').removeClass('active');
+        $item.addClass('active');
+        loadVariant(id);
+    }
     function loadVariant(id) {
         currentAlertId = id;
         var a = alertsData[id];
@@ -2595,9 +2620,13 @@ $(document).ready(function() {
         $.post('', { action: 'set_category_randomize', category: category, randomize: randomize }, null, 'json');
     });
     $('#alerts-save-btn').on('click', function() {
+        saveCurrentAlert(null);
+    });
+    // onSaved runs only after a successful save, so a failed save keeps the user on this variant.
+    function saveCurrentAlert(onSaved) {
         if (!currentAlertId || !isDirty) return;
         var data = collectFormData();
-        var $btn = $(this);
+        var $btn = $('#alerts-save-btn');
         var originalHtml = $btn.html();
         $btn.html('<i class="fas fa-spinner fa-spin"></i> ' + (typeof i18n !== 'undefined' && i18n.saving ? i18n.saving : 'Saving...'));
         $btn.prop('disabled', true);
@@ -2611,6 +2640,7 @@ $(document).ready(function() {
                     $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-condition').text(data.alert_condition || '');
                     clearDirty();
                     Swal.fire({ icon: 'success', title: i18n.savedTitle, text: resp.message, timer: 1500, showConfirmButton: false });
+                    if (onSaved) onSaved();
                 } else {
                     Swal.fire({ icon: 'error', title: i18n.errorTitle, text: resp.message });
                 }
@@ -2625,7 +2655,7 @@ $(document).ready(function() {
                 }
             }
         });
-    });
+    }
     $('#alerts-discard-btn').on('click', function() {
         if (!currentAlertId || !isDirty) return;
         Swal.fire({
@@ -2838,7 +2868,7 @@ $(document).ready(function() {
             }
         });
     });
-    // "Make Your Sound": the server makes the sound with ElevenLabs in the background and saves it to the
+    // "Make Your Sound": the server makes the sound in the background and saves it to the
     // media library; this page shows progress and, if it started the job, sets the sound on that alert.
     var soundGenRemaining = <?php echo (int) $soundGenRemaining; ?>;
     var soundGenJob = null;      // { id, alertId, startedAt }
@@ -2851,7 +2881,7 @@ $(document).ready(function() {
     function rememberedSoundJob() {
         try { return parseInt(localStorage.getItem(SOUND_JOB_KEY) || '0', 10) || 0; } catch (e) { return 0; }
     }
-    // ElevenLabs gives no progress, so the bar is an estimate that eases toward 95% until the job finishes.
+    // The sound job reports no progress, so the bar is an estimate that eases toward 95% until the job finishes.
     function soundGenPercent() {
         if (!soundGenJob) return 0;
         var secs = (Date.now() - soundGenJob.startedAt) / 1000;
