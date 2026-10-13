@@ -1010,7 +1010,8 @@
 }
 .alerts-media-actions {
     display: flex;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 12px;
     justify-content: center;
 }
 
@@ -1191,7 +1192,7 @@
 }
 .alerts-make-sound-btn {
     display: inline-flex;
-    margin-top: 8px;
+    margin-top: 12px;
 }
 .alerts-make-sound-card {
     max-width: 520px;
