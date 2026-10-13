@@ -233,7 +233,7 @@ if ($response && $http === 200) {
                         }
                     }
                     $assignedId = $expected;
-                    $insertQuery = "INSERT INTO users (id, username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+                    $insertQuery = "INSERT INTO users (id, username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin, new_media) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)";
                     $stmt = mysqli_prepare($conn, $insertQuery);
                     if ($stmt === false) {
                         throw new Exception('Prepare failed: ' . mysqli_error($conn));
@@ -462,7 +462,7 @@ $userInfo = json_decode($userInfoResponse, true);
                     }
                     $assignedId = $expected;
                     // Insert the new user with the explicit id
-                    $insertQuery = "INSERT INTO users (id, username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+                    $insertQuery = "INSERT INTO users (id, username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin, new_media) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)";
                     $stmt = mysqli_prepare($conn, $insertQuery);
                     if ($stmt === false) {
                         throw new Exception('Prepare failed: ' . mysqli_error($conn));
