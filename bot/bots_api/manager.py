@@ -998,8 +998,8 @@ async def start_bot(
         return {"success": False, "state": "error", "message": f"Invalid bot_type: {bot_type}"}
     if custom and self_mode:
         return {"success": False, "state": "error", "message": "custom and self are mutually exclusive"}
-    if self_mode and bot_type != "beta":
-        return {"success": False, "state": "error", "message": "self is only valid for bot_type=beta"}
+    if self_mode and bot_type not in ("beta", "stable"):
+        return {"success": False, "state": "error", "message": "self is only valid for bot_type=stable or beta"}
     if custom and bot_type not in ("beta", "stable"):
         return {"success": False, "state": "error", "message": "custom is only valid for bot_type=stable or beta"}
 
@@ -1119,9 +1119,9 @@ async def start_bot(
         if self_mode:
             argv.append("-self")
     # Opt-in custom channel module: only pass CLI flag when requested and file exists.
-    # beta/v6 honor -load-custom-module; stable ignores unknown flags if ever passed.
+    # stable/beta/v6 honor -load-custom-module.
     module_will_load = False
-    if load_custom_module and bot_type in ("beta", "v6"):
+    if load_custom_module and bot_type in ("stable", "beta", "v6"):
         if custom_module_available(channel):
             argv.append("-load-custom-module")
             module_will_load = True
