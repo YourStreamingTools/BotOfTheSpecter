@@ -10,7 +10,7 @@
     </div>
 
     <h2>What is TTS &amp; How to Set It Up</h2>
-    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the audio overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
+    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the Specter Alerts overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
 
     <h3>Setting Up TTS</h3>
     <ol>
@@ -18,14 +18,14 @@
         <li>Choose <strong>Normal</strong> or <strong>Expressive</strong>.</li>
         <li>Pick a voice. The first time you switch to Expressive, <strong>Callum</strong> is selected by default. Expressive has no language picker — it follows the viewer’s text.</li>
         <li>Save TTS settings.</li>
-        <li>Add your audio overlay in OBS and enable monitoring — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li>Add the Specter Alerts overlay in OBS and enable monitoring — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li>Test with a Channel Point redemption or a <code>(tts)</code> variable.</li>
     </ol>
 
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            All TTS audio is played through your configured audio overlay. Make sure you have the correct overlay URL in your OBS browser source and audio monitoring enabled.
+            All TTS audio is played through the Specter Alerts overlay. Make sure your OBS browser source uses the Specter Alerts URL from the <strong>Alerts</strong> page and that audio monitoring is enabled. The old standalone <code>tts.php</code> overlay is retired.
         </div>
     </div>
 
@@ -58,9 +58,9 @@
 
     <h2>Troubleshooting TTS</h2>
     <ul>
-        <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li><strong>No audio output:</strong> Verify that the Specter Alerts overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li><strong>Wrong voice or style:</strong> In <strong>Modules → TTS Settings</strong>, confirm style (Normal or Expressive), the matching voice, and that you clicked Save. Expressive is beta-only.</li>
         <li><strong>Laugh words still spoken:</strong> Those tokens are stripped only on Expressive. On Normal, <code>lol</code> is read as text.</li>
-        <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the audio overlay source in OBS.</li>
+        <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the Specter Alerts source in OBS.</li>
         <li><strong>TTS not responding:</strong> Ensure the bot is running (beta if you use Expressive) and the overlay is connected.</li>
     </ul>

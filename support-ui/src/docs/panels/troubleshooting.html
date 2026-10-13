@@ -24,8 +24,8 @@
     </ul>
 
     <h2>Sound Alerts / TTS / Walk-ons - Audio Issues</h2>
-    <p>All Specter audio goes through the audio overlays. Make sure you're running the correct overlay, or use the <strong>All Audio</strong> overlay:</p>
-    <p><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
+    <p>All Specter audio goes through the <strong>Specter Alerts</strong> overlay. The older separate overlays (such as <code>alert.php</code>, <code>sound-alert.php</code>, <code>walkons.php</code> and <code>tts.php</code>) are retired and play nothing, so replace them with this one browser source from the <strong>Alerts</strong> page:</p>
+    <p><code>https://overlay.botofthespecter.com/?code=YOUR_API_KEY</code></p>
     <ul>
         <li>Check audio device settings in OBS.</li>
         <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="obs-audio">audio monitoring is configured correctly</a>.</li>

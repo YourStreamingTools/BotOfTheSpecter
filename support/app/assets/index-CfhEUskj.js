@@ -564,7 +564,7 @@ Error generating stack: `+e.message+`
     </div>
 
     <h3>Overlay Alerts</h3>
-    <p>Events are forwarded to the WebSocket server and displayed through OBS browser source overlays at:<br><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
+    <p>Events are forwarded to the WebSocket server and displayed through the Specter Alerts OBS browser source (set it up on the <strong>Alerts</strong> page in the dashboard):<br><code>https://overlay.botofthespecter.com/?code=YOUR_API_KEY</code></p>
     <div class="sp-table-wrap">
         <table class="sp-table">
             <thead><tr><th>Alert Type</th><th>Description</th></tr></thead>
@@ -810,7 +810,7 @@ Error generating stack: `+e.message+`
     </div>
 
     <h2>What is TTS &amp; How to Set It Up</h2>
-    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the audio overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
+    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the Specter Alerts overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
 
     <h3>Setting Up TTS</h3>
     <ol>
@@ -818,14 +818,14 @@ Error generating stack: `+e.message+`
         <li>Choose <strong>Normal</strong> or <strong>Expressive</strong>.</li>
         <li>Pick a voice. The first time you switch to Expressive, <strong>Callum</strong> is selected by default. Expressive has no language picker — it follows the viewer’s text.</li>
         <li>Save TTS settings.</li>
-        <li>Add your audio overlay in OBS and enable monitoring — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li>Add the Specter Alerts overlay in OBS and enable monitoring — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li>Test with a Channel Point redemption or a <code>(tts)</code> variable.</li>
     </ol>
 
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            All TTS audio is played through your configured audio overlay. Make sure you have the correct overlay URL in your OBS browser source and audio monitoring enabled.
+            All TTS audio is played through the Specter Alerts overlay. Make sure your OBS browser source uses the Specter Alerts URL from the <strong>Alerts</strong> page and that audio monitoring is enabled. The old standalone <code>tts.php</code> overlay is retired.
         </div>
     </div>
 
@@ -858,16 +858,16 @@ Error generating stack: `+e.message+`
 
     <h2>Troubleshooting TTS</h2>
     <ul>
-        <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li><strong>No audio output:</strong> Verify that the Specter Alerts overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li><strong>Wrong voice or style:</strong> In <strong>Modules → TTS Settings</strong>, confirm style (Normal or Expressive), the matching voice, and that you clicked Save. Expressive is beta-only.</li>
         <li><strong>Laugh words still spoken:</strong> Those tokens are stripped only on Expressive. On Normal, <code>lol</code> is read as text.</li>
-        <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the audio overlay source in OBS.</li>
+        <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the Specter Alerts source in OBS.</li>
         <li><strong>TTS not responding:</strong> Ensure the bot is running (beta if you use Expressive) and the overlay is connected.</li>
     </ul>
 `,"obs-audio":`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
             <h1 style="margin:0 0 0.25rem;">OBS Audio Monitoring Setup</h1>
-            <p style="margin:0;color:var(--text-secondary);">Hear overlay alerts, TTS, and walk-ons through OBS during your stream.</p>
+            <p style="margin:0;color:var(--text-secondary);">Hear Specter Alerts sounds, TTS, and walk-ons through OBS during your stream.</p>
         </div>
         <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
                 data-copy-id="obs-audio" title="Copy link to this section">
@@ -876,12 +876,18 @@ Error generating stack: `+e.message+`
     </div>
 
     <h2>Why Audio Monitoring?</h2>
-    <p>Audio monitoring lets you hear audio from your overlays - sound alerts, TTS, and walk-ons - directly through OBS, ensuring they play correctly during your stream.</p>
+    <p>Audio monitoring lets you hear audio from the Specter Alerts overlay - sound alerts, video alerts, TTS, and walk-ons - directly through OBS, ensuring they play correctly during your stream.</p>
     <div class="sp-alert sp-alert-info" style="margin:1rem 0;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            <strong>Before you begin:</strong> Have your overlay URL ready from your Specter Profile page. The format is:<br>
-            <code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code>
+            <strong>Before you begin:</strong> Copy your Specter Alerts URL from the <strong>Alerts</strong> page in the dashboard. The format is:<br>
+            <code>https://overlay.botofthespecter.com/?code=YOUR_API_KEY</code>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin:1rem 0;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Using an older overlay?</strong> The separate overlays (<code>alert.php</code>, <code>all.php</code>, <code>sound-alert.php</code>, <code>video-alert.php</code>, <code>walkons.php</code>, <code>tts.php</code>, <code>deaths.php</code>, <code>weather.php</code>, <code>discord.php</code>, <code>kofi.php</code>, <code>patreon.php</code>, <code>fourthwall.php</code>) are retired and no longer play anything. Replace them with the one Specter Alerts source below, and only add it once or every alert will play twice.
         </div>
     </div>
 
@@ -930,11 +936,11 @@ Error generating stack: `+e.message+`
                     <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source.png" alt="Add New Source in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;"><br>
                     <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source_Browser.png" alt="Select Browser Source in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
                 </li>
-                <li style="margin-top:0.75rem;">Select <strong>Create new</strong> and give it a name (e.g., <em>Specter Overlay</em>). Ensure <strong>Make source visible</strong> is checked and click <strong>OK</strong>.<br>
+                <li style="margin-top:0.75rem;">Select <strong>Create new</strong> and give it a name (e.g., <em>Specter Alerts</em>). Ensure <strong>Make source visible</strong> is checked and click <strong>OK</strong>.<br>
                     <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source_Browser_Name_Setting.png" alt="Create New Browser Source in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
                 </li>
-                <li style="margin-top:0.75rem;">In the Properties window, paste your overlay URL into the <strong>URL</strong> field:<br>
-                    <code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code><br>
+                <li style="margin-top:0.75rem;">In the Properties window, paste your Specter Alerts URL into the <strong>URL</strong> field:<br>
+                    <code>https://overlay.botofthespecter.com/?code=YOUR_API_KEY</code><br>
                     <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source_Broswer_Properties_Window.png" alt="Browser Source Properties Window in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
                 </li>
                 <li style="margin-top:0.75rem;">Check <strong>Control audio via OBS</strong>, clear any text in <strong>Custom CSS</strong>, then click <strong>OK</strong>.</li>
@@ -982,7 +988,7 @@ Error generating stack: `+e.message+`
         </div>
         <div class="sp-card">
             <div class="sp-card-header">Overlay URL not working</div>
-            <div class="sp-card-body">Make sure the URL contains the correct API key from your Specter Profile page:<br><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></div>
+            <div class="sp-card-body">Make sure the URL contains the correct API key. Copy it again from the <strong>Alerts</strong> page in the dashboard:<br><code>https://overlay.botofthespecter.com/?code=YOUR_API_KEY</code></div>
         </div>
         <div class="sp-card">
             <div class="sp-card-header">Browser source not monitoring audio</div>
@@ -2389,7 +2395,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I set up Text-to-Speech (TTS)?</div>
-        <div class="sp-faq-a">Go to <strong>Modules → TTS Settings</strong>, pick Normal or Expressive and a voice, add your audio overlay in OBS with monitoring enabled, then trigger TTS via Channel Points or <code>(tts)</code>. Full voice samples and laugh-word list are in the <a href="#" data-goto="tts">Text-to-Speech</a> guide.</div>
+        <div class="sp-faq-a">Go to <strong>Modules → TTS Settings</strong>, pick Normal or Expressive and a voice, add the Specter Alerts overlay in OBS with monitoring enabled, then trigger TTS via Channel Points or <code>(tts)</code>. Full voice samples and laugh-word list are in the <a href="#" data-goto="tts">Text-to-Speech</a> guide.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">What built-in commands are there for the bot?</div>
@@ -2457,8 +2463,8 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </ul>
 
     <h2>Sound Alerts / TTS / Walk-ons - Audio Issues</h2>
-    <p>All Specter audio goes through the audio overlays. Make sure you're running the correct overlay, or use the <strong>All Audio</strong> overlay:</p>
-    <p><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
+    <p>All Specter audio goes through the <strong>Specter Alerts</strong> overlay. The older separate overlays (such as <code>alert.php</code>, <code>sound-alert.php</code>, <code>walkons.php</code> and <code>tts.php</code>) are retired and play nothing, so replace them with this one browser source from the <strong>Alerts</strong> page:</p>
+    <p><code>https://overlay.botofthespecter.com/?code=YOUR_API_KEY</code></p>
     <ul>
         <li>Check audio device settings in OBS.</li>
         <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="obs-audio">audio monitoring is configured correctly</a>.</li>
