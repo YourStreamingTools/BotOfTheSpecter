@@ -335,29 +335,6 @@ try {
                             ob_end_flush();
                             flush();
                         }
-                        // Now send websocket notification in the background
-                        $websocket_url = 'https://websocket.botofthespecter.com/notify'; // Production websocket server
-                        $params = [
-                            'action' => 'update_reaction_roles',
-                            'server_id' => $server_id,
-                            'user_id' => $user_id,
-                            'reaction_roles_config' => $reaction_roles_json
-                        ];
-                        // Build query string
-                        $query_string = http_build_query($params);
-                        $full_url = $websocket_url . '?' . $query_string;
-                        // Send HTTP GET request to websocket server
-                        $ch = curl_init($full_url);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
-                        $response = curl_exec($ch);
-                        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-// Log websocket notification result
-                        if ($http_code !== 200) {
-                            debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
-                        } else {
-                            debug_log("Successfully sent websocket notification for reaction roles");
-                        }
                         // Exit to prevent any further output
                         exit();
                     } else {
