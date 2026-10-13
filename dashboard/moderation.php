@@ -243,7 +243,7 @@ ob_start();
 
 <div class="sp-alert sp-alert-info mb-4">
     <span class="icon"><i class="fas fa-info-circle"></i></span>
-    <?= t('moderation_beta_notice') ?>
+    <?= t('moderation_info_notice') ?>
 </div>
 
 <div class="sp-page-header mb-4">

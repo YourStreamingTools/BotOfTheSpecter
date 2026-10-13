@@ -962,7 +962,7 @@ ob_start();
                                 <i class="fas fa-shield-alt" style="color:var(--blue);"></i>
                                 <?php echo t('protection_title'); ?>
                             </h2>
-                            <!-- URL Blocking System Information (Version 5.8) -->
+                            <!-- URL Blocking System Information -->
                             <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
                                 <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">
                                     <i class="fas fa-info-circle"></i>
@@ -1027,7 +1027,6 @@ ob_start();
                                         <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:1rem;">
                                             <i class="fas fa-user-lock" style="color:var(--accent);"></i>
                                             <?php echo t('protection_block_first_message_commands'); ?>
-                                            <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">BETA 5.8</span>
                                         </h3>
                                         <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
@@ -1186,7 +1185,6 @@ ob_start();
                             <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
                                 <i class="fas fa-comment-slash" style="color:var(--amber);"></i>
                                 <?= t('modules_term_blocking_title') ?>
-                                <span class="sp-badge sp-badge-amber" style="margin-left:0.75rem;"><?= t('modules_term_blocking_beta_badge') ?></span>
                             </h2>
                             <!-- Term Blocking Information -->
                             <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
@@ -1209,10 +1207,6 @@ ob_start();
                                         <?= t('modules_term_blocking_case_desc') ?>
                                     </li>
                                 </ul>
-                                <p style="margin-top:0.75rem; margin-bottom:0;">
-                                    <i class="fas fa-exclamation-triangle" style="color:var(--amber);"></i>
-                                    <?= t('modules_term_blocking_beta_note') ?>
-                                </p>
                             </div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
                                 <!-- Term Blocking Settings -->
@@ -1288,7 +1282,6 @@ ob_start();
                             <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
                                 <i class="fas fa-random" style="color:var(--accent);"></i>
                                 <?= t('modules_word_replace_title') ?>
-                                <span class="sp-badge sp-badge-amber" style="margin-left:0.75rem;"><?= t('modules_word_replace_beta_badge') ?></span>
                             </h2>
                             <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
                                 <p style="margin-bottom:0.75rem;"><strong><?= t('modules_word_replace_how_works') ?></strong></p>
@@ -1899,7 +1892,7 @@ ob_start();
                                         </div>
                                     </div>
                                 </div>
-                                <!-- BETA Features Section -->
+                                <!-- Subscription Upgrade Alerts Section -->
                                 <div>
                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                         <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
@@ -1919,7 +1912,7 @@ ob_start();
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-arrow-up"></i>
-                                                <?= t('modules_gift_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
+                                                <?= t('modules_gift_paid_upgrade_label') ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="gift_paid_upgrade" maxlength="500"
                                                 value="">
@@ -1928,7 +1921,7 @@ ob_start();
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-arrow-up"></i>
-                                                <?= t('modules_prime_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
+                                                <?= t('modules_prime_paid_upgrade_label') ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="prime_paid_upgrade" maxlength="500"
                                                 value="">
@@ -1937,7 +1930,7 @@ ob_start();
                                         <div class="sp-form-group" style="grid-column: 1 / -1;">
                                             <label class="sp-label">
                                                 <i class="fas fa-gift"></i>
-                                                <?= t('modules_pay_it_forward_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
+                                                <?= t('modules_pay_it_forward_label') ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="pay_it_forward" maxlength="500"
                                                 value="">

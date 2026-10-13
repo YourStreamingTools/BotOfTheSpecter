@@ -354,10 +354,6 @@ $membersStoreUrl = 'https://members.botofthespecter.com/' . rawurlencode($_SESSI
 
 ob_start();
 ?>
-<div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
-    <strong><?php echo t('point_store_beta_label'); ?></strong> <?php echo t('point_store_beta_notice'); ?>
-</div>
-
 <div class="sp-page-header" style="margin-bottom:1.25rem;">
     <h1 style="font-size:1.6rem;font-weight:700;margin:0;"><?php echo htmlspecialchars(t('point_store_title')); ?></h1>
     <p style="color:var(--text-secondary);margin:0.35rem 0 0;">

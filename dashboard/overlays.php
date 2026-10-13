@@ -331,7 +331,6 @@ ob_start();
         <div class="sp-card-header">
             <div class="sp-card-title">
                 <i class="fas fa-comments"></i> <?= t('overlays_chat_overlay') ?>
-                <span class="sp-badge sp-badge-red" style="font-size:0.72rem;">Beta 5.8</span>
             </div>
         </div>
         <div class="sp-card-body">

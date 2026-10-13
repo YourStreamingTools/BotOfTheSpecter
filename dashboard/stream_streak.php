@@ -60,7 +60,7 @@ ob_start();
 ?>
 <div class="sp-alert sp-alert-info mb-4">
     <span class="icon"><i class="fas fa-info-circle"></i></span>
-    <?= t('stream_streak_beta_notice') ?>
+    <?= t('stream_streak_info_notice') ?>
 </div>
 <div class="sp-card mb-5">
     <header class="sp-card-header">

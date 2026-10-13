@@ -956,7 +956,6 @@ ob_start();
                 <div class="sp-form-group">
                     <label class="sp-label" for="add_aliases">
                         <?php echo t('custom_commands_aliases_label'); ?>
-                        <span class="sp-badge sp-badge-amber" style="margin-left:0.4rem;">BETA</span>
                     </label>
                     <div class="sp-input-wrap">
                         <i class="fas fa-tags sp-input-icon"></i>
@@ -1057,7 +1056,6 @@ ob_start();
                     <div class="sp-form-group">
                         <label class="sp-label" for="edit_aliases">
                             <?php echo t('custom_commands_aliases_label'); ?>
-                            <span class="sp-badge sp-badge-amber" style="margin-left:0.4rem;">BETA</span>
                         </label>
                         <div class="sp-input-wrap">
                             <i class="fas fa-tags sp-input-icon"></i>

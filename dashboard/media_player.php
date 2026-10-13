@@ -319,7 +319,6 @@ $spotifyActAs = !empty($_SESSION['admin_act_as_active']);
 <div class="sp-card mb-4" id="spotify-player-card">
     <header class="sp-card-header">
         <span class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('media_player_spotify_control_title'); ?></span>
-        <span style="background: var(--blue); color:#fff; font-size:0.7rem; font-weight:600; padding:2px 10px; border-radius:999px; letter-spacing:0.05em;">Beta 5.8</span>
     </header>
     <div class="sp-card-body">
         <?php if ($spotifyActAs): ?>
@@ -382,7 +381,6 @@ endif;
             <i class="fab fa-spotify" style="color: var(--green);"></i>
             <?php echo t('media_player_sr_spotify_title'); ?>
         </div>
-        <span style="background: var(--blue); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.05em;">Beta 5.8</span>
     </div>
     <div class="sp-card-body">
         <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
@@ -491,7 +489,6 @@ if ($ytTableExists) {
             <i class="fab fa-youtube" style="color: #ff0000;"></i>
             <?php echo t('media_player_sr_youtube_title'); ?>
         </div>
-        <span style="background: var(--blue); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.05em;">Beta 5.8</span>
     </div>
     <div class="sp-card-body">
         <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
