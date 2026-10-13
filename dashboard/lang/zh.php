@@ -1539,6 +1539,7 @@ return [
     'alerts_media_processing' => '处理中…',
     'alerts_remove' => '移除',
     'alerts_image_scale' => '图像比例',
+    'alerts_video_scale' => '视频大小',
     'alerts_image_volume' => '图片体积',
     'alerts_alert_sound' => '警报声',
     'alerts_no_sound_selected' => '未选择声音',

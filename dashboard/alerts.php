@@ -847,6 +847,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         echo json_encode(['success' => true]);
         exit;
     }
+    if ($action === 'set_media_levels') {
+        // Playback rows only: volume for sound, video and walk-ons, plus size for video alerts.
+        $id = intval($_POST['id'] ?? 0);
+        $image_scale = max(10, min(200, intval($_POST['image_scale'] ?? 100)));
+        $sound_volume = max(0, min(100, intval($_POST['sound_volume'] ?? 50)));
+        $stmt = $db->prepare("UPDATE twitch_alerts SET image_scale = ?, sound_volume = ? WHERE id = ? AND alert_category IN ('sound_alerts', 'video_alerts', 'walkons')");
+        $stmt->bind_param('iii', $image_scale, $sound_volume, $id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => (bool) $ok]);
+        exit;
+    }
     echo json_encode(['success' => false, 'message' => 'Unknown action.']);
     exit;
 }
@@ -1084,6 +1096,21 @@ ob_start();
                             <label><?= t('alerts_screen_position') ?></label>
                             <p class="alerts-help-text"><i class="fas fa-up-down-left-right"></i> <?= t('alerts_drag_hint') ?></p>
                             <p class="alerts-help-text"><i class="fas fa-magnet"></i> <?= t('alerts_snap_hint') ?></p>
+                        </div>
+                        <div class="alerts-form-group" id="simple-scale-group" style="display:none;">
+                            <label><?= t('alerts_video_scale') ?></label>
+                            <div class="alerts-range-wrap">
+                                <input type="range" id="set-simple-scale" min="10" max="200" value="100">
+                                <span class="alerts-range-value" id="simple-scale-val">100%</span>
+                            </div>
+                        </div>
+                        <div class="alerts-form-group" id="simple-volume-group" style="display:none;">
+                            <label><?= t('alerts_sound_volume') ?></label>
+                            <div class="alerts-range-wrap">
+                                <i class="fas fa-volume-down alerts-range-icon"></i>
+                                <input type="range" id="set-simple-volume" min="0" max="100" value="50">
+                                <span class="alerts-range-value" id="simple-volume-val">50%</span>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -2176,6 +2203,16 @@ $(document).ready(function() {
         $('#simple-note-positioned').toggle(!isWalkon && !isPlayback && !isGoals);
         $('#simple-note-walkon').toggle(isWalkon);
         $('#simple-note-goals').toggle(isGoals);
+        var hasVolume = mediaLevelCategories.indexOf(a.alert_category) !== -1;
+        var scale = parseInt(a.image_scale, 10) || 100;
+        var volume = parseInt(a.sound_volume, 10);
+        if (isNaN(volume)) volume = 50;
+        $('#simple-scale-group').toggle(a.alert_category === 'video_alerts');
+        $('#simple-volume-group').toggle(hasVolume);
+        $('#set-simple-scale').val(scale);
+        $('#simple-scale-val').text(scale + '%');
+        $('#set-simple-volume').val(volume);
+        $('#simple-volume-val').text(volume + '%');
         // Sound, video and TTS have nothing to drag. The other simple categories
         // show a sample you can place on the canvas.
         if (isPlayback) {
@@ -2204,6 +2241,17 @@ $(document).ready(function() {
         if (alertsData[currentAlertId]) alertsData[currentAlertId].enabled = enabled;
         $('.alerts-variant-enabled-toggle[data-id="' + currentAlertId + '"]').prop('checked', this.checked);
         $.post('', { action: 'toggle_alert', id: currentAlertId, enabled: enabled }, null, 'json');
+    });
+    // Volume and video size also save on release, so the overlay refresh picks them up.
+    var mediaLevelCategories = ['sound_alerts', 'video_alerts', 'walkons'];
+    $('#set-simple-scale').on('input', function() { $('#simple-scale-val').text(this.value + '%'); });
+    $('#set-simple-volume').on('input', function() { $('#simple-volume-val').text(this.value + '%'); });
+    $('#set-simple-scale, #set-simple-volume').on('change', function() {
+        var a = alertsData[currentAlertId];
+        if (!a || mediaLevelCategories.indexOf(a.alert_category) === -1) return;
+        a.image_scale = $('#set-simple-scale').val();
+        a.sound_volume = $('#set-simple-volume').val();
+        $.post('', { action: 'set_media_levels', id: currentAlertId, image_scale: a.image_scale, sound_volume: a.sound_volume }, null, 'json');
     });
     // A file uploaded seconds ago can still be syncing to storage, so the media host answers 404 at first.
     // Retry media from the library that fails to load (cache-busted) for about 20 seconds before giving up.
@@ -2824,7 +2872,7 @@ $(document).ready(function() {
     // The overlay reads alert configs once at page load, so any saved change
     // reloads every open Specter Alerts page (batched so a drag reloads once).
     var overlayRefreshTimer = null;
-    var overlayConfigActions = ['save_alert', 'set_alert_position', 'set_alert_canvas', 'toggle_alert', 'set_category_randomize', 'create_variant', 'delete_variant', 'remove_alert_media'];
+    var overlayConfigActions = ['save_alert', 'set_alert_position', 'set_alert_canvas', 'toggle_alert', 'set_category_randomize', 'create_variant', 'delete_variant', 'remove_alert_media', 'set_media_levels'];
     function queueOverlayRefresh() {
         clearTimeout(overlayRefreshTimer);
         overlayRefreshTimer = setTimeout(function() {

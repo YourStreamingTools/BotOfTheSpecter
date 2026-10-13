@@ -1522,6 +1522,7 @@ return [
     'alerts_media_processing' => 'Traitement…',
     'alerts_remove' => 'Supprimer',
     'alerts_image_scale' => 'Échelle de l\'image',
+    'alerts_video_scale' => 'Taille de la vidéo',
     'alerts_image_volume' => 'Volume de l\'image',
     'alerts_alert_sound' => 'Son de l\'alerte',
     'alerts_no_sound_selected' => 'Aucun son sélectionné',

@@ -1578,6 +1578,7 @@ return [
     'alerts_media_processing' => 'Procesando…',
     'alerts_remove' => 'Quitar',
     'alerts_image_scale' => 'Escala de imagen',
+    'alerts_video_scale' => 'Tamaño del video',
     'alerts_image_volume' => 'Volumen de imagen',
     'alerts_alert_sound' => 'Sonido de alerta',
     'alerts_no_sound_selected' => 'Ningún sonido seleccionado',

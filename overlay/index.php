@@ -229,16 +229,19 @@ if ($username) {
                 }, SUB_COALESCE_MS);
                 pendingSubs.set(user, entry);
             }
-            // TTS stays at 30%. Sound alerts and video alerts are capped at 50%.
-            const MEDIA_ALERT_VOLUME_CAP = 0.5;
-            function capAlertVolume(volume, fallback) {
-                const n = Number(volume);
-                const v = Number.isFinite(n) ? n : fallback;
-                return Math.max(0, Math.min(MEDIA_ALERT_VOLUME_CAP, v));
+            // TTS stays at 30%. Sound alerts, video alerts and walk-ons use the volume set on the Alerts page.
+            function mediaLevel(category, field, fallback) {
+                const row = (alertConfigs[category] || [])[0];
+                const n = row ? parseInt(row[field], 10) : NaN;
+                return Number.isFinite(n) ? n : fallback;
+            }
+            function mediaVolume(category) {
+                return Math.max(0, Math.min(100, mediaLevel(category, 'sound_volume', 50))) / 100;
             }
             function enqueueFxAudio(url, volume) {
                 if (!url) return;
-                const vol = capAlertVolume(volume, 0.3);
+                const n = Number(volume);
+                const vol = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.3;
                 enqueueJob({
                     kind: 'audio',
                     start(done) {
@@ -289,9 +292,11 @@ if ($username) {
                         const vid = document.createElement('video');
                         currentVideo = vid;
                         vid.src = SpecterOverlayWS.playbackUrl(url);
-                        vid.volume = MEDIA_ALERT_VOLUME_CAP;
+                        vid.volume = mediaVolume('video_alerts');
                         vid.controls = false;
                         vid.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
+                        const videoScale = Math.max(10, Math.min(200, mediaLevel('video_alerts', 'image_scale', 100))) / 100;
+                        vid.style.transform = `translate(-50%, -50%) scale(${videoScale})`;
                         vid.preload = 'auto';
                         document.body.appendChild(vid);
                         let settled = false;
@@ -1137,7 +1142,7 @@ if ($username) {
             function playWalkonAudio(url, done) {
                 if (!url) { done(); return; }
                 const audio = new Audio(SpecterOverlayWS.playbackUrl(url));
-                audio.volume = 0.8;
+                audio.volume = mediaVolume('walkons');
                 let settled = false;
                 const finish = () => { if (!settled) { settled = true; done(); } };
                 audio.addEventListener('ended', finish);
@@ -1171,7 +1176,7 @@ if ($username) {
                 el.innerHTML = `<video class="walkon-video" src="${url}" autoplay></video>`;
                 el.style.display = 'block';
                 const vid = el.querySelector('video');
-                if (vid) { vid.addEventListener('ended', finish); vid.addEventListener('error', finish); }
+                if (vid) { vid.volume = mediaVolume('walkons'); vid.addEventListener('ended', finish); vid.addEventListener('error', finish); }
                 else finish();
             }
             function showWalkonCard(avatarUrl, name, done) {
@@ -1551,7 +1556,7 @@ if ($username) {
                             console.warn('SOUND_ALERT event missing sound:', data);
                             return;
                         }
-                        enqueueFxAudio(url, MEDIA_ALERT_VOLUME_CAP);
+                        enqueueFxAudio(url, mediaVolume('sound_alerts'));
                     });
 
                     // VIDEO_ALERT - full URL already resolved by the bot (media or legacy CDN).

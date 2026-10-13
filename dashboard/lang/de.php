@@ -1522,6 +1522,7 @@ return [
     'alerts_media_processing' => 'Wird verarbeitet…',
     'alerts_remove' => 'Entfernen',
     'alerts_image_scale' => 'Bildgröße',
+    'alerts_video_scale' => 'Videogröße',
     'alerts_image_volume' => 'Bildlautstärke',
     'alerts_alert_sound' => 'Benachrichtigungston',
     'alerts_no_sound_selected' => 'Kein Ton ausgewählt',
