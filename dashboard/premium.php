@@ -15,42 +15,127 @@ include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 
-// Define plans with features
+// Plan cards in tier order. storage is MB, sounds is Make Your Sound generations in any 24 hours (matches alerts_sound_gen_limit in alerts.php).
 $plans = [
+    'free' => [
+        'name' => t('premium_plan_free_name'),
+        'price' => t('premium_plan_free_price'),
+        'icon' => 'fas fa-rocket',
+        'mod' => 'free',
+        'storage' => 20,
+        'storage_tip' => t('premium_plan_free_feature_storage_tip'),
+        'sounds' => 10,
+        'features' => [
+            ['text' => t('premium_plan_free_feature_commands'), 'tip' => t('premium_plan_free_feature_commands_tip')],
+            ['text' => t('premium_plan_free_feature_support'), 'tip' => t('premium_plan_free_feature_support_tip')],
+            ['text' => t('premium_plan_free_feature_shared_bot'), 'tip' => t('premium_plan_free_feature_shared_bot_tip')],
+            ['text' => t('premium_plan_free_feature_custom_bot'), 'tip' => t('premium_plan_free_feature_custom_bot_tip'), 'icon' => 'fas fa-flask sp-plan-feature-icon--amber'],
+        ],
+        'note' => t('premium_plan_free_note'),
+    ],
     '1000' => [
         'name' => t('premium_plan_tier1_name'),
         'price' => t('premium_plan_tier1_price'),
+        'icon' => 'fas fa-star',
+        'mod' => 't1',
+        'storage' => 50,
+        'storage_tip' => t('premium_plan_tier1_feature_storage_tip'),
+        'sounds' => 20,
         'features' => [
             ['text' => t('premium_plan_tier1_feature_song_command'), 'tip' => t('premium_plan_tier1_feature_song_command_tip')],
             ['text' => t('premium_plan_tier1_feature_support'), 'tip' => t('premium_plan_tier1_feature_support_tip')],
             ['text' => t('premium_plan_tier1_feature_beta'), 'tip' => t('premium_plan_tier1_feature_beta_tip')],
-            ['text' => t('premium_plan_tier1_feature_storage'), 'tip' => t('premium_plan_tier1_feature_storage_tip')],
-            ['text' => t('premium_feature_sound_gen', [20]), 'tip' => t('premium_feature_sound_gen_tip', [20])],
-            /* Shared bot name is included in the Free plan; removed from Tier 1 features */
         ],
     ],
     '2000' => [
         'name' => t('premium_plan_tier2_name'),
         'price' => t('premium_plan_tier2_price'),
+        'icon' => 'fas fa-crown',
+        'mod' => 't2',
+        'storage' => 100,
+        'storage_tip' => t('premium_plan_tier2_feature_storage_tip'),
+        'sounds' => 30,
         'features' => [
             ['text' => t('premium_plan_tier2_feature_everything_t1'), 'tip' => t('premium_plan_tier2_feature_everything_t1_tip')],
             ['text' => t('premium_plan_tier2_feature_personal_support'), 'tip' => t('premium_plan_tier2_feature_personal_support_tip')],
             ['text' => t('premium_plan_tier2_feature_ai'), 'tip' => t('premium_plan_tier2_feature_ai_tip')],
-            ['text' => t('premium_plan_tier2_feature_storage'), 'tip' => t('premium_plan_tier2_feature_storage_tip')],
-            ['text' => t('premium_feature_sound_gen', [30]), 'tip' => t('premium_feature_sound_gen_tip', [30])],
-            /* Shared bot name is included in the Free plan; removed from Tier 2 features */
         ],
     ],
     '3000' => [
         'name' => t('premium_plan_tier3_name'),
         'price' => t('premium_plan_tier3_price'),
+        'icon' => 'fas fa-gem',
+        'mod' => 't3',
+        'storage' => 200,
+        'storage_tip' => t('premium_plan_tier3_feature_storage_tip'),
+        'sounds' => 40,
         'features' => [
             ['text' => t('premium_plan_tier3_feature_everything_t2'), 'tip' => t('premium_plan_tier3_feature_everything_t2_tip')],
-            ['text' => t('premium_plan_tier3_feature_storage'), 'tip' => t('premium_plan_tier3_feature_storage_tip')],
-            ['text' => t('premium_feature_sound_gen', [40]), 'tip' => t('premium_feature_sound_gen_tip', [40])],
         ],
     ],
 ];
+$betaPlan = [
+    'name' => t('premium_beta_plan_name'),
+    'price' => t('premium_beta_plan_price'),
+    'icon' => 'fas fa-flask',
+    'mod' => 'beta',
+    'storage' => 500,
+    'storage_tip' => t('premium_beta_plan_feature_storage_tip'),
+    'sounds' => 40,
+    'features' => [
+        ['text' => t('premium_beta_plan_feature_all'), 'tip' => t('premium_beta_plan_feature_all_tip')],
+    ],
+    'footer' => t('premium_beta_plan_footer'),
+];
+
+// $planKey null leaves the card out of the subscription status pass (the beta card is always current).
+function premium_plan_card($planKey, array $plan, bool $current = false)
+{
+    $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES); };
+    ?>
+    <div class="sp-card sp-plan-card sp-plan-card--<?php echo $h($plan['mod']); ?><?php echo $current ? ' is-current' : ''; ?>"<?php echo $planKey !== null ? ' data-plan-key="' . $h($planKey) . '"' : ''; ?>>
+        <div class="sp-card-body sp-plan-body">
+            <div class="sp-plan-identity">
+                <div class="sp-plan-top">
+                    <span class="sp-plan-icon-wrap"><i class="<?php echo $h($plan['icon']); ?> sp-plan-icon" aria-hidden="true"></i></span>
+                    <span class="sp-plan-current-tag"<?php echo $current ? '' : ' hidden'; ?>><i class="fas fa-check" aria-hidden="true"></i> <?php echo $h(t('premium_current_ribbon')); ?></span>
+                </div>
+                <h3 class="sp-plan-name"><?php echo $h($plan['name']); ?></h3>
+                <p class="sp-plan-price"><?php echo $h($plan['price']); ?></p>
+            </div>
+            <dl class="sp-plan-allowance">
+                <div title="<?php echo $h($plan['storage_tip']); ?>">
+                    <dt><?php echo $h(t('premium_allowance_storage')); ?></dt>
+                    <dd><?php echo (int) $plan['storage']; ?> MB</dd>
+                </div>
+                <div title="<?php echo $h(t('premium_feature_sound_gen_tip', [(int) $plan['sounds']])); ?>">
+                    <dt><?php echo $h(t('premium_allowance_sounds')); ?></dt>
+                    <dd><?php echo (int) $plan['sounds']; ?></dd>
+                </div>
+            </dl>
+            <ul class="sp-plan-features">
+                <?php foreach ($plan['features'] as $feature): ?>
+                <li title="<?php echo $h($feature['tip']); ?>">
+                    <i class="<?php echo $h($feature['icon'] ?? 'fas fa-check sp-plan-feature-icon'); ?>" aria-hidden="true"></i>
+                    <span><?php echo $h($feature['text']); ?></span>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if (!empty($plan['note'])): ?>
+            <p class="sp-plan-note"><?php echo $plan['note']; ?></p>
+            <?php endif; ?>
+            <?php if (!empty($plan['footer'])): ?>
+            <p class="sp-plan-beta-footer"><?php echo $h($plan['footer']); ?></p>
+            <?php endif; ?>
+            <?php if ($planKey !== null): ?>
+            <div class="premium-plan-action" aria-busy="true">
+                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
 
 function premium_fetch_subscription_status(array $plans, bool $betaAccess): array
 {
@@ -142,114 +227,13 @@ ob_start();
     </div>
 </div>
 <div class="sp-plan-grid">
-    <!-- Free Plan Card -->
-    <div class="sp-card sp-plan-card" data-plan-key="free">
-        <div class="sp-plan-current-ribbon" hidden><?php echo t('premium_current_ribbon'); ?></div>
-        <div class="sp-card-body sp-plan-body">
-            <div class="sp-plan-icon-area">
-                <div class="sp-plan-icon-wrap">
-                    <i class="fas fa-rocket sp-plan-icon" style="color: var(--text-muted);"></i>
-                </div>
-                <h3 class="sp-plan-name"><?php echo t('premium_plan_free_name'); ?></h3>
-                <p class="sp-plan-price"><?php echo t('premium_plan_free_price'); ?></p>
-            </div>
-            <ul class="sp-plan-features">
-                <li title="<?php echo t('premium_plan_free_feature_commands_tip'); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo t('premium_plan_free_feature_commands'); ?>
-                </li>
-                <li title="<?php echo t('premium_plan_free_feature_support_tip'); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo t('premium_plan_free_feature_support'); ?>
-                </li>
-                <li title="<?php echo t('premium_plan_free_feature_storage_tip'); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo t('premium_plan_free_feature_storage'); ?>
-                </li>
-                <li title="<?php echo htmlspecialchars(t('premium_feature_sound_gen_tip', [10])); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo htmlspecialchars(t('premium_feature_sound_gen', [10])); ?>
-                </li>
-                <li title="<?php echo t('premium_plan_free_feature_shared_bot_tip'); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo t('premium_plan_free_feature_shared_bot'); ?>
-                </li>
-                <li title="<?php echo htmlspecialchars(t('premium_plan_free_feature_custom_bot_tip')); ?>">
-                    <i class="fas fa-flask sp-plan-feature-icon--amber"></i>
-                    <?php echo t('premium_plan_free_feature_custom_bot'); ?>
-                </li>
-            </ul>
-            <p class="sp-plan-note"><?php echo t('premium_plan_free_note'); ?></p>
-            <div class="premium-plan-action" aria-busy="true">
-                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
-            </div>
-        </div>
-    </div>
-    <!-- Premium Plans -->
     <?php foreach ($plans as $planKey => $planDetails): ?>
-        <?php
-        $planIcons = ['1000' => 'fas fa-star', '2000' => 'fas fa-crown', '3000' => 'fas fa-gem'];
-        $planIconColors = ['1000' => 'var(--blue)', '2000' => 'var(--amber)', '3000' => 'var(--red)'];
-        ?>
-        <div class="sp-card sp-plan-card" data-plan-key="<?php echo htmlspecialchars($planKey); ?>">
-            <div class="sp-plan-current-ribbon" hidden><?php echo t('premium_current_ribbon'); ?></div>
-            <div class="sp-card-body sp-plan-body">
-                <div class="sp-plan-icon-area">
-                    <div class="sp-plan-icon-wrap">
-                        <i class="<?php echo $planIcons[$planKey] ?? 'fas fa-star'; ?> sp-plan-icon" style="color: <?php echo $planIconColors[$planKey] ?? 'var(--accent-hover)'; ?>;"></i>
-                    </div>
-                    <h3 class="sp-plan-name"><?php echo htmlspecialchars($planDetails['name']); ?></h3>
-                    <p class="sp-plan-price"><?php echo htmlspecialchars($planDetails['price']); ?></p>
-                </div>
-                <ul class="sp-plan-features">
-                    <?php foreach ($planDetails['features'] as $feature): ?>
-                        <li title="<?php echo htmlspecialchars($feature['tip']); ?>">
-                            <i class="fas fa-check sp-plan-feature-icon"></i>
-                            <?php echo htmlspecialchars($feature['text']); ?>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-                <div class="premium-plan-action" aria-busy="true">
-                    <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
-                </div>
-            </div>
-        </div>
+        <?php premium_plan_card((string) $planKey, $planDetails); ?>
     <?php endforeach; ?>
+    <?php if ($betaAccess): ?>
+        <?php premium_plan_card(null, $betaPlan, true); ?>
+    <?php endif; ?>
 </div>
-<!-- Special Beta Plan Card (if beta user) -->
-<?php if ($betaAccess): ?>
-<div class="sp-plan-beta-wrapper">
-    <div class="sp-card sp-plan-card is-current sp-plan-beta-card">
-        <div class="sp-plan-current-ribbon"><?php echo t('premium_current_ribbon'); ?></div>
-        <div class="sp-card-body sp-plan-body">
-            <div class="sp-plan-icon-area">
-                <div class="sp-plan-icon-wrap">
-                    <i class="fas fa-flask sp-plan-icon" style="color: #fff;"></i>
-                </div>
-                <h3 class="sp-plan-name"><?php echo t('premium_beta_plan_name'); ?></h3>
-                <p class="sp-plan-price"><?php echo t('premium_beta_plan_price'); ?></p>
-            </div>
-            <ul class="sp-plan-features">
-                <li title="<?php echo t('premium_beta_plan_feature_all_tip'); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo t('premium_beta_plan_feature_all'); ?>
-                </li>
-                <li title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo t('premium_beta_plan_feature_storage'); ?>
-                </li>
-                <li title="<?php echo htmlspecialchars(t('premium_feature_sound_gen_tip', [40])); ?>">
-                    <i class="fas fa-check sp-plan-feature-icon"></i>
-                    <?php echo htmlspecialchars(t('premium_feature_sound_gen', [40])); ?>
-                </li>
-            </ul>
-            <div class="sp-plan-beta-footer">
-                <span><?php echo t('premium_beta_plan_footer'); ?></span>
-            </div>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
 <?php
 $content = ob_get_clean();
 
@@ -346,8 +330,8 @@ function renderPremiumStatus(data) {
         var planKey = card.getAttribute('data-plan-key');
         var isCurrent = String(currentPlan) === String(planKey);
         card.classList.toggle('is-current', isCurrent);
-        var ribbon = card.querySelector('.sp-plan-current-ribbon');
-        if (ribbon) ribbon.hidden = !isCurrent;
+        var tag = card.querySelector('.sp-plan-current-tag');
+        if (tag) tag.hidden = !isCurrent;
         var action = card.querySelector('.premium-plan-action');
         if (action) {
             action.setAttribute('aria-busy', 'false');
