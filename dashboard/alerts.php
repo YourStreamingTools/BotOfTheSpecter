@@ -850,11 +850,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'set_media_levels') {
-        // Playback rows only: volume for sound, video and walk-ons, plus size for video alerts.
+        // Playback rows only: volume for sound, video, walk-ons and TTS, plus size for video alerts.
         $id = intval($_POST['id'] ?? 0);
         $image_scale = max(10, min(200, intval($_POST['image_scale'] ?? 100)));
         $sound_volume = max(0, min(100, intval($_POST['sound_volume'] ?? 50)));
-        $stmt = $db->prepare("UPDATE twitch_alerts SET image_scale = ?, sound_volume = ? WHERE id = ? AND alert_category IN ('sound_alerts', 'video_alerts', 'walkons')");
+        $stmt = $db->prepare("UPDATE twitch_alerts SET image_scale = ?, sound_volume = ? WHERE id = ? AND alert_category IN ('sound_alerts', 'video_alerts', 'walkons', 'tts')");
         $stmt->bind_param('iii', $image_scale, $sound_volume, $id);
         $ok = $stmt->execute();
         $stmt->close();
@@ -2245,7 +2245,7 @@ $(document).ready(function() {
         $.post('', { action: 'toggle_alert', id: currentAlertId, enabled: enabled }, null, 'json');
     });
     // Volume and video size also save on release, so the overlay refresh picks them up.
-    var mediaLevelCategories = ['sound_alerts', 'video_alerts', 'walkons'];
+    var mediaLevelCategories = ['sound_alerts', 'video_alerts', 'walkons', 'tts'];
     $('#set-simple-scale').on('input', function() { $('#simple-scale-val').text(this.value + '%'); });
     $('#set-simple-volume').on('input', function() { $('#simple-volume-val').text(this.value + '%'); });
     $('#set-simple-scale, #set-simple-volume').on('change', function() {

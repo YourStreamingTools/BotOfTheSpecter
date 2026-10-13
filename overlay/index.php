@@ -229,7 +229,7 @@ if ($username) {
                 }, SUB_COALESCE_MS);
                 pendingSubs.set(user, entry);
             }
-            // TTS stays at 30%. Sound alerts, video alerts and walk-ons use the volume set on the Alerts page.
+            // Sound alerts, video alerts, walk-ons and TTS use the volume set on the Alerts page.
             function mediaLevel(category, field, fallback) {
                 const row = (alertConfigs[category] || [])[0];
                 const n = row ? parseInt(row[field], 10) : NaN;
@@ -1542,7 +1542,7 @@ if ($username) {
                             console.warn('TTS event missing audio_file:', data);
                             return;
                         }
-                        enqueueFxAudio(url, 0.3);
+                        enqueueFxAudio(url, mediaVolume('tts'));
                     });
 
                     // SOUND_ALERT - full URL already resolved by the bot (media or legacy CDN).
