@@ -1098,7 +1098,7 @@ ob_start();
     <div id="custom-bot">
         <div class="sp-card">
             <div class="sp-card-header">
-                <h2 class="sp-card-title"><?php echo t('profile_custom_bot_title'); ?> <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">Beta 5.8</span></h2>
+                <h2 class="sp-card-title"><?php echo t('profile_custom_bot_title'); ?></h2>
             </div>
             <div class="sp-card-body">
                 <p style="margin-bottom:1rem;"><?php echo t('profile_custom_bot_intro'); ?></p>

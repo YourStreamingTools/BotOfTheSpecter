@@ -274,9 +274,6 @@ if (!$editRaffle && isset($_GET['edit'])) {
 
 ob_start();
 ?>
-<div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
-    <strong><?= t('raffles_beta_label') ?></strong> <?= t('raffles_beta_notice') ?>
-</div>
 <?php if ($message): ?>
     <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;"><?php echo htmlspecialchars($message); ?></div>
 <?php endif; ?>

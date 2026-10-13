@@ -423,11 +423,6 @@ ob_start();
     <h1><i class="fas fa-gamepad"></i> <?= htmlspecialchars(t('navbar_game_tracker')) ?></h1>
     <p><?= t('tracker_intro') ?></p>
 </div>
-<div class="sp-alert sp-alert-info mb-4">
-    <span class="icon"><i class="fas fa-info-circle"></i></span>
-    <?= t('tracker_beta_notice') ?>
-</div>
-
 <?php if (!$trackerReady): ?>
 <div class="sp-alert sp-alert-info"><?= htmlspecialchars(t('tracker_not_ready')) ?></div>
 <?php else: ?>

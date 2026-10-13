@@ -123,11 +123,6 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<div class="sp-alert sp-alert-info mb-4">
-    <span class="icon"><i class="fas fa-info-circle"></i></span>
-    <?= t('birthdays_beta_notice') ?>
-</div>
-
 <div class="sp-page-header mb-4">
     <h1><?= t('birthdays_page_title') ?></h1>
     <p><?= t('birthdays_page_subtitle') ?></p>
