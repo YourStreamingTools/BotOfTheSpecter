@@ -47,6 +47,8 @@ try {
         } elseif ($event === "TWITCH_CHANNELPOINTS" && isset($_POST['user'])) {
             $params['twitch-username'] = $_POST['user'];
             $params['reward_id'] = $_POST['reward_id'] ?? '';
+            $params['reward_title'] = $_POST['reward_title'] ?? '';
+            $params['cost'] = $_POST['cost'] ?? '';
             $params['message'] = $_POST['message'] ?? '';
         } elseif ($event === "WEATHER_DATA") {
             // Sample card for the Alerts page live test, in the shape api.py sends.
