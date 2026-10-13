@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $enable_raid_ad_snooze_message = isset($_POST['enable_raid_ad_snooze_message']) ? 1 : 0;
         $raid_ad_snooze_message = isset($_POST['raid_ad_snooze_message'])
-            ? substr((string)$_POST['raid_ad_snooze_message'], 0, 255)
+            ? substr((string)$_POST['raid_ad_snooze_message'], 0, 500)
             : '';
         // Types: 5 message strings + 7 existing ints + 3 raid ints + 1 raid message string, twice (INSERT + UPDATE)
         // sssssiiiiiiiiiis × 2

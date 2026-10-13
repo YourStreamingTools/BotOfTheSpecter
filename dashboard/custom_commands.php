@@ -15,9 +15,6 @@ include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
-require_once __DIR__ . '/includes/beta_char_limit.php';
-beta_char_limit_handle_request();
-$betaCharLimitEnabled = isset($user['beta_char_limit']) && (int) $user['beta_char_limit'] === 1;
 
 // List endpoint first so the browser can paint skeletons, then fetch rows.
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
@@ -863,10 +860,6 @@ ob_start();
             <i class="fas fa-code"></i>
             <span><?php echo t('custom_commands_view_variables'); ?></span>
         </a>
-        <div class="sp-betabot-toggle">
-            <input type="checkbox" class="switch" id="betaBotToggle" onchange="onBetaBotToggle(this.checked)"<?php echo !empty($betaCharLimitEnabled) ? ' checked' : ''; ?>>
-            <label for="betaBotToggle"><?= t('custom_commands_beta_bot_toggle') ?></label>
-        </div>
     </div>
 </div>
 <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
@@ -918,9 +911,9 @@ ob_start();
                     <label class="sp-label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
                     <div class="sp-input-wrap">
                         <i class="fas fa-message sp-input-icon"></i>
-                        <input class="sp-input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                        <input class="sp-input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="500" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
                     </div>
-                    <small id="responseCharCount" class="sp-help">0/<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?> <?php echo t('custom_commands_characters'); ?></small>
+                    <small id="responseCharCount" class="sp-help">0/500 <?php echo t('custom_commands_characters'); ?></small>
                     <button id="addManyOptionsBtn" class="sp-btn sp-btn-secondary sp-btn-sm" style="display:none; margin-top:0.5rem;" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
                         <i class="fas fa-list"></i>
                         <span><?= t('custom_commands_manage_options_btn') ?></span>
@@ -1019,9 +1012,9 @@ ob_start();
                         <label class="sp-label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
                         <div class="sp-input-wrap">
                             <i class="fas fa-message sp-input-icon"></i>
-                            <input class="sp-input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                            <input class="sp-input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="500" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
                         </div>
-                        <small id="editResponseCharCount" class="sp-help">0/<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?> <?php echo t('custom_commands_characters'); ?></small>
+                        <small id="editResponseCharCount" class="sp-help">0/500 <?php echo t('custom_commands_characters'); ?></small>
                         <button id="editManyOptionsBtn" class="sp-btn sp-btn-secondary sp-btn-sm" style="display:none; margin-top:0.5rem;" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
                             <i class="fas fa-list"></i>
                             <span><?= t('custom_commands_manage_options_btn') ?></span>
@@ -1245,7 +1238,6 @@ ob_start();
 ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
-<script src="js/beta_char_limit.js?v=<?php echo filemtime(__DIR__ . '/js/beta_char_limit.js'); ?>"></script>
 <script>
 var commands = [];
 var commandComboboxInitialized = false;
@@ -1717,16 +1709,7 @@ function sanitizeCommandName(commandName) {
         .replace(/[^a-z0-9]/g, '');
 }
 
-var charLimit = <?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>;
-function applyBetaBotCharLimit(enabled) {
-    charLimit = enabled ? 500 : 255;
-    ['response', 'command_response'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.setAttribute('maxlength', charLimit);
-    });
-    updateCharCount('response', 'responseCharCount');
-    updateCharCount('command_response', 'editResponseCharCount');
-}
+var charLimit = 500;
 
 var randomPickOptionsCache = {};
 
@@ -2338,7 +2321,6 @@ function validateForm(form) {
 
 // Initialize character counters when page loads
 window.onload = function() {
-    initBetaCharLimitToggle(<?php echo !empty($betaCharLimitEnabled) ? 'true' : 'false'; ?>);
     updateCharCount('response', 'responseCharCount');
     // Always initialize the edit response character counter, even when empty
     updateCharCount('command_response', 'editResponseCharCount');

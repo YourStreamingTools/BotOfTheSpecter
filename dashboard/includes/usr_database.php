@@ -795,13 +795,13 @@ try {
         'ad_notice_settings' => "
             CREATE TABLE IF NOT EXISTS ad_notice_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                ad_start_message VARCHAR(255),
-                ad_end_message VARCHAR(255),
-                ad_upcoming_message VARCHAR(255),
-                ad_snoozed_message VARCHAR(255),
+                ad_start_message VARCHAR(500),
+                ad_end_message VARCHAR(500),
+                ad_upcoming_message VARCHAR(500),
+                ad_snoozed_message VARCHAR(500),
                 enable_ad_notice TINYINT(1) DEFAULT 1,
                 enable_upcoming_ad_message TINYINT(1) DEFAULT 1,
-                ad_1min_message VARCHAR(255),
+                ad_1min_message VARCHAR(500),
                 enable_1min_ad_message TINYINT(1) DEFAULT 0,
                 enable_start_ad_message TINYINT(1) DEFAULT 1,
                 enable_end_ad_message TINYINT(1) DEFAULT 1,
@@ -810,7 +810,7 @@ try {
                 enable_raid_ad_snooze TINYINT(1) DEFAULT 1,
                 raid_ad_snooze_window_minutes INT DEFAULT 10,
                 enable_raid_ad_snooze_message TINYINT(1) DEFAULT 1,
-                raid_ad_snooze_message VARCHAR(255)
+                raid_ad_snooze_message VARCHAR(500)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'ad_break_state' => "
             CREATE TABLE IF NOT EXISTS ad_break_state (
@@ -1883,7 +1883,7 @@ try {
     $check_column_query = "SHOW COLUMNS FROM ad_notice_settings LIKE 'ad_snoozed_message'";
     $column_exists = $usrDBconn->query($check_column_query);
     if ($column_exists->num_rows == 0) {
-        $add_column_sql = "ALTER TABLE ad_notice_settings ADD ad_snoozed_message VARCHAR(255) DEFAULT 'Ads have been snoozed.' AFTER ad_upcoming_message";
+        $add_column_sql = "ALTER TABLE ad_notice_settings ADD ad_snoozed_message VARCHAR(500) DEFAULT 'Ads have been snoozed.' AFTER ad_upcoming_message";
         if ($usrDBconn->query($add_column_sql) === TRUE) {
             async_log('Successfully added ad_snoozed_message column to ad_notice_settings table.');
         } else {
@@ -1917,7 +1917,7 @@ try {
     // Migration for 1-minute ad warning message column
     $check_1min_msg = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'ad_1min_message'");
     if ($check_1min_msg->num_rows == 0) {
-        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD ad_1min_message VARCHAR(255) DEFAULT NULL AFTER ad_upcoming_message") === TRUE) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD ad_1min_message VARCHAR(500) DEFAULT NULL AFTER ad_upcoming_message") === TRUE) {
             async_log('Successfully added ad_1min_message column to ad_notice_settings table.');
         } else {
             async_log('Error adding ad_1min_message column: ' . $usrDBconn->error);
@@ -1959,7 +1959,7 @@ try {
     }
     $check_raid_msg = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'raid_ad_snooze_message'");
     if ($check_raid_msg->num_rows == 0) {
-        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD raid_ad_snooze_message VARCHAR(255) DEFAULT 'Snoozed the next ad for the raid from (user).' AFTER enable_raid_ad_snooze_message") === TRUE) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD raid_ad_snooze_message VARCHAR(500) DEFAULT 'Snoozed the next ad for the raid from (user).' AFTER enable_raid_ad_snooze_message") === TRUE) {
             async_log('Successfully added raid_ad_snooze_message column to ad_notice_settings table.');
         } else {
             async_log('Error adding raid_ad_snooze_message column: ' . $usrDBconn->error);
@@ -1969,6 +1969,19 @@ try {
     $update_raid_msg_sql = "UPDATE ad_notice_settings SET raid_ad_snooze_message = 'Snoozed the next ad for the raid from (user).' WHERE raid_ad_snooze_message IS NULL OR raid_ad_snooze_message = ''";
     if ($usrDBconn->query($update_raid_msg_sql) === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Updated raid_ad_snooze_message to use the default message.');
+    }
+    // Migration: ad notice messages hold up to 500 characters to match the bot's chat limit
+    foreach (['ad_start_message', 'ad_end_message', 'ad_upcoming_message', 'ad_snoozed_message', 'ad_1min_message', 'raid_ad_snooze_message'] as $adMsgCol) {
+        $adMsgRes = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE '" . $adMsgCol . "'");
+        $adMsgRow = $adMsgRes ? $adMsgRes->fetch_assoc() : null;
+        if ($adMsgRow && preg_match('/^varchar\((\d+)\)$/i', (string) $adMsgRow['Type'], $adMsgLen) && (int) $adMsgLen[1] < 500) {
+            $adMsgDefault = $adMsgRow['Default'] === null ? 'NULL' : "'" . $usrDBconn->real_escape_string($adMsgRow['Default']) . "'";
+            if ($usrDBconn->query("ALTER TABLE ad_notice_settings MODIFY " . $adMsgCol . " VARCHAR(500) DEFAULT " . $adMsgDefault) === TRUE) {
+                async_log('ad_notice_settings: widened ' . $adMsgCol . ' to VARCHAR(500).');
+            } else {
+                async_log('Error widening ad_notice_settings.' . $adMsgCol . ': ' . $usrDBconn->error);
+            }
+        }
     }
     // Ensure default options for new BETA chat alert types
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'gift_paid_upgrade', 'Thank you (user) for upgrading from a Gifted Sub to a paid subscription!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'gift_paid_upgrade')") === TRUE && $usrDBconn->affected_rows > 0) {

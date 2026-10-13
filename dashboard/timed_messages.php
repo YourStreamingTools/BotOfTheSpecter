@@ -15,9 +15,6 @@ include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
-require_once __DIR__ . '/includes/beta_char_limit.php';
-beta_char_limit_handle_request();
-$betaCharLimitEnabled = isset($user['beta_char_limit']) && (int) $user['beta_char_limit'] === 1;
 
 // List endpoint first so the browser can paint skeletons, then fetch rows.
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
@@ -311,10 +308,6 @@ ob_start();
                             <span><?php echo t('custom_commands_view_variables') ?: 'View Custom Variables'; ?></span>
                         </a>
                     </div>
-                    <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
-                        <input type="checkbox" class="switch" id="betaBotToggle" onchange="onBetaBotToggle(this.checked)"<?php echo !empty($betaCharLimitEnabled) ? ' checked' : ''; ?>>
-                        <label for="betaBotToggle"><?php echo t('timed_messages_beta_bot_toggle'); ?></label>
-                    </div>
                 </div>
             </div>
         </div>
@@ -336,8 +329,8 @@ ob_start();
                     <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
                         <div class="sp-form-group">
                             <label class="sp-label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
-                            <input class="sp-input" type="text" name="message" id="message" required maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" oninput="updateCharCount('message', 'charCount'); updateShoutoutHint('message', 'interval', 'shoutoutHint'); toggleAddButton();">
-                            <small id="charCount" class="sp-help">0/<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?> <?php echo t('timed_messages_characters'); ?></small>
+                            <input class="sp-input" type="text" name="message" id="message" required maxlength="500" oninput="updateCharCount('message', 'charCount'); updateShoutoutHint('message', 'interval', 'shoutoutHint'); toggleAddButton();">
+                            <small id="charCount" class="sp-help">0/500 <?php echo t('timed_messages_characters'); ?></small>
                             <small id="shoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i><?php echo t('timed_messages_shoutout_hint'); ?></small>
                             <small id="messageError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></small>
                         </div>
@@ -414,8 +407,8 @@ ob_start();
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>" oninput="updateCharCount('edit_message_content', 'editCharCount'); updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint'); toggleEditButton();">
-                            <small id="editCharCount" class="sp-help">0/<?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?> <?php echo t('timed_messages_characters'); ?></small>
+                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="500" oninput="updateCharCount('edit_message_content', 'editCharCount'); updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint'); toggleEditButton();">
+                            <small id="editCharCount" class="sp-help">0/500 <?php echo t('timed_messages_characters'); ?></small>
                             <small id="editShoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i><?php echo t('timed_messages_shoutout_hint'); ?></small>
                         </div>
                         <div class="sp-form-group">
@@ -501,9 +494,8 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
-<script src="js/beta_char_limit.js?v=<?php echo filemtime(__DIR__ . '/js/beta_char_limit.js'); ?>"></script>
 <script>
-var charLimit = <?php echo !empty($betaCharLimitEnabled) ? 500 : 255; ?>;
+var charLimit = 500;
 var timedMessagesData = [];
 const TM_I18N = {
     charactersSuffix: <?php echo json_encode(t('timed_messages_characters')); ?>,
@@ -660,15 +652,6 @@ function loadTimedMessages() {
         .catch(function() {
             renderTimedMessagesError();
         });
-}
-function applyBetaBotCharLimit(enabled) {
-    charLimit = enabled ? 500 : 255;
-    ['message', 'edit_message_content'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.setAttribute('maxlength', charLimit);
-    });
-    updateCharCount('message', 'charCount');
-    updateCharCount('edit_message_content', 'editCharCount');
 }
 
 // Returns true if the given input's value contains a (shoutout.username) variable
@@ -923,7 +906,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Call the function initially to pre-fill the fields if a default message is selected
 window.onload = function() {
-    initBetaCharLimitToggle(<?php echo !empty($betaCharLimitEnabled) ? 'true' : 'false'; ?>);
     toggleAddTriggerType();
     showResponse();
     updateCharCount('message', 'charCount');
