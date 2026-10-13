@@ -352,12 +352,12 @@ function get_admin_beta_mode_params($conn, $channelLookupId, $useCustom = false,
 }
 
 // $forceCustom: true = start stable/beta as the verified custom bot, false = do not,
-// null = previous behaviour (beta follows the user's saved use_custom flag).
+// null = previous behaviour (stable/beta follow the user's saved use_custom flag).
 function admin_start_mode_params($conn, $botType, $userId, $twitchUserId, $useCustomFromDb, $useSelfFromDb, $forceCustom) {
     $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
     $wantCustom = ($botType === 'custom')
         || $forceCustom === true
-        || ($forceCustom === null && $useCustomFromDb && $actionBotType === 'beta');
+        || ($forceCustom === null && $useCustomFromDb && in_array($actionBotType, ['stable', 'beta'], true));
     $params = [
         '_action_bot_type' => $actionBotType,
         '_error' => null,
@@ -375,7 +375,7 @@ function admin_start_mode_params($conn, $botType, $userId, $twitchUserId, $useCu
         $params['use_self'] = false;
         return $params;
     }
-    if ($actionBotType === 'beta' && $useSelfFromDb && $forceCustom !== true) {
+    if (in_array($actionBotType, ['stable', 'beta'], true) && $useSelfFromDb && $forceCustom !== true) {
         $params['use_self'] = true;
     }
     return $params;
