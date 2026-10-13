@@ -162,10 +162,10 @@ function performBotAction($action, $botType, $params) {
             'apitoken'    => $apiKey,
             'custom'      => (bool)($useCustomBot && in_array($botType, ['stable', 'beta'], true)),
             'botusername' => ($useCustomBot && in_array($botType, ['stable', 'beta'], true)) ? $customBotUsername : null,
-            'self'        => (bool)($useSelf && $botType === 'beta'),
+            'self'        => (bool)($useSelf && in_array($botType, ['stable', 'beta'], true)),
             'version'     => $version,
-            // beta/v6 only; bots API also requires the {channel}.py file on the host
-            'load_custom_module' => (bool)($loadCustomModule && in_array($botType, ['beta', 'v6'], true)),
+            // stable/beta/v6 only; bots API also requires the {channel}.py file on the host
+            'load_custom_module' => (bool)($loadCustomModule && in_array($botType, ['stable', 'beta', 'v6'], true)),
         ];
         if ($botType === 'kick') {
             $payload['kick_username'] = $params['kick_username'] ?? '';
