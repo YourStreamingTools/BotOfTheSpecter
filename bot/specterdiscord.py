@@ -7,6 +7,7 @@ import functools
 import io
 import json
 import logging
+import logging.handlers
 import os
 import re
 import signal
@@ -308,13 +309,64 @@ for directory_path, description in directories_to_create:
 
 # Function to setup logger
 def setup_logger(name, log_file, level=logging.INFO):
-    handler = logging.FileHandler(log_file)
+    # WatchedFileHandler reopens the path after midnight renames today's file aside.
+    handler = logging.handlers.WatchedFileHandler(log_file)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
+
+# Current file is today. .1 is yesterday through .6 is six days ago.
+LOG_BACKUP_DAYS = 6
+_discord_log_day = None
+
+def _shift_log_backups(path, keep=LOG_BACKUP_DAYS):
+    oldest = f"{path}.{keep}"
+    if os.path.isfile(oldest):
+        os.remove(oldest)
+    for n in range(keep - 1, 0, -1):
+        src = f"{path}.{n}"
+        if os.path.isfile(src):
+            os.replace(src, f"{path}.{n + 1}")
+
+def rotate_log_file(path, keep=LOG_BACKUP_DAYS):
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return
+    _shift_log_backups(path, keep)
+    os.replace(path, f"{path}.1")
+
+def rotate_discord_logs():
+    directory = config.discord_logs
+    if not os.path.isdir(directory):
+        return
+    for name in os.listdir(directory):
+        if not name.endswith(".txt") or re.search(r"\.txt\.\d+$", name):
+            continue
+        rotate_log_file(os.path.join(directory, name))
+
+async def discord_daily_log_rotate(logger):
+    global _discord_log_day
+    while True:
+        try:
+            now = datetime.now().astimezone()
+            today = now.strftime("%Y-%m-%d")
+            if _discord_log_day != today:
+                rotate = _discord_log_day is not None
+                sample = os.path.join(config.discord_logs, "discordbot.txt")
+                if not rotate and os.path.isfile(sample):
+                    mtime = datetime.fromtimestamp(os.path.getmtime(sample)).astimezone()
+                    rotate = mtime.strftime("%Y-%m-%d") < today
+                _discord_log_day = today
+                if rotate:
+                    rotate_discord_logs()
+                    logger.info("Rotated daily Discord logs")
+            tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            await asyncio.sleep(max(1, (tomorrow - now).total_seconds()))
+        except Exception as e:
+            logger.error(f"Daily Discord log rotate failed: {e}")
+            await asyncio.sleep(3600)
 
 # User-specific logger class for dual logging (admin + user logs)
 class UserLogger:
@@ -884,15 +936,15 @@ class WebsocketListener:
         @self.specterSocket.on('ELEVENLABS')
         async def elevenlabs_webhook(data):
             await handle_webhook_log(self.bot, data)
-        # Log all other events generically
+        # Log all other events generically. Never log the payload: it carries the channel API key.
         @self.specterSocket.on('*')
         async def catch_all(event, data):
-            if event and event.startswith('OBS_'):
-                # Ignore OBS-related events since Discord bot doesn't need to process them
+            if event and (event.startswith('OBS_') or event.startswith('CLOSED_CAPTION')):
+                # Discord does not use OBS events or live captions.
                 return
             if event in ('CHAT_MESSAGE', 'WEBHOOK_LOG', 'ELEVENLABS'):
                 return
-            self.logger.info(f"Received websocket event '{event}': {data}")
+            self.logger.info(f"Received websocket event '{event}'")
 
         # Forever reconnect loop (same pattern as Twitch/Kick bots)
         consecutive_failures = 0
@@ -2613,6 +2665,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(AdminCog(self, self.logger))
         await self.add_cog(UserTrackingCog(self, self.logger))
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
+        asyncio.create_task(discord_daily_log_rotate(self.logger))
         # Start websocket listener in the background
         self.websocket_listener = WebsocketListener(self, self.logger)
         asyncio.create_task(self.websocket_listener.start())
@@ -7473,6 +7526,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         self.last_db_check = 0  # Timestamp of last database check
         self.db_check_interval = 300  # Check database every 5 minutes
         self.live_users = {}  # (guild_id, username) -> stream_data
+        self._still_live_notice = set()  # (guild_id, username) already logged as still live
         # Start the monitoring task
         self.monitoring_task = asyncio.create_task(self.start_monitoring())
 
@@ -7774,6 +7828,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         for stream in current_streams:
             username = stream['user_login']
             current_live_usernames.add(username)
+            self._still_live_notice.discard((guild_id, username))
             # Check if already posted in DB
             live_notification = guild_live_users.get(username)
             if live_notification and live_notification.get('stream_id') == stream['id']:
@@ -7843,10 +7898,13 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                             if verify_resp.status == 200:
                                 verify_data = await verify_resp.json()
                                 if verify_data.get("data"):
-                                    self.logger.info(
-                                        f"Tracked streamer {username} missing from batch check but direct API confirms still live "
-                                        f"in guild {guild_id} - skipping offline to prevent duplicate notification"
-                                    )
+                                    notice_key = (guild_id, username)
+                                    if notice_key not in self._still_live_notice:
+                                        self.logger.info(
+                                            f"Tracked streamer {username} missing from batch check but direct API confirms still live "
+                                            f"in guild {guild_id} - skipping offline to prevent duplicate notification"
+                                        )
+                                        self._still_live_notice.add(notice_key)
                                     continue
             except Exception as verify_err:
                 self.logger.debug(f"Error verifying tracked streamer offline status for {username}: {verify_err}")

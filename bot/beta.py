@@ -11,7 +11,7 @@ from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from urllib.parse import urlencode, quote
 from logging import getLogger, StreamHandler as LoggingStreamHandler
-from logging.handlers import RotatingFileHandler as LoggerFileHandler
+from logging.handlers import WatchedFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 from pathlib import Path
@@ -298,13 +298,8 @@ def setup_logger(name, log_file, level=LoggingLevel):
     if logger.hasHandlers():
         logger.handlers.clear()
     formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    # Setup rotating file handler
-    handler = LoggerFileHandler(
-        log_file,
-        maxBytes=10485760, # 10MB
-        backupCount=5,
-        encoding='utf-8'
-    )
+    # WatchedFileHandler reopens the path after midnight renames today's file aside.
+    handler = LoggerFileHandler(log_file, encoding='utf-8')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     # Also stream to stdout so the tmux console viewer can see output
@@ -312,6 +307,57 @@ def setup_logger(name, log_file, level=LoggingLevel):
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     return logger
+
+# Current file is today. .1 is yesterday through .6 is six days ago.
+LOG_BACKUP_DAYS = 6
+_log_rotate_date = None
+
+def _shift_log_backups(path, keep=LOG_BACKUP_DAYS):
+    oldest = f"{path}.{keep}"
+    if os.path.isfile(oldest):
+        os.remove(oldest)
+    for n in range(keep - 1, 0, -1):
+        src = f"{path}.{n}"
+        if os.path.isfile(src):
+            os.replace(src, f"{path}.{n + 1}")
+
+def rotate_log_file(path, keep=LOG_BACKUP_DAYS):
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return
+    _shift_log_backups(path, keep)
+    os.replace(path, f"{path}.1")
+
+def rotate_open_log(path, keep=LOG_BACKUP_DAYS):
+    # tee -a keeps the crash log open. Copy, then truncate that same file.
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return
+    _shift_log_backups(path, keep)
+    with open(path, "rb") as src, open(f"{path}.1", "wb") as dst:
+        while True:
+            chunk = src.read(1024 * 1024)
+            if not chunk:
+                break
+            dst.write(chunk)
+    with open(path, "r+b") as live:
+        live.truncate(0)
+
+def maybe_rotate_daily_logs(tz):
+    global _log_rotate_date
+    today = time_right_now(tz).strftime("%Y-%m-%d")
+    if _log_rotate_date == today:
+        return
+    sample = os.path.join(logs_directory, "bot", f"{CHANNEL_NAME}.txt")
+    rotate = _log_rotate_date is not None
+    if not rotate and os.path.isfile(sample):
+        mtime = datetime.fromtimestamp(os.path.getmtime(sample), time_right_now(tz).tzinfo)
+        rotate = mtime.strftime("%Y-%m-%d") < today
+    _log_rotate_date = today
+    if not rotate:
+        return
+    for log_type in log_types:
+        rotate_log_file(os.path.join(logs_directory, log_type, f"{CHANNEL_NAME}.txt"))
+    rotate_open_log(os.path.join(logs_root, "crash", f"{CHANNEL_NAME}.log"))
+    bot_logger.info("[MIDNIGHT] Rotated daily logs")
 
 # Setup loggers
 loggers = {}
@@ -366,6 +412,7 @@ active_timer_routines = {}                                                      
 gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
 _tanggle_no_creds_logged = False                                                        # Tracks whether the "no credentials" message has been logged for Tanggle
+_tanggle_rejected_creds = None                                                          # (token, community uuid) last rejected with HTTP 401/403
 _stream_bingo_no_creds_logged = False                                                   # Tracks whether the "no credentials" message has been logged for Stream Bingo
 _current_bingo_game_id = None                                                           # Tracks the internally generated ID for the currently active bingo game
 _streak_schema_ready = False                                                            # Tracks whether highest_streak/total_streams_watched columns have been verified
@@ -3067,8 +3114,22 @@ async def stream_bingo_websocket():
             websocket_logger.error(f"[STREAM BINGO] WebSocket connection error: {e}")
             await sleep(10)  # Wait before retrying
 
+def tanggle_http_status(exc):
+    # websockets < 14: InvalidStatusCode.status_code. Newer: InvalidStatus.response.status_code.
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if isinstance(status, int):
+        return status
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None and cause is not exc:
+        return tanggle_http_status(cause)
+    return None
+
 async def connect_to_tanggle():
-    global CHANNEL_NAME, _tanggle_no_creds_logged
+    global CHANNEL_NAME, _tanggle_no_creds_logged, _tanggle_rejected_creds
     integrations_logger.info("[TANGGLE] ===== Tanggle =====")
     websocket_logger.info("[TANGGLE PUZZLES] Tanggle Puzzles WebSocket task started")
     while True:
@@ -3096,12 +3157,16 @@ async def connect_to_tanggle():
                 continue
             # Credentials found - reset the flag so a reconnection is logged if creds are later removed
             _tanggle_no_creds_logged = False
+            if _tanggle_rejected_creds == (tanggle_api_token, tanggle_community_uuid):
+                await sleep(300)
+                continue
             # Construct WebSocket URL with events parameter
             websocket_url = f"wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms"
             headers = {"Authorization": f"Bearer {tanggle_api_token}"}
             integrations_logger.info("[TANGGLE] Attempting to connect to Tanggle WebSocket")
             websocket_logger.info("[TANGGLE PUZZLES] Attempting to connect to Tanggle WebSocket")
             async with WebSocketConnect(websocket_url, additional_headers=headers) as tanggle_ws:
+                _tanggle_rejected_creds = None
                 integrations_logger.info("[TANGGLE] Successfully connected to Tanggle WebSocket")
                 websocket_logger.info("[TANGGLE PUZZLES] Successfully connected to Tanggle WebSocket")
                 while True:
@@ -3135,6 +3200,19 @@ async def connect_to_tanggle():
             # A clean close (or a server that drops us straight away) waits before reconnecting instead of spinning
             await sleep(5)
         except Exception as e:
+            status = tanggle_http_status(e)
+            if status in (401, 403):
+                rejected = (tanggle_api_token, tanggle_community_uuid)
+                if _tanggle_rejected_creds != rejected:
+                    integrations_logger.error(
+                        f"[TANGGLE] Tanggle rejected the saved token (HTTP {status}). "
+                        "Paused until the token or community id changes. Checking every 5 minutes."
+                    )
+                    websocket_logger.error(
+                        f"[TANGGLE PUZZLES] Token rejected (HTTP {status}). Paused until credentials change."
+                    )
+                    _tanggle_rejected_creds = rejected
+                continue
             integrations_logger.error(f"[TANGGLE] Tanggle: WebSocket connection error: {e}")
             websocket_logger.error(f"[TANGGLE PUZZLES] WebSocket connection error: {e}")
             await sleep(10)  # Wait before retrying
@@ -19550,6 +19628,7 @@ async def midnight():
                 tz_loaded_at = time.monotonic()
             # Get the current time in the user's timezone
             current_time = time_right_now(tz)
+            maybe_rotate_daily_logs(tz)
             # Check if it's midnight (00:00)
             if current_time.hour == 0 and current_time.minute == 0:
                 # Reload the .env file at midnight

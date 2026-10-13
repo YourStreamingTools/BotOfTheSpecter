@@ -10,7 +10,7 @@ from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from urllib.parse import urlencode
 from logging import getLogger
-from logging.handlers import RotatingFileHandler as LoggerFileHandler
+from logging.handlers import WatchedFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 from pathlib import Path
@@ -67,7 +67,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.28"
+VERSION = "5.7.29"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -144,17 +144,62 @@ def setup_logger(name, log_file, level=LoggingLevel):
     # Clear any existing handlers to prevent duplicates
     if logger.hasHandlers():
         logger.handlers.clear()
-    # Setup rotating file handler
-    handler = LoggerFileHandler(
-        log_file,
-        maxBytes=10485760, # 10MB
-        backupCount=5,
-        encoding='utf-8'
-    )
+    # WatchedFileHandler reopens the path after midnight renames today's file aside.
+    handler = LoggerFileHandler(log_file, encoding='utf-8')
     formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
+
+# Current file is today. .1 is yesterday through .6 is six days ago.
+LOG_BACKUP_DAYS = 6
+_log_rotate_date = None
+
+def _shift_log_backups(path, keep=LOG_BACKUP_DAYS):
+    oldest = f"{path}.{keep}"
+    if os.path.isfile(oldest):
+        os.remove(oldest)
+    for n in range(keep - 1, 0, -1):
+        src = f"{path}.{n}"
+        if os.path.isfile(src):
+            os.replace(src, f"{path}.{n + 1}")
+
+def rotate_log_file(path, keep=LOG_BACKUP_DAYS):
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return
+    _shift_log_backups(path, keep)
+    os.replace(path, f"{path}.1")
+
+def rotate_open_log(path, keep=LOG_BACKUP_DAYS):
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return
+    _shift_log_backups(path, keep)
+    with open(path, "rb") as src, open(f"{path}.1", "wb") as dst:
+        while True:
+            chunk = src.read(1024 * 1024)
+            if not chunk:
+                break
+            dst.write(chunk)
+    with open(path, "r+b") as live:
+        live.truncate(0)
+
+def maybe_rotate_daily_logs(tz):
+    global _log_rotate_date
+    today = time_right_now(tz).strftime("%Y-%m-%d")
+    if _log_rotate_date == today:
+        return
+    sample = os.path.join(logs_directory, "bot", f"{CHANNEL_NAME}.txt")
+    rotate = _log_rotate_date is not None
+    if not rotate and os.path.isfile(sample):
+        mtime = datetime.fromtimestamp(os.path.getmtime(sample), time_right_now(tz).tzinfo)
+        rotate = mtime.strftime("%Y-%m-%d") < today
+    _log_rotate_date = today
+    if not rotate:
+        return
+    for log_type in log_types:
+        rotate_log_file(os.path.join(logs_directory, log_type, f"{CHANNEL_NAME}.txt"))
+    rotate_open_log(os.path.join(logs_root, "crash", f"{CHANNEL_NAME}.log"))
+    bot_logger.info("Rotated daily logs")
 
 # Setup loggers
 loggers = {}
@@ -10036,6 +10081,7 @@ async def midnight():
         while True:
             # Get the current time in the user's timezone
             current_time = time_right_now(tz)
+            maybe_rotate_daily_logs(tz)
             # Check if it's exactly midnight (00:00:00)
             if current_time.hour == 0 and current_time.minute == 0:
                 # Reload the .env file at midnight
