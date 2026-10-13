@@ -1184,10 +1184,36 @@ ob_start();
                             <input type="text" class="sp-input" id="set-alert-condition" placeholder="<?= htmlspecialchars(t('alerts_condition_placeholder')) ?>">
                             <small class="alerts-help-text"><?= t('alerts_condition_help') ?></small>
                         </div>
-                        <div class="alerts-form-group">
+                        <div class="alerts-form-group" id="duration-group">
                             <label><?= t('alerts_onscreen_duration') ?></label>
                             <input type="number" class="sp-input" id="set-duration" min="1" max="99" value="8">
-                            <small class="alerts-help-text" id="ad-break-duration-note" style="display:none;"><?= t('alerts_ad_break_note') ?></small>
+                        </div>
+                        <div id="ad-display-group" style="display:none;">
+                            <div class="alerts-form-row">
+                                <div class="alerts-form-group">
+                                    <label for="set-ad-display"><?= t('alerts_ad_display') ?></label>
+                                    <select class="sp-select" id="set-ad-display">
+                                        <option value="frame"><?= t('alerts_ad_display_frame') ?></option>
+                                        <option value="pill"><?= t('alerts_ad_display_pill') ?></option>
+                                    </select>
+                                </div>
+                                <div class="alerts-form-group">
+                                    <label for="set-ad-pill-position"><?= t('alerts_ad_pill_position') ?></label>
+                                    <select class="sp-select" id="set-ad-pill-position">
+                                        <?php foreach (['left-top', 'center-top', 'right-top', 'left-bottom', 'center-bottom', 'right-bottom'] as $adPillPos): ?>
+                                        <option value="<?php echo $adPillPos; ?>"><?= t('alerts_pos_' . str_replace('-', '_', $adPillPos)) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="alerts-form-group">
+                                <label for="set-ad-opacity"><?= t('alerts_opacity') ?></label>
+                                <div class="alerts-range-wrap">
+                                    <input type="range" id="set-ad-opacity" min="10" max="100" step="5" value="100">
+                                    <span class="alerts-range-value" id="ad-opacity-val">100%</span>
+                                </div>
+                            </div>
+                            <small class="alerts-help-text"><?= t('alerts_ad_break_note') ?></small>
                         </div>
                         <p class="alerts-help-text" id="goals-settings-note" style="display:none;"><?= t('alerts_goals_note') ?></p>
                         <p class="alerts-help-text" id="module-settings-note" style="display:none;"><i class="fas fa-up-down-left-right"></i> <?= t('alerts_module_note') ?></p>
@@ -2075,13 +2101,14 @@ $(document).ready(function() {
     });
     function applyCategoryUI(category, condition) {
         renderVariableHints(category);
-        $('#ad-break-duration-note').toggle(category === 'ad_break');
+        $('#duration-group').toggle(category !== 'ad_break');
+        $('#ad-display-group').toggle(category === 'ad_break');
         $('#goals-settings-note').toggle(category === 'goals');
         var adsSoundOnly = category === 'ad_break';
         var isModule = moduleCategories.indexOf(category) !== -1;
         $('#layout-settings-section, #text-settings-section, #alert-image-group').toggle(!adsSoundOnly && !isModule);
         $('#celebration-settings-section').toggle(!adsSoundOnly);
-        $('#animation-settings-group').toggle(!isModule);
+        $('#animation-settings-group').toggle(!isModule && !adsSoundOnly);
         $('#module-settings-note').toggle(isModule);
         $('#alert-sound-group').toggleClass('alerts-form-group-divider', !adsSoundOnly && !isModule);
         if (isModule) {
@@ -2190,6 +2217,10 @@ $(document).ready(function() {
         $('#set-alert-condition').val(a.alert_condition || '');
         applyCategoryUI(a.alert_category, a.alert_condition);
         $('#set-duration').val(a.duration);
+        $('#set-ad-display').val(a.layout_preset === 'pill' ? 'pill' : 'frame');
+        $('#set-ad-pill-position').val(adPillPosition(a.screen_position));
+        $('#set-ad-opacity').val(adOpacity(a.bg_opacity));
+        updateAdFramePreview();
         $('#set-animation-in').val(a.animation_in);
         $('#set-animation-out').val(a.animation_out);
         $('#set-animation-in-duration').val(a.animation_in_duration);
@@ -2606,7 +2637,32 @@ $(document).ready(function() {
             if (result.isConfirmed) loadVariant(currentAlertId);
         });
     });
+    function adPillPosition(value) {
+        return ['left-top', 'center-top', 'right-top', 'left-bottom', 'center-bottom', 'right-bottom'].indexOf(value) !== -1 ? value : 'right-top';
+    }
+    // Ads store opacity in bg_opacity. Anything under 10 was never set, so it shows at full colour.
+    function adOpacity(value) {
+        var v = parseInt(value, 10);
+        return (isNaN(v) || v < 10) ? 100 : Math.min(100, v);
+    }
+    function updateAdFramePreview() {
+        var parts = String($('#set-ad-pill-position').val() || 'right-top').split('-');
+        var opacity = adOpacity($('#set-ad-opacity').val());
+        $('#ad-opacity-val').text(opacity + '%');
+        $('#preview-ad-frame').attr({ 'data-display': $('#set-ad-display').val() || 'frame', 'data-pill-h': parts[0], 'data-pill-v': parts[1] });
+        $('#preview-ad-frame')[0].style.setProperty('--ad-alpha', String(opacity / 100));
+    }
+    $('#set-ad-opacity').on('input', function() {
+        updateAdFramePreview();
+        markDirty();
+    });
+    $('#set-ad-display, #set-ad-pill-position').on('change', function() {
+        updateAdFramePreview();
+        markDirty();
+    });
     function collectFormData() {
+        // The ad variant has no layout or position settings, so those columns hold its display and pill corner.
+        var isAdVariant = alertsData[currentAlertId].alert_category === 'ad_break';
         return {
             action: 'save_alert', id: currentAlertId,
             variant_name: $('#set-variant-name').val(),
@@ -2617,9 +2673,9 @@ $(document).ready(function() {
             animation_out: $('#set-animation-out').val(),
             animation_in_duration: $('#set-animation-in-duration').val(),
             animation_out_duration: $('#set-animation-out-duration').val(),
-            layout_preset: $('.layout-preset-btn.active').data('layout'),
+            layout_preset: isAdVariant ? $('#set-ad-display').val() : $('.layout-preset-btn.active').data('layout'),
             bg_color: $('#set-bg-color').val(),
-            bg_opacity: $('#set-bg-opacity').val(),
+            bg_opacity: isAdVariant ? $('#set-ad-opacity').val() : $('#set-bg-opacity').val(),
             padding: $('#set-padding').val(),
             gap: $('#set-gap').val(),
             rounded_corners: $('#set-rounded-corners').is(':checked') ? 1 : 0,
@@ -2645,7 +2701,7 @@ $(document).ready(function() {
             celebration_area: 'full',
             // Drag-to-place: box top-left as a 0-100 percent of the 16:9 canvas.
             // screen_position is preserved unchanged for overlay back-compat fallback.
-            screen_position: alertsData[currentAlertId].screen_position || null,
+            screen_position: isAdVariant ? $('#set-ad-pill-position').val() : (alertsData[currentAlertId].screen_position || null),
             position_x: alertsData[currentAlertId].position_x,
             position_y: alertsData[currentAlertId].position_y
         };
@@ -2951,9 +3007,14 @@ $(document).ready(function() {
         var $box = $('#preview-ad-frame').is(':visible') ? $('#preview-ad-frame') : $('#preview-box');
         var animIn = $('#set-animation-in').val();
         var animOut = $('#set-animation-out').val();
-        var duration = parseInt($('#set-duration').val()) * 1000;
-        var animInDur = parseFloat($('#set-animation-in-duration').val());
-        var animOutDur = parseFloat($('#set-animation-out-duration').val());
+        var isAdPreview = $box.is('#preview-ad-frame');
+        var duration = isAdPreview ? 4000 : parseInt($('#set-duration').val()) * 1000;
+        var animInDur = isAdPreview ? 1 : parseFloat($('#set-animation-in-duration').val());
+        var animOutDur = isAdPreview ? 1 : parseFloat($('#set-animation-out-duration').val());
+        if (isAdPreview) {
+            animIn = 'fadeIn';
+            animOut = 'fadeOut';
+        }
         $box.css('animation', 'none');
         void $box[0].offsetHeight;
         $box.css('animation', animIn + ' ' + animInDur + 's forwards');
@@ -3059,7 +3120,7 @@ $(document).ready(function() {
             'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: conditionValue(cond, 'bits', 100) } },
             'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: conditionValue(cond, 'viewers', 42) } },
             'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: conditionValue(cond, 'level', 1) } },
-            'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: String(Math.max(5, Math.min(30, parseInt($('#set-duration').val(), 10) || 15))) } },
+            'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: '15' } },
             'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: conditionValue(cond, 'amount', 25) + ' USD', charity_name: 'Example Charity' } },
             'channel_points':    { event: 'TWITCH_CHANNELPOINTS', params: { user: 'TestUser', reward_id: extractRewardId(cond) || '', reward_title: selectedRewardSample(cond).title, cost: selectedRewardSample(cond).cost, message: 'Test redemption' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },

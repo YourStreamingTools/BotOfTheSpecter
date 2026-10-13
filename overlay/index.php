@@ -803,21 +803,19 @@ if ($username) {
                     if (container) container.innerHTML = '';
                     return;
                 }
-                const config = container._adConfig || {};
-                const animOutDur = parseFloat(config.animation_out_duration) || 1;
                 const box = container.querySelector('.ad-break-frame');
                 if (!animated || !box) {
                     container.classList.remove('show');
                     container.innerHTML = '';
                     return;
                 }
-                box.style.animation = `${config.animation_out || 'fadeOut'} ${animOutDur}s forwards`;
+                box.style.animation = 'fadeOut 1s forwards';
                 adBreakHideTimer = setTimeout(() => {
                     if (gen !== adBreakGen) return;
                     container.classList.remove('show');
                     container.innerHTML = '';
                     adBreakHideTimer = null;
-                }, animOutDur * 1000);
+                }, 1000);
             }
             // resume: picking up a break already in progress, so no alert sound.
             function showAdBreak(data, resume) {
@@ -831,7 +829,6 @@ if ($username) {
                 const gen = adBreakGen;
                 const container = document.getElementById('adBreakOverlay');
                 if (!container) return;
-                container._adConfig = config;
                 container.style.left = '0';
                 container.style.top = '0';
                 container.style.right = '0';
@@ -840,17 +837,23 @@ if ($username) {
                 container.style.height = '100%';
                 container.style.transform = 'none';
                 container.style.zoom = '';
+                // layout_preset holds the ad display (frame or pill only), screen_position the pill corner.
+                const adDisplay = config.layout_preset === 'pill' ? 'pill' : 'frame';
+                const pillPos = ['left-top', 'center-top', 'right-top', 'left-bottom', 'center-bottom', 'right-bottom'].indexOf(config.screen_position) !== -1 ? config.screen_position : 'right-top';
+                const [pillH, pillV] = pillPos.split('-');
+                // bg_opacity holds the ad opacity. Under 10 was never set, so it shows at full colour.
+                const adOpacity = parseInt(config.bg_opacity, 10);
+                const adAlpha = (isNaN(adOpacity) || adOpacity < 10) ? 1 : Math.min(100, adOpacity) / 100;
                 container.innerHTML = `
-                    <div class="ad-break-frame">
+                    <div class="ad-break-frame" data-display="${adDisplay}" data-pill-h="${pillH}" data-pill-v="${pillV}" style="--ad-alpha: ${adAlpha};">
                         <div class="ad-break-pill"><span class="ad-break-clock" data-ad="duration">0:00</span></div>
                     </div>
                 `;
                 paintAdClocks(container, endMs);
                 container.classList.add('show');
                 const box = container.querySelector('.ad-break-frame');
-                const animInDur = parseFloat(config.animation_in_duration) || 1;
                 if (box) {
-                    box.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
+                    box.style.animation = 'fadeIn 1s forwards';
                 }
                 if (config.alert_sound && !resume) {
                     adBreakAudio = new Audio(SpecterOverlayWS.playbackUrl(mediaBase + config.alert_sound));

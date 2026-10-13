@@ -392,7 +392,7 @@ html, body {
 .ad-break-frame {
     position: absolute;
     inset: 0;
-    border: var(--ad-frame) solid #F5C518;
+    border: var(--ad-frame) solid rgba(245, 197, 24, var(--ad-alpha, 1));
     background: transparent;
     box-sizing: border-box;
     pointer-events: none;
@@ -410,6 +410,24 @@ html, body {
     padding: 0.38em 0.75em;
     border-radius: 999px;
     font-variant-numeric: tabular-nums;
+    opacity: var(--ad-alpha, 1);
+}
+.ad-break-frame[data-display="pill"] {
+    --ad-frame: 0px;
+    border: none;
+}
+.ad-break-frame[data-pill-h="left"] .ad-break-pill {
+    left: calc(var(--ad-frame) + 16px);
+    right: auto;
+}
+.ad-break-frame[data-pill-h="center"] .ad-break-pill {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+}
+.ad-break-frame[data-pill-v="bottom"] .ad-break-pill {
+    top: auto;
+    bottom: calc(var(--ad-frame) + 16px);
 }
 
 .twitch-alert-box {
