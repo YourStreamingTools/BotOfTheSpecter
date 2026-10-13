@@ -640,6 +640,7 @@ try {
                 image_volume INT DEFAULT 0,
                 alert_sound VARCHAR(255) DEFAULT NULL,
                 sound_volume INT DEFAULT 50,
+                video_size INT DEFAULT 70,
                 celebration_enabled TINYINT(1) DEFAULT 0,
                 celebration_effect VARCHAR(50) DEFAULT 'fireworks',
                 celebration_intensity VARCHAR(20) DEFAULT 'light',
