@@ -247,6 +247,11 @@ if ($username) {
                 const n = row ? parseInt(row[field], 10) : NaN;
                 return Number.isFinite(n) ? n : fallback;
             }
+            // A saved 0 is a real value (silent, no padding); only a missing value falls back.
+            function configNumber(value, fallback, min, max) {
+                const n = parseInt(value, 10);
+                return Math.max(min, Math.min(max, Number.isFinite(n) ? n : fallback));
+            }
             function mediaVolume(category) {
                 return Math.max(0, Math.min(100, mediaLevel(category, 'sound_volume', 50))) / 100;
             }
@@ -593,8 +598,8 @@ if ($username) {
                 const imageHtml = buildAlertImageHtml(config);
                 const boxStyles = [
                     `background:${bgRgba}`,
-                    `padding:${config.padding || 16}px`,
-                    `gap:${config.gap || 16}px`,
+                    `padding:${configNumber(config.padding, 16, 0, 100)}px`,
+                    `gap:${configNumber(config.gap, 16, 0, 100)}px`,
                     `border-radius:${config.rounded_corners == 1 ? '12px' : '0'}`,
                     `box-shadow:${config.drop_shadow == 1 ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'}`
                 ].join(';');
@@ -630,7 +635,7 @@ if ($username) {
                 if (config.alert_sound) {
                     const soundUrl = mediaBase + config.alert_sound;
                     currentAudio = new Audio(SpecterOverlayWS.playbackUrl(soundUrl));
-                    currentAudio.volume = (config.sound_volume || 50) / 100;
+                    currentAudio.volume = configNumber(config.sound_volume, 50, 0, 100) / 100;
                     currentAudio.play().catch(e => console.error('Audio play error:', e));
                 }
                 // Animate in
@@ -805,7 +810,7 @@ if ($username) {
                 }
                 if (config.alert_sound && !resume) {
                     adBreakAudio = new Audio(SpecterOverlayWS.playbackUrl(mediaBase + config.alert_sound));
-                    adBreakAudio.volume = (config.sound_volume || 50) / 100;
+                    adBreakAudio.volume = configNumber(config.sound_volume, 50, 0, 100) / 100;
                     adBreakAudio.play().catch((e) => console.error('Ad break audio error:', e));
                 }
                 container._adCelebration = 0;
