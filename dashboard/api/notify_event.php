@@ -18,7 +18,9 @@ try {
         // Initialize curl
         $ch = curl_init();
         // Base URL for the WebSocket notification
-        $url = "https://websocket.botofthespecter.com/notify?code=$api_key&event=$event";
+        // V2: the key goes in the X-API-KEY header, never the URL.
+        $url = "https://websocket.botofthespecter.com/notify?event=" . urlencode($event);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . str_replace(["\r", "\n"], '', $api_key)]);
         // Add event-specific parameters
         $params = [];
         if ($event === "WALKON" && isset($_POST['channel'], $_POST['user'])) {

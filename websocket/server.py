@@ -1428,7 +1428,8 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def notify_http(self, request):
         # Extract query parameters
-        code = request.query.get("code")
+        # V2 sends the key in the X-API-KEY header so it stays out of URLs and access logs; ?code= is the V1 fallback.
+        code = request.headers.get("X-API-KEY") or request.query.get("code")
         event = request.query.get("event")
         text = request.query.get("text")
         language_code = request.query.get("language_code") or request.query.get("language") or None
@@ -1490,8 +1491,9 @@ class BotOfTheSpecter_WebsocketServer:
                 if not is_valid_key:
                     self.logger.warning(f"Invalid API key for {event} event")
                     raise web.HTTPForbidden(text="403 Forbidden: Invalid API key")
-        data = {k: v for k, v in request.query.items()}
-        safe_log = {k: ("[redacted]" if k == "code" else v) for k, v in data.items()}
+        # The key never rides in the event body. Broadcasts name the channel through channel_code.
+        data = {k: v for k, v in request.query.items() if k != "code"}
+        safe_log = data
         self.logger.info(f"Notify request data: {safe_log} (admin_key: {is_admin_key})")
         # Admin keys reach every channel only when marked global. User keys still do.
         allow_global_fanout = True
@@ -1554,13 +1556,13 @@ class BotOfTheSpecter_WebsocketServer:
                     data["task"] = json.loads(raw_task)
                 except (ValueError, TypeError):
                     pass
-            count = await self.broadcast_to_task_clients_only(event, data)
+            count = await self.broadcast_to_task_clients_only(event, {**data, "channel_code": code})
         elif event in [
             "USER_POMO_START", "USER_POMO_CANCEL", "USER_POMO_UPDATE",
             "USER_POMO_PHASE", "USER_POMO_COMPLETE",
         ]:
             # Personal timers are bot-owned (DB + schedule). /notify only fans out to overlays.
-            count = await self.broadcast_to_task_clients_only(event, data)
+            count = await self.broadcast_to_task_clients_only(event, {**data, "channel_code": code})
         elif is_service_admin and allow_global_fanout:
             # Service-scoped admin key marked global: deliver the custom event to
             # global listeners only, tagged with the service name. Strip the key.
@@ -1580,7 +1582,7 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.info(f"Broadcasted service event '{event}' to {count} clients registered on this key")
         else:
             # Broadcast other events to connected clients
-            emit_data = {k: v for k, v in data.items() if k != 'code'} if is_admin_key else data
+            emit_data = data
             channel_for_globals = (admin_info.get('service') if is_admin_key and admin_info else None) or code or "unknown"
             if code in self.registered_clients:
                 await self.sio.emit(event, emit_data, to=self._key_room(code))
