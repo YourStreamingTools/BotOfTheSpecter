@@ -16,12 +16,11 @@
             <strong>custom commands</strong>, <strong>timed messages</strong>, <strong>channel point rewards</strong>, and <strong>event alerts</strong>
             (welcomes, follows, subs, raids, bits, and ad notices) - so the <strong>Universal Variables</strong> below work in all of them.
             Reward-only and event-only tokens are listed in their own sections further down.
-            Variables marked <span style="color:#c813e0;font-weight:600;">purple</span> are beta-only and currently in testing.
         </div>
     </div>
 
     <h2>Universal Variables</h2>
-    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type - custom commands, channel point rewards, and event alerts. <strong>Timed messages</strong> are the exception: on the live bot only <code>(game)</code> is currently replaced in timed messages; full variable support in timed messages is a <span style="color:#c813e0;font-weight:600;">Beta</span> feature.</p>
+    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type - custom commands, channel point rewards, and event alerts.</p>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.25rem;">
 
@@ -145,10 +144,10 @@
             <div class="sp-card-header"><code style="color:#3273dc;">(customapi.URL)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Fetches a URL and inserts the plain text response. On the live bot, <code>(customapi.json.URL)</code> fetches JSON and inserts it as raw text just like a normal request. <span style="color:#c813e0;font-weight:600;">Beta:</span> <code style="color:#c813e0;">(customapi.json.URL)</code> instead runs silently (nothing is printed) and stores the JSON in temporary context for use with the Beta <code style="color:#c813e0;">(json.*)</code> variable.</p>
+                <p style="margin-top:0.5rem;">Fetches a URL and inserts the plain text response. <code>(customapi.json.URL)</code> runs silently (nothing is printed) and stores the JSON in temporary context for use with the <code>(json.*)</code> variable.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>(customapi.https://api.example.com/joke)</code> - raw response<br>
-                    <code>(customapi.json.https://api.example.com/data)</code> - raw JSON text on the live bot; silent Beta context on beta<br>
+                    <code>(customapi.json.https://api.example.com/data)</code> - silent fetch for <code>(json.*)</code><br>
                     <code>(customapi.https://yourapi.com/user.php?user=(user))</code> - with variable in URL</p>
             </div>
         </div>
@@ -160,12 +159,12 @@
                 <p style="margin-top:0.5rem;">Calls and executes a built-in bot command by name.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(call.shoutout)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> Output from the built-in <code>shoutout</code> command</p>
-                <p style="margin-top:0.5rem;"><span style="color:#c813e0;font-weight:600;">Beta:</span> pass an argument with <code style="color:#c813e0;">(call.commandname.argument)</code> to forward input to the called command.</p>
+                <p style="margin-top:0.5rem;">Pass an argument with <code>(call.commandname.argument)</code> to forward input to the called command.</p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(if.CONDITION|TRUE|FALSE)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(if.CONDITION|TRUE|FALSE)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Evaluates a condition and returns one of two values. All other variables are resolved first. Supported operators: <code>=</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code> <code>contains</code> <code>startswith</code> <code>endswith</code></p>
@@ -176,7 +175,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(arg)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(arg)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">The argument the user passed after the command name. Empty string if no argument was given.</p>
@@ -186,18 +185,18 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(pronouns)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(pronouns)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Displays the user's full pronoun set, fetched from <a href="https://pronouns.alejo.io" target="_blank" rel="noopener">pronouns.alejo.io</a>. Defaults to <code>they/them</code> if not set.</p>
-                <p style="margin-top:0.5rem;">Use <code style="color:#c813e0;">(pronouns.they)</code> for just the subject pronoun (e.g. <code>she</code>, <code>he</code>, <code>they</code>) and <code style="color:#c813e0;">(pronouns.them)</code> for just the object pronoun (e.g. <code>her</code>, <code>him</code>, <code>them</code>).</p>
+                <p style="margin-top:0.5rem;">Use <code>(pronouns.they)</code> for just the subject pronoun (e.g. <code>she</code>, <code>he</code>, <code>they</code>) and <code>(pronouns.them)</code> for just the object pronoun (e.g. <code>her</code>, <code>him</code>, <code>them</code>).</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) and (pronouns) are here! We hope (pronouns.they) enjoy the stream! Give (pronouns.them) a warm welcome!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername and she/her are here! We hope she enjoy the stream! Give her a warm welcome!</code></p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(random.pick)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(random.pick)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Picks a random item from the pre-configured options list stored in the database for that command. No inline items needed.</p>
@@ -207,7 +206,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(random.pick.list.commandname)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(random.pick.list.commandname)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Picks a random item from the options list stored for a <em>different</em> named command. Useful for sharing a single list across multiple commands or rewards.</p>
@@ -217,7 +216,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(count.name)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(count.name)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">A named counter shared across commands. Increments by 1 each time it's used (user input never changes the amount), and the same name can be referenced from any command.</p>
@@ -227,36 +226,36 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(clearcount.name)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(clearcount.name)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Resets a named counter (see <code style="color:#c813e0;">(count.name)</code>) back to 0. Outputs nothing itself.</p>
+                <p style="margin-top:0.5rem;">Resets a named counter (see <code>(count.name)</code>) back to 0. Outputs nothing itself.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Deaths reset! (clearcount.deaths)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Deaths reset!</code></p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(shoutout.username)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(shoutout.username)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Triggers a shoutout for a <em>specific named user</em> (not whoever ran the command). The shoutout is sent as a separate follow-up message. Unlike the event-only <code style="color:#c813e0;">(shoutout)</code>, this works in any message type.</p>
+                <p style="margin-top:0.5rem;">Triggers a shoutout for a <em>specific named user</em> (not whoever ran the command). The shoutout is sent as a separate follow-up message. Unlike the event-only <code>(shoutout)</code>, this works in any message type.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Go check out (shoutout.someone)!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Go check out!</code> <em>(followed by the shoutout for someone)</em></p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(json.path.to.value)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(json.path.to.value)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Pulls a value out of the JSON fetched by <code>(customapi.json.URL)</code>, using a dot path. Fetch the JSON first (it's silent), then reference fields with <code style="color:#c813e0;">(json.key)</code> or <code style="color:#c813e0;">(json.nested.key)</code>.</p>
+                <p style="margin-top:0.5rem;">Pulls a value out of the JSON fetched by <code>(customapi.json.URL)</code>, using a dot path. Fetch the JSON first (it's silent), then reference fields with <code>(json.key)</code> or <code>(json.nested.key)</code>.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(customapi.json.https://api.example.com/user)(user)'s title is (json.data.title)</code></p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(todo.add.category.[description])</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(todo.add.category.[description])</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Silently adds an item to your to-do list under a category. Outputs nothing in chat. <code>CATEGORY</code> must be the numeric ID of one of your to-do categories (from the To-Do List page) - a non-numeric value silently falls back to your first category. Format: <code>(todo.add.CATEGORY.[the item text])</code>.</p>
@@ -280,7 +279,7 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(message)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(message)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The text input the user provided when redeeming the reward.</p>
@@ -360,7 +359,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(vip)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(vip)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Grants the redeeming user VIP status via the Twitch API. Does not output any text itself.</p>
@@ -370,26 +369,26 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(vip.today)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(vip.today)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
-                <p style="margin-top:0.5rem;">Same as <code style="color:#c813e0;">(vip)</code>, but also records the user so that VIP status is automatically removed when the stream ends.</p>
+                <p style="margin-top:0.5rem;">Same as <code>(vip)</code>, but also records the user so that VIP status is automatically removed when the stream ends.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) is VIP for today's stream! (vip.today)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername is VIP for today's stream!</code></p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.input)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.input)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
-                <p style="margin-top:0.5rem;">The text the viewer typed when redeeming the reward (the same value as <code style="color:#c813e0;">(message)</code>).</p>
+                <p style="margin-top:0.5rem;">The text the viewer typed when redeeming the reward (the same value as <code>(message)</code>).</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) requested: (redeem.input)</code></p>
             </div>
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.title)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.title)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The title of the redeemed reward.</p>
@@ -398,7 +397,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.cost)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.cost)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The channel-point cost of the redeemed reward.</p>
@@ -407,7 +406,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.prompt)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.prompt)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The reward's prompt / description text.</p>
@@ -416,7 +415,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.id)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.id)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The unique ID of this redemption. Handy for logging or custom API calls.</p>
@@ -425,7 +424,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.status)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.status)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The redemption's status (e.g. <code>fulfilled</code>, <code>unfulfilled</code>).</p>
@@ -434,7 +433,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.redeemed_at)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(redeem.redeemed_at)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The timestamp when the reward was redeemed.</p>
@@ -443,7 +442,7 @@
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(storeredeem)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(storeredeem)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Records this redemption into your stored redeems list - used for <strong>Point Store</strong> fulfillment tracking. Outputs nothing in chat.</p>
@@ -477,7 +476,7 @@
             </div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(shoutout)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(shoutout)</code></div>
             <div class="sp-card-body">
                 <p>Triggers a shoutout for the user. The shoutout info is sent as a separate message after your alert.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Welcome (user)! (shoutout)</code></p>
@@ -491,7 +490,7 @@
     <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            <code style="color:#c813e0;">(pronouns)</code> (plus <code style="color:#c813e0;">(pronouns.they)</code> / <code style="color:#c813e0;">(pronouns.them)</code>), <code style="color:#c813e0;">(arg)</code>, and <code style="color:#c813e0;">(if.*)</code> also work in alerts - they're documented once under <strong>Universal Variables</strong> above.
+            <code>(pronouns)</code> (plus <code>(pronouns.they)</code> / <code>(pronouns.them)</code>), <code>(arg)</code>, and <code>(if.*)</code> also work in alerts - they're documented once under <strong>Universal Variables</strong> above.
         </div>
     </div>
 
@@ -501,7 +500,7 @@
         <div class="sp-card">
             <div class="sp-card-header"><i class="fa-solid fa-hand-wave"></i> Welcome Messages</div>
             <div class="sp-card-body">
-                <p style="color:var(--text-secondary);font-size:0.875rem;">No unique variables - all <strong>General Variables</strong> above (including <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, <code style="color:#c813e0;">(pronouns.them)</code>) are available in welcome messages.</p>
+                <p style="color:var(--text-secondary);font-size:0.875rem;">No unique variables - all <strong>General Variables</strong> above (including <code>(shoutout)</code>, <code>(pronouns)</code>, <code>(pronouns.they)</code>, <code>(pronouns.them)</code>) are available in welcome messages.</p>
             </div>
         </div>
         <div class="sp-card">
@@ -531,9 +530,9 @@
             <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
             <div class="sp-card-body">The username of the new follower.<br><strong>Example:</strong> <code>Thank you (user) for following!</code></div>
         </div>
-        <div class="sp-card" style="border-color:#c813e0;">
-            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
+        <div class="sp-card">
+            <div class="sp-card-header">Also available</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code>(shoutout)</code>, <code>(pronouns)</code>, <code>(pronouns.they)</code>, and <code>(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -551,9 +550,9 @@
             <div class="sp-card-header"><code style="color:#3273dc;">(total-bits)</code></div>
             <div class="sp-card-body">The total bits this user has given to the channel.<br><strong>Example:</strong> <code>You've given (total-bits) bits total!</code></div>
         </div>
-        <div class="sp-card" style="border-color:#c813e0;">
-            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
+        <div class="sp-card">
+            <div class="sp-card-header">Also available</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code>(shoutout)</code>, <code>(pronouns)</code>, <code>(pronouns.they)</code>, and <code>(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -567,9 +566,9 @@
             <div class="sp-card-header"><code style="color:#3273dc;">(viewers)</code></div>
             <div class="sp-card-body">The number of viewers who joined with the raid.<br><strong>Example:</strong> <code>(user) raided with (viewers) viewers!</code></div>
         </div>
-        <div class="sp-card" style="border-color:#c813e0;">
-            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
+        <div class="sp-card">
+            <div class="sp-card-header">Also available</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code>(shoutout)</code>, <code>(pronouns)</code>, <code>(pronouns.they)</code>, and <code>(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -595,9 +594,9 @@
             <div class="sp-card-header"><code style="color:#3273dc;">(months)</code></div>
             <div class="sp-card-body">The cumulative number of months the user has been subscribed.<br><strong>Example:</strong> <code>Subscribed for (months) months!</code></div>
         </div>
-        <div class="sp-card" style="border-color:#c813e0;">
-            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
+        <div class="sp-card">
+            <div class="sp-card-header">Also available</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code>(shoutout)</code>, <code>(pronouns)</code>, <code>(pronouns.they)</code>, and <code>(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -620,35 +619,35 @@
             <div class="sp-card-body">The total gift subscriptions this user has given to the channel.<br><strong>Example:</strong> <code>You've gifted (total-gifted) subs total!</code></div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(gifter)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(gifter)</code></div>
             <div class="sp-card-body">The username of the original gifter (for pay-it-forward events).<br><strong>Example:</strong> <code>Thank you (user) for paying it forward! They received a gift from (gifter).</code></div>
         </div>
     </div>
 
-    <h3 style="margin-top:1.25rem;">Subscription Upgrade <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <h3 style="margin-top:1.25rem;">Subscription Upgrade</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(user)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(user)</code></div>
             <div class="sp-card-body">The username of the person who upgraded their subscription.<br><strong>Example:</strong> <code>Thank you (user) for upgrading to a paid subscription!</code></div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(tier)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(tier)</code></div>
             <div class="sp-card-body">The tier they upgraded to (Tier 1, Tier 2, or Tier 3).<br><strong>Example:</strong> <code>Thank you for upgrading to a (tier) subscription!</code></div>
         </div>
     </div>
 
-    <h3 style="margin-top:1.25rem;">Watch Streak <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <h3 style="margin-top:1.25rem;">Watch Streak</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(user)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(user)</code></div>
             <div class="sp-card-body">The display name of the viewer whose watch streak updated.<br><strong>Example:</strong> <code>Congrats (user) on watching (value) consecutive streams!</code></div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(value)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(value)</code></div>
             <div class="sp-card-body">The viewer's current consecutive-stream watch streak.</div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(total)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code>(total)</code></div>
             <div class="sp-card-body">The viewer's cumulative total streams watched. Only included when it's higher than the current streak.<br><strong>Example:</strong> <code>They've watched a total of (total) streams.</code></div>
         </div>
     </div>

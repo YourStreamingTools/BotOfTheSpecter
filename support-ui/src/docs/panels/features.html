@@ -20,7 +20,7 @@
         <li>Add trusted domains to the <strong>Link Whitelist</strong> so they always bypass URL blocking, without needing a permit.</li>
     </ul>
 
-    <h3>Blocked Terms <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <h3>Blocked Terms</h3>
     <p>Separately from link blocking, you can keep a list of forbidden words. Any message containing a blocked term is deleted automatically. Configure it under <strong>Integrations → Specter Modules → Chat Protection</strong> in the dashboard.</p>
 
     <h3>Custom Commands</h3>
@@ -29,10 +29,10 @@
         <li><code>!addcommand !name response</code> - creates a new command.</li>
         <li><code>!editcommand !name new response</code> - updates an existing command.</li>
         <li><code>!removecommand !name</code> - deletes a command.</li>
-        <li>Give a command a permission level by quoting the response: <code>!addcommand !name "response text" mod</code> (levels: everyone, mod, vip, subscribers, broadcaster). <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
+        <li>Give a command a permission level by quoting the response: <code>!addcommand !name "response text" mod</code> (levels: everyone, mod, vip, subscribers, broadcaster).</li>
     </ul>
     <p>Responses support the full <a href="#" data-goto="variables">variables system</a> - including <code>(user)</code>, <code>(count)</code>, <code>(customapi.URL)</code>, math expressions, and more.</p>
-    <p>Commands can also have aliases - extra trigger words that redirect to the same command and share its cooldown. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></p>
+    <p>Commands can also have aliases - extra trigger words that redirect to the same command and share its cooldown.</p>
 
     <h3>Timed Messages</h3>
     <p>Schedule messages to post automatically at a set interval. Manage them under <strong>Commands → Timed Messages</strong>.</p>
@@ -66,7 +66,7 @@
             <tbody>
                 <tr>
                     <td><code>!gamble &lt;type&gt; [choice] [amount]</code></td>
-                    <td>Wagers bot points (defaults to 100 if omitted). Types: <code>coinflip</code> (50% to win double), <code>blackjack</code> (random 1-21, only 21 wins double), <code>roulette</code> (choose red/black for double or lose).<br><strong>Examples:</strong> <code>!gamble coinflip 100</code> | <code>!gamble roulette red 100</code><br><span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span> On the beta bot, the broadcaster can wager any amount without needing enough points first.</td>
+                    <td>Wagers bot points (defaults to 100 if omitted). Types: <code>coinflip</code> (50% to win double), <code>blackjack</code> (random 1-21, only 21 wins double), <code>roulette</code> (choose red/black for double or lose).<br><strong>Examples:</strong> <code>!gamble coinflip 100</code> | <code>!gamble roulette red 100</code><br>The broadcaster can wager any amount without needing enough points first.</td>
                 </tr>
                 <tr>
                     <td><code>!slots</code></td>
@@ -97,7 +97,7 @@
         </table>
     </div>
 
-    <h3>Raffle System <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <h3>Raffle System</h3>
     <div class="sp-table-wrap">
         <table class="sp-table">
             <thead><tr><th>Command</th><th>Who</th><th>Description</th></tr></thead>
@@ -144,14 +144,14 @@
                 <tr><td><strong>New Follow</strong></td><td>Posts a customisable thank-you message and triggers an overlay alert.</td></tr>
                 <tr><td><strong>Subscription</strong></td><td>Posts a sub message. Supports <code>(tier)</code> and <code>(months)</code> variables.</td></tr>
                 <tr><td><strong>Re-subscription</strong></td><td>Handles resub messages with streak and total month data.</td></tr>
-                <tr><td><strong>Gift Subscriptions</strong></td><td>Single and bulk gifts supported. Supports <code>(count)</code> and <code>(total-gifted)</code>. Pay-it-forward gifts also support <code>(gifter)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span>.</td></tr>
-                <tr><td><strong>Sub Gift Pay-It-Forward &amp; Upgrades <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></strong></td><td>Extra chat alerts when a viewer pays a gifted sub forward, or upgrades a gifted or Prime sub to a paid subscription.</td></tr>
+                <tr><td><strong>Gift Subscriptions</strong></td><td>Single and bulk gifts supported. Supports <code>(count)</code> and <code>(total-gifted)</code>. Pay-it-forward gifts also support <code>(gifter)</code>.</td></tr>
+                <tr><td><strong>Sub Gift Pay-It-Forward &amp; Upgrades</strong></td><td>Extra chat alerts when a viewer pays a gifted sub forward, or upgrades a gifted or Prime sub to a paid subscription.</td></tr>
                 <tr><td><strong>Bits / Cheer</strong></td><td>Thanks the viewer. Supports <code>(bits)</code> and <code>(total-bits)</code>.</td></tr>
                 <tr><td><strong>Charity Donation</strong></td><td>Thanks the donor in chat for a donation to the channel's active Twitch charity campaign.</td></tr>
                 <tr><td><strong>Raid</strong></td><td>Welcomes the raider, triggers an automatic Twitch shoutout. Supports <code>(viewers)</code>.</td></tr>
-                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward - supports TTS, lotto, fortune, and API calls. VIP grants are also supported <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span>.</td></tr>
+                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward - supports TTS, lotto, fortune, and API calls. VIP grants are also supported.</td></tr>
                 <tr><td><strong>Hype Train</strong></td><td>Announces the start and end of the Hype Train. Supports <code>(level)</code>.</td></tr>
-                <tr><td><strong>Channel Goal <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></strong></td><td>Broadcasts overlay updates when a channel goal begins, progresses, and ends.</td></tr>
+                <tr><td><strong>Channel Goal</strong></td><td>Broadcasts overlay updates when a channel goal begins, progresses, and ends.</td></tr>
                 <tr><td><strong>Ad Break</strong></td><td>Sends an upcoming ad warning, activates an AI chat companion during the break, then resumes normal mode.</td></tr>
                 <tr><td><strong>Poll</strong></td><td>Announces when a poll starts (with a countdown) and posts a message when it ends.</td></tr>
                 <tr><td><strong>Shoutout Received</strong></td><td>Announces when another streamer gives the channel a Twitch shoutout.</td></tr>
@@ -185,7 +185,7 @@
         <li><code>!points</code> - check your balance.</li>
         <li><code>!addpoints</code> / <code>!removepoints</code> - moderator manual adjustment.</li>
         <li>Spent playing <code>!gamble</code>, <code>!slots</code>, and <code>!roulette</code>.</li>
-        <li><code>!store</code> / <code>!store &lt;item&gt;</code> - browse or redeem rewards from the point store. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
+        <li><code>!store</code> / <code>!store &lt;item&gt;</code> - browse or redeem rewards from the point store.</li>
     </ul>
 
     <h3>Watch Time</h3>
@@ -270,7 +270,7 @@
                 <tr><td><strong><i class="fa-solid fa-cloud-sun" style="color:#4aa3f0;"></i> OpenWeatherMap</strong></td><td>Fetches live weather for any location via <code>!weather &lt;city&gt;</code>.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-user-tag"></i> Pronouns (alejo.io)</strong></td><td>Looks up and caches viewer-set pronouns, using them naturally when the bot mentions a viewer by name.</td></tr>
                 <tr><td><strong><i class="fa-brands fa-discord" style="color:#5865F2;"></i> Discord</strong></td><td>A companion Discord bot handles stream announcements, reaction roles, support tickets, voice music playback, and Twitch account linking.</td></tr>
-                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Reads viewer messages through an OBS overlay. <strong>Normal</strong> is a steady English read (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer, Verse). <strong>Expressive</strong> is multilingual, with shouting and laughter from the message text (beta).</td></tr>
+                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Reads viewer messages through an OBS overlay. <strong>Normal</strong> is a steady English read (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer, Verse). <strong>Expressive</strong> is multilingual, with shouting and laughter from the message text.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit &amp; Currency Conversion</strong></td><td>Powered by the Pint unit library for length, weight, temperature, volume, speed, and more - plus live currency exchange rates via the ExchangeRate API - all through <code>!convert</code> (e.g. <code>!convert 10 km mi</code> or <code>!convert $10 USD AUD</code>).</td></tr>
             </tbody>
         </table>
