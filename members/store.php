@@ -64,12 +64,13 @@ function store_media_public_url($channel, $relative, $isNewMedia, $kind) {
 }
 
 function store_notify($apiKey, $event, array $params = []) {
-    $url = 'https://websocket.botofthespecter.com/notify?code=' . rawurlencode($apiKey)
-        . '&event=' . rawurlencode($event);
+    // V2: the key goes in the X-API-KEY header, never the URL.
+    $url = 'https://websocket.botofthespecter.com/notify?event=' . rawurlencode($event);
     if (!empty($params)) {
         $url .= '&' . http_build_query($params);
     }
     $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $apiKey]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 8);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);

@@ -137,12 +137,14 @@ function pet_notify_event($apiKey, $event, array $extra = []) {
             return true;
         }
     }
-    $wsUrl = 'https://websocket.botofthespecter.com/notify?code=' . rawurlencode($apiKey) . '&event=' . rawurlencode($event);
+    // V2: the key goes in the X-API-KEY header, never the URL.
+    $wsUrl = 'https://websocket.botofthespecter.com/notify?event=' . rawurlencode($event);
     if ($extra) {
         $wsUrl .= '&' . http_build_query($extra);
     }
     if (function_exists('curl_init')) {
         $ch = curl_init($wsUrl);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $apiKey]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
@@ -151,7 +153,7 @@ function pet_notify_event($apiKey, $event, array $extra = []) {
         curl_close($ch);
         return $ok;
     }
-    @file_get_contents($wsUrl);
+    @file_get_contents($wsUrl, false, stream_context_create(['http' => ['header' => 'X-API-KEY: ' . $apiKey]]));
     return true;
 }
 
