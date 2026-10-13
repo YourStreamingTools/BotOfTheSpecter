@@ -2724,15 +2724,14 @@ class BotOfTheSpecter(commands.Bot):
         channel_code = channel_code_row['channel_code']
         # Prepare params for websocket server notification
         params = {
-            'code': channel_code,
             'event': 'DISCORD_JOIN',
             'member': member.name
         }
-        # Send notification to websocket server
+        # Send notification to websocket server. V2: the key goes in the X-API-KEY header, never the URL.
         try:
             url = f"https://websocket.botofthespecter.com/notify?{urllib.parse.urlencode(params)}"
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(url, headers={'X-API-KEY': channel_code}) as response:
                     if response.status == 200:
                         self.logger.info(f"Successfully sent member join notification for {member.name} in guild {member.guild.name}")
                     else:
