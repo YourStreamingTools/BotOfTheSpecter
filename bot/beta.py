@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, sync_song_request_cache
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
@@ -273,7 +273,7 @@ mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
-    "puzzledone", "warn", "addbirthday"
+    "puzzledone", "warn", "addbirthday", "permitsong"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -394,6 +394,7 @@ shoutout_queue = Queue()                                                        
 shoutout_queued_ids = set()                                                             # User IDs currently waiting in or being processed by the shoutout queue
 recent_shoutouts = {}                                                                   # Dictionary for recent shoutouts
 permitted_users = {}                                                                    # Dictionary for permitted users
+song_request_permits = {}                                                               # login -> one-use bypass of the same-song gap
 connected = set()                                                                       # Set for connected users
 pending_removals = {}                                                                   # Dictionary for pending removals
 shoutout_tracker = {}                                                                   # Dictionary for tracking shoutouts
@@ -4282,21 +4283,29 @@ class TwitchBot(commands.Bot):
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
+                if not user_data and is_bot_creator(messageAuthor):
+                    await cursor.execute('SELECT * FROM seen_users WHERE LOWER(username) = %s LIMIT 1', (messageAuthor.lower(),))
+                    user_data = await cursor.fetchone()
+                # Hold the creator out of seen_users until the one-time hello is actually sent.
+                creator_first_visit = is_bot_creator(messageAuthor) and not user_data
                 if user_data:
                     has_welcome_message = user_data.get("welcome_message")
                     user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
                     has_welcome_message = None
                     user_status_enabled = True
-                    await cursor.execute(
-                        'INSERT INTO seen_users (username, status) VALUES (%s, %s)',
-                        (messageAuthor, "True")
-                    )
-                    await connection.commit()
-                    chat_logger.info(f"[WELCOME] Added new user to seen_users: {messageAuthor}")
+                    if not creator_first_visit:
+                        await cursor.execute(
+                            'INSERT INTO seen_users (username, status) VALUES (%s, %s)',
+                            (messageAuthor, "True")
+                        )
+                        await connection.commit()
+                        chat_logger.info(f"[WELCOME] Added new user to seen_users: {messageAuthor}")
                 # Update last_seen and set first_seen if null
-                await cursor.execute('UPDATE seen_users SET last_seen = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE username = %s', (messageAuthor,))
-                await connection.commit()
+                if not creator_first_visit:
+                    seen_username = user_data.get("username") if user_data else messageAuthor
+                    await cursor.execute('UPDATE seen_users SET last_seen = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE username = %s', (seen_username,))
+                    await connection.commit()
                 # Load streamer preferences
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()
@@ -4323,6 +4332,8 @@ class TwitchBot(commands.Bot):
                 # If user has not been seen today and stream is online, ONLY insert them when the message is NOT a command
                 is_command_message = bool(messageContent and messageContent.strip().startswith('!'))
                 if not already_seen_today and stream_online and not is_command_message:
+                    if creator_first_visit:
+                        await record_and_welcome_bot_creator(cursor, connection, messageAuthor)
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
@@ -4344,8 +4355,8 @@ class TwitchBot(commands.Bot):
                         await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
                         safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
-                    # Only send welcome message if enabled
-                    if user_status_enabled and send_welcome_messages:
+                    # Only send welcome message if enabled. The creator hello already went out on a first visit.
+                    if user_status_enabled and send_welcome_messages and not creator_first_visit:
                         if not user_data:
                             if is_vip:
                                 message_to_send = replace_user_placeholder(new_default_vip_welcome_message, messageAuthor)
@@ -4437,6 +4448,10 @@ class TwitchBot(commands.Bot):
                 is_mod = await is_user_mod(messageAuthorID)
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
+                if not user_data and is_bot_creator(messageAuthor):
+                    await cursor.execute('SELECT * FROM seen_users WHERE LOWER(username) = %s LIMIT 1', (messageAuthor.lower(),))
+                    user_data = await cursor.fetchone()
+                creator_first_visit = is_bot_creator(messageAuthor) and not user_data
                 if user_data:
                     has_welcome_message = user_data.get("welcome_message")
                     user_status_enabled = user_data.get("status", 'True') == 'True'
@@ -4461,13 +4476,15 @@ class TwitchBot(commands.Bot):
                     default_welcome_message = preferences["default_welcome_message"]
                     default_vip_welcome_message = preferences["default_vip_welcome_message"]
                     default_mod_welcome_message = preferences["default_mod_welcome_message"]
+                if creator_first_visit:
+                    await record_and_welcome_bot_creator(cursor, connection, messageAuthor)
                 await cursor.execute(
                     'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                     (messageAuthorID, messageAuthor)
                 )
                 await connection.commit()
                 chat_logger.info(f"[WELCOME] Marked {messageAuthor} as seen today from first-command welcome flow.")
-                if user_status_enabled and send_welcome_messages:
+                if user_status_enabled and send_welcome_messages and not creator_first_visit:
                     if not user_data:
                         if is_vip:
                             message_to_send = new_default_vip_welcome_message.replace("(user)", messageAuthor)
@@ -4506,6 +4523,8 @@ class TwitchBot(commands.Bot):
                             source="welcome_message"
                         )
                     chat_logger.info(f"[WELCOME] Sent first-command welcome message to {messageAuthor}")
+                    safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
+                elif creator_first_visit and user_status_enabled and send_welcome_messages:
                     safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                 # Birthday wish is its own message, so it goes out even when welcome messages are off
                 await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
@@ -6012,6 +6031,53 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='permitsong')
+    async def permitsong_command(self, ctx, permit_user: str = None):
+        global bot_owner, song_request_permits
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("permitsong",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if await command_permissions(permissions, ctx.author):
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                        if not await check_cooldown('permitsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('permitsong', bucket_key, cooldown_bucket)
+                        permit_user = (permit_user or '').lstrip('@').strip()
+                        if not permit_user:
+                            await send_chat_message("Usage: !permitsong @username")
+                            return
+                        lookup = permit_user.lower()
+                        try:
+                            user_info = await self.fetch_users(names=[lookup])
+                        except Exception as fetch_err:
+                            chat_logger.warning(f"[PERMIT SONG] Could not fetch Twitch user for {lookup}: {fetch_err}")
+                            user_info = None
+                        if not user_info:
+                            await send_chat_message(f"User {lookup} not found.")
+                            return
+                        lookup = user_info[0].name.lower()
+                        song_request_permits[lookup] = 1
+                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} one blocked song request")
+                        await send_chat_message(f"@{lookup} can request one song that was played too soon.")
+                    else:
+                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} tried to use permitsong but lacked permissions.")
+                        await send_chat_message("You do not have the required permissions to use this command.")
+        except Exception as e:
+            chat_logger.error(f"[PERMIT SONG] An error occurred during the execution of the permitsong command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='warn', aliases=['warning'])
     async def warn_command(self, ctx, target_user: str = None, *, reason: str = None):
         """Issue a formal warning to a viewer. Mods and the broadcaster only.
@@ -6698,6 +6764,13 @@ class TwitchBot(commands.Bot):
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
+            song_block = await same_song_block_message(connection, song_id, song_name, artist_name, settings.get("same_song_minutes"))
+            if song_block:
+                if consume_song_permit(song_request_permits, ctx.author.name):
+                    chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {song_name}")
+                else:
+                    await send_chat_message(song_block)
+                    return
             artist_name = clean_request_artist(artist_name) or artist_name
             api_logger.info(f"[SONG REQUEST] Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
             song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
@@ -6762,6 +6835,13 @@ class TwitchBot(commands.Bot):
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
+            song_block = await same_song_block_message(connection, resolved["video_id"], resolved["title"], request_artist, settings.get("same_song_minutes"))
+            if song_block:
+                if consume_song_permit(song_request_permits, ctx.author.name):
+                    chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {resolved['title']}")
+                else:
+                    await send_chat_message(song_block)
+                    return
             async with connection.cursor() as cursor:
                 await cursor.execute(
                     "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
@@ -6774,8 +6854,8 @@ class TwitchBot(commands.Bot):
             try:
                 async with connection.cursor() as acur:
                     await acur.execute(
-                        "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
-                        (resolved["title"], request_artist, ctx.author.name))
+                        "INSERT INTO song_request_analytics (song_name, artist_name, requested_by, song_id) VALUES (%s, %s, %s, %s)",
+                        (resolved["title"], request_artist, ctx.author.name, resolved["video_id"]))
             except Exception as analytics_err:
                 api_logger.error(f"[MEDIA REQUEST] analytics insert failed: {analytics_err}")
         except Exception as e:
@@ -12632,6 +12712,29 @@ async def save_birthday(cursor, user_id, user_name, day, month, added_by):
         (str(user_id), user_name.lower(), day, month, added_by),
     )
 
+# The bot creator is not in this channel's seen_users until the one-time hello below is sent.
+def is_bot_creator(username):
+    global bot_owner
+    if not username or not bot_owner:
+        return False
+    return str(username).lower() == str(bot_owner).lower()
+
+BOT_CREATOR_WELCOME = "@{user} That's my creator! Welcome to the stream, {user}. First time I've seen you in this chat, so hello from me."
+
+async def record_and_welcome_bot_creator(cursor, connection, username):
+    await cursor.execute('SELECT id FROM seen_users WHERE LOWER(username) = %s LIMIT 1', (username.lower(),))
+    if await cursor.fetchone():
+        return False
+    await send_chat_message(BOT_CREATOR_WELCOME.format(user=username))
+    await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
+    await cursor.execute(
+        'UPDATE seen_users SET last_seen = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE username = %s',
+        (username,)
+    )
+    await connection.commit()
+    chat_logger.info(f"[WELCOME] Sent bot-creator welcome to {username}")
+    return True
+
 async def send_birthday_wish(cursor, user_id, user_name):
     try:
         saved = await get_saved_birthday(cursor, user_id)
@@ -16479,8 +16582,8 @@ async def send_timed_message(message_id, message, delay):
         chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
-_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope FROM media_request_settings WHERE id=1"
-_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all"}
+_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1"
+_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all", "same_song_minutes": 720}
 
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
@@ -16491,6 +16594,7 @@ async def get_media_settings(connection):
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
+                "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
             ):
                 try:
                     await cursor.execute(alter)
@@ -16503,6 +16607,7 @@ async def get_media_settings(connection):
     row.setdefault("artist_limit_count", 0)
     row.setdefault("artist_limit_period", "stream")
     row.setdefault("artist_limit_scope", "all")
+    row.setdefault("same_song_minutes", 720)
     return row
 
 async def artist_request_block_message(connection, artist_name, settings):

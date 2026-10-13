@@ -645,6 +645,11 @@
 			"description": "Grants a user a temporary permission bypass for link posting or other restricted actions.",
 			"syntax": "!permit @botofthespecter"
 		},
+		"permitsong": {
+			"description": "Gives a viewer one request that can bypass the same-song gap. Mods and the broadcaster only. The permit is used on their next request that would have been refused as played too soon.",
+			"force_level": "mod",
+			"syntax": "!permitsong @username"
+		},
 		"warn": {
 			"description": "Issues a formal channel warning to a viewer. Mods and the broadcaster only. Warnings are stored in the channel database and can be reviewed or cleared on the Channel Moderation dashboard page (Analytics).",
 			"aliases": ["warning"],

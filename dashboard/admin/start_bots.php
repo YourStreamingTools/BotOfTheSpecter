@@ -351,10 +351,40 @@ function get_admin_beta_mode_params($conn, $channelLookupId, $useCustom = false,
     return $params;
 }
 
+// $forceCustom: true = start stable/beta as the verified custom bot, false = do not,
+// null = previous behaviour (beta follows the user's saved use_custom flag).
+function admin_start_mode_params($conn, $botType, $userId, $twitchUserId, $useCustomFromDb, $useSelfFromDb, $forceCustom) {
+    $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
+    $wantCustom = ($botType === 'custom')
+        || $forceCustom === true
+        || ($forceCustom === null && $useCustomFromDb && $actionBotType === 'beta');
+    $params = [
+        '_action_bot_type' => $actionBotType,
+        '_error' => null,
+        'use_custom_bot' => false,
+        'custom_bot_username' => null,
+        'use_self' => false,
+    ];
+    if ($wantCustom && in_array($actionBotType, ['stable', 'beta'], true)) {
+        $customParams = get_admin_beta_mode_params($conn, $userId, true, false, $twitchUserId);
+        if (empty($customParams['use_custom_bot'])) {
+            $params['_error'] = t('admin_start_bots_err_custom_not_verified');
+            return $params;
+        }
+        $params = array_merge($params, $customParams);
+        $params['use_self'] = false;
+        return $params;
+    }
+    if ($actionBotType === 'beta' && $useSelfFromDb && $forceCustom !== true) {
+        $params['use_self'] = true;
+    }
+    return $params;
+}
+
 // Lightweight wrapper to provide a start_bot_for_user() function when missing.
 // This uses the central performBotAction() implementation in dashboard/bot_control_functions.php.
 if (!function_exists('start_bot_for_user')) {
-    function start_bot_for_user($username, $botType = 'stable')
+    function start_bot_for_user($username, $botType = 'stable', $forceCustom = null)
     {
         global $conn, $api_key;
         // Load tokens and api_key for the user
@@ -407,24 +437,20 @@ if (!function_exists('start_bot_for_user')) {
         }
         // If performBotAction exists, delegate to it with all required params
         if (function_exists('performBotAction')) {
-            $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
-            $params = [
+            $mode = admin_start_mode_params($conn, $botType, $userId, $twitchUserId, $useCustom, $useSelf, $forceCustom);
+            if (!empty($mode['_error'])) {
+                return ['success' => false, 'message' => $mode['_error']];
+            }
+            $actionBotType = $mode['_action_bot_type'];
+            unset($mode['_action_bot_type'], $mode['_error']);
+            $params = array_merge([
                 'username' => $username,
                 'twitch_user_id' => $twitchUserId,
                 'auth_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'api_key' => $finalApiKey,
                 'load_custom_module' => $useCustomModule,
-            ];
-            if ($actionBotType === 'beta') {
-                $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
-                $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
-                $betaModeParams = get_admin_beta_mode_params($conn, $userId, $effectiveUseCustom, $effectiveUseSelf, $twitchUserId);
-                if ($botType === 'custom' && empty($betaModeParams['use_custom_bot'])) {
-                    return ['success' => false, 'message' => t('admin_start_bots_err_custom_not_verified')];
-                }
-                $params = array_merge($params, $betaModeParams);
-            }
+            ], $mode);
             $res = performBotAction('run', $actionBotType, $params);
             // performBotAction returns an array
             return $res;
@@ -488,6 +514,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
                     'username' => strtolower(trim((string) ($entry['channel'] ?? ''))),
                     'pid' => (int) ($entry['pid'] ?? 0),
                     'bot_type' => $entry['bot_type'] ?? $botType,
+                    'custom' => !empty($entry['custom']) || (($entry['bot_type'] ?? $botType) === 'custom'),
                     'version' => $entry['version'] ?? '',
                     'uptime_seconds' => isset($entry['uptime_seconds']) ? (int) $entry['uptime_seconds'] : null,
                     'uptime_human' => null,
@@ -1040,31 +1067,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     }
                     sleep(1);
                     // Step 2: Start the bot with correct tokens
-                    $params = [
+                    $restartForceCustom = null;
+                    if (isset($_POST['use_custom'])) {
+                        $restartForceCustom = ($_POST['use_custom'] === '1' || $_POST['use_custom'] === 'true');
+                    }
+                    $channelLookupId = !empty($userId) ? $userId : $twitchUserId;
+                    $mode = admin_start_mode_params($conn, $botType, $channelLookupId, $twitchUserId, $useCustom, $useSelf, $restartForceCustom);
+                    if (!empty($mode['_error'])) {
+                        $message = $mode['_error'];
+                        $success = false;
+                        $stmt2->close();
+                        $stmt->close();
+                        $debug = ob_get_clean();
+                        echo json_encode(['success' => false, 'message' => $message, 'debug' => $debug]);
+                        exit;
+                    }
+                    $actionBotType = $mode['_action_bot_type'];
+                    unset($mode['_action_bot_type'], $mode['_error']);
+                    $params = array_merge([
                         'username' => $username,
                         'twitch_user_id' => $twitchUserId,
-                        'auth_token' => $botAccessToken,  // Bot token from twitch_bot_access
-                        'refresh_token' => $refreshToken,  // Refresh token from users table
+                        'auth_token' => $botAccessToken,
+                        'refresh_token' => $refreshToken,
                         'api_key' => $apiKey,
                         'load_custom_module' => $useCustomModule,
-                    ];
-                    $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
-                    if ($actionBotType === 'beta') {
-                        $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
-                        $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
-                        $channelLookupId = !empty($userId) ? $userId : $twitchUserId;
-                        $betaModeParams = get_admin_beta_mode_params($conn, $channelLookupId, $effectiveUseCustom, $effectiveUseSelf, $twitchUserId);
-                        if ($botType === 'custom' && empty($betaModeParams['use_custom_bot'])) {
-                            $message = t('admin_start_bots_err_custom_not_verified');
-                            $success = false;
-                            $stmt2->close();
-                            $stmt->close();
-                            $debug = ob_get_clean();
-                            echo json_encode(['success' => false, 'message' => $message, 'debug' => $debug]);
-                            exit;
-                        }
-                        $params = array_merge($params, $betaModeParams);
-                    }
+                    ], $mode);
                     client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$actionBotType}', ...) for {$username}");
                     $result = performBotAction('run', $actionBotType, $params);
                     client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
@@ -1135,7 +1162,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
             }
         });
         try {
-            $result = start_bot_for_user($username, $botType);
+            $startForceCustom = null;
+            if (isset($_POST['use_custom'])) {
+                $startForceCustom = ($_POST['use_custom'] === '1' || $_POST['use_custom'] === 'true');
+            }
+            $result = start_bot_for_user($username, $botType, $startForceCustom);
             $debug = '';
             if (ob_get_level())
                 $debug = ob_get_clean();
@@ -1329,6 +1360,12 @@ ob_start();
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
                                     <span class="btn-label"><?php echo t('admin_start_bots_btn_make_mod'); ?></span>
                                 </button>
+                                <?php if ($customBotEnabled): ?>
+                                <label for="custom-bot-toggle-<?php echo (int) $user['id']; ?>" title="<?php echo htmlspecialchars(t('admin_start_bots_custom_toggle_title'), ENT_QUOTES); ?>" style="display:inline-flex; align-items:center; gap:0.35rem; white-space:nowrap;">
+                                    <input id="custom-bot-toggle-<?php echo (int) $user['id']; ?>" type="checkbox" class="switch custom-bot-toggle">
+                                    <span><?php echo t('admin_start_bots_custom_toggle'); ?></span>
+                                </label>
+                                <?php endif; ?>
                                 <button class="sp-btn sp-btn-success start-stable-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'stable')"
                                     disabled>
@@ -1340,12 +1377,6 @@ ob_start();
                                     disabled>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                     <span class="btn-label"><?php echo t('admin_start_bots_btn_start_beta'); ?></span>
-                                </button>
-                                <button class="sp-btn sp-btn-primary start-custom-btn"
-                                    onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
-                                    <?php echo $customBotEnabled ? '' : 'disabled'; ?> title="<?php echo htmlspecialchars($customBotEnabled ? t('admin_start_bots_btn_start_custom_title_enabled') : t('admin_start_bots_btn_start_custom_title_disabled'), ENT_QUOTES); ?>">
-                                    <span class="icon"><i class="fas fa-user-astronaut"></i></span>
-                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_start_custom'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-warning restart-bot-btn"
                                     onclick="restartBot('<?php echo htmlspecialchars($user['username']); ?>', 'stable', 0, this)"
@@ -1530,6 +1561,18 @@ ob_start();
     function hasCustomBotEnabled(row) {
         return row && row.getAttribute('data-custom-enabled') === '1';
     }
+    function rowWantsCustomBot(row) {
+        const toggle = row ? row.querySelector('.custom-bot-toggle') : null;
+        return !!(toggle && toggle.checked);
+    }
+    function syncCustomBotToggle(row, inv) {
+        const toggle = row ? row.querySelector('.custom-bot-toggle') : null;
+        if (!toggle || !inv) return;
+        const runningCustom = !!(inv.custom || String(inv.bot_type || '').toLowerCase() === 'custom');
+        if (inv.currently_running !== false && !inv.was_running) {
+            toggle.checked = runningCustom;
+        }
+    }
     // Helper to get current search term and match rows against it
     function getSearchTerm() {
         const input = document.getElementById('user-search');
@@ -1635,6 +1678,7 @@ ob_start();
         const switchCustomBtn = row.querySelector('.switch-custom-btn');
         const runningTimeTag = row.querySelector('.running-time-tag');
         const canStartCustom = hasCustomBotEnabled(row);
+        syncCustomBotToggle(row, inv);
         const isLive = inv && inv.currently_running !== false && !inv.was_running;
         const wasRunning = inv && !isLive && (inv.was_running || inv.expected);
 
@@ -2485,6 +2529,9 @@ ob_start();
             startFormData.append('start_user_bot', '1');
             startFormData.append('username', username);
             startFormData.append('bot_type', botType);
+            if (botType === 'stable' || botType === 'beta') {
+                startFormData.append('use_custom', rowWantsCustomBot(row) ? '1' : '0');
+            }
             const startResponse = await fetch('', { method: 'POST', body: startFormData });
             const startText = await startResponse.text();
             let startData = null;
@@ -2669,6 +2716,10 @@ ob_start();
                 formData.append('username', username);
                 formData.append('bot_type', botType);
                 formData.append('pid', pid);
+                const restartRow = document.querySelector(`tr[data-username="${CSS.escape(username)}"]`);
+                if (botType === 'stable' || botType === 'beta') {
+                    formData.append('use_custom', rowWantsCustomBot(restartRow) ? '1' : '0');
+                }
                 // Log what we're sending
                 console.log('FormData contents:', {
                     restart_bot: '1',

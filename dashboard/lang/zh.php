@@ -3115,7 +3115,7 @@ return [
     'bot_stable_controls' => '稳定的机器人控制',
     'bot_beta_controls' => 'Beta 机器人控制',
     'bot_kick_controls' => 'Kick 机器人控制',
-    'bot_kick_description' => 'Kick 机器人是稳定的 Kick.com 聊天机器人。它与你的 Twitch 机器人并行运行，并采用与 Twitch 稳定版相同的补丁版本规则。',
+    'bot_kick_description' => 'Kick 机器人在你的 Kick 频道里运行。你可以把它和 Twitch 机器人同时开着。',
     'bot_kick_version_info' => 'Kick 机器人版本信息',
     'bot_kick_not_connected' => 'Kick 关联即将推出。',
     'bot_kick_app_not_configured' => '服务器上未配置 Kick 应用凭据。',

@@ -72,10 +72,61 @@ def resolve_artist_limit(global_limit, scope, listed, custom_count):
     cap = int(global_limit or 0)
     return cap if cap > 0 else None
 
+def same_song_block_text(minutes: int) -> str:
+    if int(minutes) >= 720:
+        return "This song has been played too soon."
+    return f"Sorry, that song was requested less than {int(minutes)} minutes ago."
+
+async def same_song_block_message(connection, song_id, song_name, artist_name, minutes):
+    """Block a repeat of the same song inside the gap. None means the request can go ahead."""
+    gap = int(minutes or 0)
+    if gap <= 0:
+        return None
+    song_key = " ".join((song_name or "").split()).lower()
+    artist_key = clean_request_artist(artist_name).lower()
+    sid = (song_id or "").strip()
+    clauses = []
+    params = [gap]
+    if sid:
+        clauses.append("song_id = %s")
+        params.append(sid)
+    if song_key:
+        clauses.append("(LOWER(song_name) = %s AND LOWER(artist_name) = %s)")
+        params.extend([song_key, artist_key])
+    if not clauses:
+        return None
+    sql = (
+        "SELECT 1 AS hit FROM song_request_analytics "
+        "WHERE requested_at >= DATE_SUB(NOW(), INTERVAL %s MINUTE) AND ("
+        + " OR ".join(clauses)
+        + ") LIMIT 1"
+    )
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute(sql, tuple(params))
+        row = await cursor.fetchone()
+    if row:
+        return same_song_block_text(gap)
+    return None
+
 def artist_limit_reply(artist: str, limit: int, period: str) -> str:
     window = {"stream": "this stream", "week": "this week", "month": "this month"}.get(period, "this stream")
     shown = clean_request_artist(artist) or "That artist"
     return f"{shown} has already been requested {int(limit)} times {window}. Try another artist."
+
+def consume_song_permit(permits, username) -> bool:
+    """Use one same-song permit for this login. False when they have none."""
+    key = (username or "").lstrip("@").strip().lower()
+    if not key:
+        return False
+    left = int(permits.get(key) or 0)
+    if left <= 0:
+        return False
+    left -= 1
+    if left > 0:
+        permits[key] = left
+    else:
+        permits.pop(key, None)
+    return True
 
 def same_requester(requested_by: str, author_name: str) -> bool:
     return bool(requested_by) and bool(author_name) and requested_by.lower() == author_name.lower()

@@ -86,14 +86,12 @@ if ((isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list')
     exit;
 }
 
-// Cheap leftover SSR: migrate banner + timezone only. Mappings, seen_users,
-// rewards, and the storage scan hydrate via ajax_action=list.
-$stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
+// Timezone only. Mappings, seen_users, rewards, and the storage scan hydrate via ajax_action=list.
+$stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
 $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
-$media_migrated = (bool)($channelData['media_migrated'] ?? false);
 $stmt->close();
 date_default_timezone_set($timezone);
 
@@ -710,40 +708,6 @@ ob_start();
         </form>
     </div>
 </div>
-<?php if (!$media_migrated): ?>
-<!-- Migrate to unified media library -->
-<div class="sp-card media-migrate-card">
-    <header class="sp-card-header media-migrate-header">
-        <span class="sp-card-title"><i class="fas fa-arrow-circle-up"></i> <?= t('media_migrate_title') ?></span>
-    </header>
-    <div class="sp-card-body media-migrate-body">
-        <div class="sp-alert sp-alert-warning media-migrate-warning">
-            <p><i class="fas fa-exclamation-triangle"></i> <strong><?= t('media_migrate_important') ?></strong></p>
-            <p><?= t('media_migrate_warning_body') ?></p>
-            <p><?= t('media_migrate_two_options') ?></p>
-            <ul>
-                <li><?= t('media_migrate_option_now') ?></li>
-                <li><?= t('media_migrate_option_hold') ?></li>
-            </ul>
-        </div>
-        <h4><?= t('media_how_it_works_title') ?></h4>
-        <p><?= t('media_how_it_works_body') ?></p>
-        <ul>
-            <li><?= t('media_benefit_one_upload') ?></li>
-            <li><?= t('media_benefit_unified') ?></li>
-            <li><?= t('media_benefit_non_destructive') ?></li>
-            <li><?= t('media_benefit_walkons_autolinked') ?></li>
-        </ul>
-        <button type="button" id="media-migrate-btn" class="sp-btn sp-btn-warning">
-            <i class="fas fa-arrow-right"></i> <?= t('media_migrate_btn') ?>
-        </button>
-    </div>
-</div>
-<?php else: ?>
-<div class="sp-alert sp-alert-success media-migrated-notice">
-    <i class="fas fa-check-circle"></i> <?= t('media_using_unified_notice') ?>
-</div>
-<?php endif; ?>
 <!-- Filter + search bar -->
 <div class="media-filter-bar">
     <button type="button" class="sp-btn sp-btn-ghost media-filter-btn is-active" data-filter="all"><?= t('media_filter_all') ?></button>
@@ -921,15 +885,6 @@ window.__MEDIA_I18N = {
     same:                  <?php echo json_encode(t('upload_rename_same')); ?>,
     locked_title:          <?php echo json_encode(t('media_js_locked_title')); ?>,
     locked_body:           <?php echo json_encode(t('media_js_locked_body')); ?>,
-    migrate_title:         <?php echo json_encode(t('media_js_migrate_title')); ?>,
-    migrate_body:          <?php echo json_encode(t('media_js_migrate_body')); ?>,
-    migrate_confirm:       <?php echo json_encode(t('media_js_migrate_confirm')); ?>,
-    migrating:             <?php echo json_encode(t('media_js_migrating')); ?>,
-    migrate_done_title:    <?php echo json_encode(t('media_js_migrate_done_title')); ?>,
-    migrate_failed_title:  <?php echo json_encode(t('media_js_migrate_failed_title')); ?>,
-    migrate_failed_unknown:<?php echo json_encode(t('media_js_migrate_failed_unknown')); ?>,
-    migrate_failed_server: <?php echo json_encode(t('media_js_migrate_failed_server')); ?>,
-    migrate_btn_label:     <?php echo json_encode(t('media_migrate_btn')); ?>,
     list_load_error:       <?php echo json_encode(t('media_js_upload_failed_retry')); ?>
 };
 
@@ -1722,30 +1677,6 @@ $(document).ready(function () {
         var eventType = type === 'video' ? 'VIDEO_ALERT' : 'SOUND_ALERT';
         var paramName = type === 'video' ? 'video' : 'sound';
         sendStreamEvent(eventType, paramName, file);
-    });
-    // Migration button - wire it up to migrate_media.php
-    $('#media-migrate-btn').on('click', function () {
-        var btn = $(this);
-        Swal.fire({
-            title: I18N.migrate_title,
-            html: I18N.migrate_body,
-            icon: 'warning', showCancelButton: true,
-            confirmButtonText: I18N.migrate_confirm, cancelButtonText: I18N.cancel
-        }).then(function (result) {
-            if (!result.isConfirmed) return;
-            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> ' + I18N.migrating);
-            $.post('/api/migrate_media.php', {}, function (resp) {
-                if (resp && resp.success) {
-                    Swal.fire({ icon: 'success', title: I18N.migrate_done_title, text: resp.message }).then(function () { location.reload(); });
-                } else {
-                    Swal.fire({ icon: 'error', title: I18N.migrate_failed_title, text: (resp && resp.message) ? resp.message : I18N.migrate_failed_unknown });
-                    btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> ' + I18N.migrate_btn_label);
-                }
-            }, 'json').fail(function () {
-                Swal.fire({ icon: 'error', title: I18N.migrate_failed_title, text: I18N.migrate_failed_server });
-                btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> ' + I18N.migrate_btn_label);
-            });
-        });
     });
 });
 
