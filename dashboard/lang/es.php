@@ -1394,8 +1394,8 @@ return [
     'notifications_th_actions' => 'Acciones',
     'notifications_loading' => 'Cargando...',
     // premium.php
-    'premium_plan_free_feature_custom_bot' => 'Nombre de bot personalizado (su nombre de bot personalizado, experimental/próximamente)',
-    'premium_plan_free_feature_custom_bot_tip' => 'Nombre del bot personalizado: experimental o próximamente',
+    'premium_plan_free_feature_custom_bot' => 'Nombre de bot personalizado',
+    'premium_plan_free_feature_custom_bot_tip' => 'Ejecuta el bot con el nombre de tu propia cuenta de bot verificada. Configúralo en tu página de Perfil.',
     'premium_plan_free_note' => '<strong>¡El 90-95% del bot es GRATIS!</strong>',
     'premium_beta_access' => 'Acceso beta',
     'premium_plus_beta' => '+Beta',

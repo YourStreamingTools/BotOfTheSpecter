@@ -1355,8 +1355,8 @@ return [
     'notifications_th_actions' => '操作',
     'notifications_loading' => '加载中...',
     // premium.php
-    'premium_plan_free_feature_custom_bot' => '自定义机器人名称（您的自定义机器人名称，实验/即将推出）',
-    'premium_plan_free_feature_custom_bot_tip' => '自定义机器人名称 - 实验性或即将推出',
+    'premium_plan_free_feature_custom_bot' => '自定义机器人名称',
+    'premium_plan_free_feature_custom_bot_tip' => '使用你自己已验证的机器人账号名称运行机器人。在个人资料页面中设置。',
     'premium_plan_free_note' => '<strong>90-95% 的机器人是免费的！</strong>',
     'premium_beta_access' => '测试版访问',
     'premium_plus_beta' => '+ 测试版',

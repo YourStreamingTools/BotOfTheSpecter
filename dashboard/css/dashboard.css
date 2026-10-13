@@ -3531,7 +3531,6 @@ label.switch .check { display: none; }
     line-height: 1.4;
 }
 .sp-plan-feature-icon        { color: var(--green); flex-shrink: 0; margin-top: 0.15rem; }
-.sp-plan-feature-icon--amber { color: var(--amber); flex-shrink: 0; margin-top: 0.15rem; }
 .sp-plan-note {
     font-size: 0.8rem;
     color: var(--text-muted);
