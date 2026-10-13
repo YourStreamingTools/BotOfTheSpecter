@@ -25,6 +25,7 @@ $plans = [
             ['text' => t('premium_plan_tier1_feature_support'), 'tip' => t('premium_plan_tier1_feature_support_tip')],
             ['text' => t('premium_plan_tier1_feature_beta'), 'tip' => t('premium_plan_tier1_feature_beta_tip')],
             ['text' => t('premium_plan_tier1_feature_storage'), 'tip' => t('premium_plan_tier1_feature_storage_tip')],
+            ['text' => t('premium_feature_sound_gen', [20]), 'tip' => t('premium_feature_sound_gen_tip', [20])],
             /* Shared bot name is included in the Free plan; removed from Tier 1 features */
         ],
     ],
@@ -36,6 +37,7 @@ $plans = [
             ['text' => t('premium_plan_tier2_feature_personal_support'), 'tip' => t('premium_plan_tier2_feature_personal_support_tip')],
             ['text' => t('premium_plan_tier2_feature_ai'), 'tip' => t('premium_plan_tier2_feature_ai_tip')],
             ['text' => t('premium_plan_tier2_feature_storage'), 'tip' => t('premium_plan_tier2_feature_storage_tip')],
+            ['text' => t('premium_feature_sound_gen', [30]), 'tip' => t('premium_feature_sound_gen_tip', [30])],
             /* Shared bot name is included in the Free plan; removed from Tier 2 features */
         ],
     ],
@@ -45,6 +47,7 @@ $plans = [
         'features' => [
             ['text' => t('premium_plan_tier3_feature_everything_t2'), 'tip' => t('premium_plan_tier3_feature_everything_t2_tip')],
             ['text' => t('premium_plan_tier3_feature_storage'), 'tip' => t('premium_plan_tier3_feature_storage_tip')],
+            ['text' => t('premium_feature_sound_gen', [40]), 'tip' => t('premium_feature_sound_gen_tip', [40])],
         ],
     ],
 ];
@@ -163,6 +166,10 @@ ob_start();
                     <i class="fas fa-check sp-plan-feature-icon"></i>
                     <?php echo t('premium_plan_free_feature_storage'); ?>
                 </li>
+                <li title="<?php echo htmlspecialchars(t('premium_feature_sound_gen_tip', [10])); ?>">
+                    <i class="fas fa-check sp-plan-feature-icon"></i>
+                    <?php echo htmlspecialchars(t('premium_feature_sound_gen', [10])); ?>
+                </li>
                 <li title="<?php echo t('premium_plan_free_feature_shared_bot_tip'); ?>">
                     <i class="fas fa-check sp-plan-feature-icon"></i>
                     <?php echo t('premium_plan_free_feature_shared_bot'); ?>
@@ -230,6 +237,10 @@ ob_start();
                 <li title="<?php echo t('premium_beta_plan_feature_storage_tip'); ?>">
                     <i class="fas fa-check sp-plan-feature-icon"></i>
                     <?php echo t('premium_beta_plan_feature_storage'); ?>
+                </li>
+                <li title="<?php echo htmlspecialchars(t('premium_feature_sound_gen_tip', [40])); ?>">
+                    <i class="fas fa-check sp-plan-feature-icon"></i>
+                    <?php echo htmlspecialchars(t('premium_feature_sound_gen', [40])); ?>
                 </li>
             </ul>
             <div class="sp-plan-beta-footer">
