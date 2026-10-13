@@ -17725,7 +17725,6 @@ async def websocket_notice(
         async with connection.cursor(DictCursor) as cursor:
             async with httpClientSession() as session:
                 params = {
-                    'code': API_TOKEN,
                     'event': event
                 }
                 # Event-specific parameter handling
@@ -17992,9 +17991,10 @@ async def websocket_notice(
                     return
                 # URL-encode the parameters
                 encoded_params = urlencode(params)
+                # V2: the key goes in the X-API-KEY header so it stays out of URLs and logs.
                 url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
                 # Send the HTTP request
-                async with session.get(url) as response:
+                async with session.get(url, headers={'X-API-KEY': API_TOKEN}) as response:
                     if response.status == 200:
                         websocket_logger.info(f"[WS NOTICE] HTTP event '{event}' sent successfully with params: {redact_for_log(params)}")
                     else:
