@@ -1310,7 +1310,7 @@ return [
     'bot_update_available' => '可用更新',
     'bot_use_custom_module' => '自定义模块',
     'bot_use_custom_module_title' => '启动机器人时加载频道专属自定义模块',
-    'bot_use_custom_module_note_enabled' => '<strong>自定义模块已开启。</strong>会在此机器人启动时加载（beta 与 v6）。',
+    'bot_use_custom_module_note_enabled' => '<strong>自定义模块已开启。</strong>会在此机器人启动时加载（stable、beta 与 v6）。',
     'bot_use_custom_module_note_disabled' => '<strong>自定义模块已关闭。</strong>此机器人不会加载频道模块。',
     'bot_use_custom_module_note_pending_start' => '<strong>设置已保存。</strong>请启动机器人以应用（是否加载模块在启动时决定）。',
     'bot_use_custom_module_note_pending_restart' => '<strong>设置已保存。</strong>请重启机器人以应用（当前进程仍使用之前的设置）。',
