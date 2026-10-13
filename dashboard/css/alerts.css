@@ -792,6 +792,9 @@
     background: var(--border);
     margin: 0 4px;
 }
+.text-align-valign {
+    display: contents;
+}
 
 /* Sample previews for the legacy-themed categories (mirrors overlay/index.css) */
 .alerts-preview-legacy {
