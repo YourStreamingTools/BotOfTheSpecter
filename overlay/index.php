@@ -528,6 +528,8 @@ if ($username) {
                     .replace(/\{added_minutes\}/g, eventData.added_minutes || '')
                     .replace(/\{streak\}/g, eventData.streak || '')
                     .replace(/\{charity_name\}/g, eventData.charity_name || '')
+                    .replace(/\{reward_title\}/g, eventData.reward_title || '')
+                    .replace(/\{cost\}/g, eventData.cost || '')
                     .replace(/\{message\}/g, eventData.message || '')
                     .replace(/\{tier_name\}/g, eventData.tier_name || '')
                     .replace(/\{lifetime\}/g, eventData.lifetime || '')
@@ -1422,6 +1424,8 @@ if ($username) {
                             username:  rewards.user_name || rewards.user_login
                                        || data['twitch-username'] || '',
                             reward_id: reward.id || data['reward-id'] || data.reward_id || '',
+                            reward_title: reward.title || data.reward_title || '',
+                            cost:      String(reward.cost != null ? reward.cost : (data.cost || '')),
                             message:   rewards.user_input || data.message || ''
                         });
                     }

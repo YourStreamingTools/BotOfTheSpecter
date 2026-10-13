@@ -2011,7 +2011,7 @@ $(document).ready(function() {
         raid:              ['{username}', '{viewers}'],
         hype_train:        ['{level}'],
         charity:           ['{username}', '{amount}', '{charity_name}'],
-        channel_points:    ['{username}'],
+        channel_points:    ['{username}', '{reward_title}', '{cost}', '{message}'],
         discord_join:      ['{username}'],
         kofi:              ['{username}', '{amount}', '{message}', '{tier_name}'],
         patreon:           ['{username}', '{amount}', '{tier_name}', '{lifetime}'],
@@ -2411,6 +2411,7 @@ $(document).ready(function() {
         var valign = { top: 'flex-start', bottom: 'flex-end' }[$('.valign-btn.active').data('valign')] || 'center';
         $('#valign-btns').toggle(sideLayout);
         var msg = $('#set-message-template').val() || '';
+        var previewReward = selectedRewardSample($('#set-alert-condition').val() || a.alert_condition);
         var imageScale = parseInt($('#set-image-scale').val()) || 100;
         var weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
         var cssWeight = weightMap[fontWeight] || '600';
@@ -2470,6 +2471,8 @@ $(document).ready(function() {
             .replace(/\{current_amount\}/g, '<span class="preview-accent">10</span>')
             .replace(/\{target_amount\}/g, '<span class="preview-accent">100</span>')
             .replace(/\{goal_type\}/g, '<span class="preview-accent">follower</span>')
+            .replace(/\{reward_title\}/g, '<span class="preview-accent">' + escapeHtml(previewReward.title) + '</span>')
+            .replace(/\{cost\}/g, '<span class="preview-accent">' + escapeHtml(previewReward.cost) + '</span>')
             .replace(/\n/g, '<br>');
         var $text = $('#preview-text');
         $text.html(displayMsg);
@@ -3012,6 +3015,15 @@ $(document).ready(function() {
             $btn.prop('disabled', false);
         });
     });
+    // Name and cost of the variant's chosen reward, for the preview and live test.
+    function selectedRewardSample(cond) {
+        var rid = extractRewardId(cond);
+        var reward = channelPointRewards.find(function(r) { return rid && String(r.reward_id) === String(rid); });
+        return {
+            title: reward && reward.reward_title ? String(reward.reward_title) : 'Hydrate',
+            cost: reward && reward.reward_cost != null ? String(reward.reward_cost) : '500'
+        };
+    }
     // Playback categories with a live test. Walk-ons are a per-viewer module with no test.
     const testablePlayback = ['sound_alerts', 'video_alerts', 'tts'];
     // The overlay ignores these while their switch is off, so a test would do nothing.
@@ -3049,7 +3061,7 @@ $(document).ready(function() {
             'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: conditionValue(cond, 'level', 1) } },
             'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: String(Math.max(5, Math.min(30, parseInt($('#set-duration').val(), 10) || 15))) } },
             'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: conditionValue(cond, 'amount', 25) + ' USD', charity_name: 'Example Charity' } },
-            'channel_points':    { event: 'TWITCH_CHANNELPOINTS', params: { user: 'TestUser', reward_id: extractRewardId(cond) || '', message: 'Test redemption' } },
+            'channel_points':    { event: 'TWITCH_CHANNELPOINTS', params: { user: 'TestUser', reward_id: extractRewardId(cond) || '', reward_title: selectedRewardSample(cond).title, cost: selectedRewardSample(cond).cost, message: 'Test redemption' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
             'watch_streak':      { event: 'WATCH_STREAK', params: { username: 'TestUser', streak: '7' } },
             'goals':             { event: 'TWITCH_GOAL_BEGIN', params: { description: 'Follower goal', current_amount: '10', target_amount: '100', goal_type: 'follower' } },
