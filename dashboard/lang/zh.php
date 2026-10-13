@@ -2562,8 +2562,10 @@ return [
     'timed_messages_click_to_enable' => '点击启用',
     'timed_messages_none_found' => '未找到定时消息。',
     // overlays.php
-    'overlays_upcoming_update_title' => '📢 即将到来的覆盖系统更新',
-    'overlays_upcoming_update_body' => '我们正在努力改进我们的覆盖系统。将下面的 <strong>“所有叠加”</strong> 选项与 <code>all.php</code> 结合使用，以获得完整的叠加体验。',
+    'overlays_upcoming_update_title' => '📢 旧的叠加层已停用',
+    'overlays_upcoming_update_body' => 'Specter Alerts 现在负责提醒、声音提醒、视频提醒、入场音效、TTS、死亡计数、天气、Discord 加入、Ko-fi、Patreon 和 Fourthwall。这些功能的单独叠加层已停用，不再播放任何内容。下方标记为 <strong>已停用</strong> 的卡片就是需要从 OBS 中移除的。',
+    'overlays_retired_badge' => '已停用',
+    'overlays_retired_note' => '已停用。现在由 Specter Alerts 负责。请在 <a href="alerts.php">提醒</a> 页面设置，并从 OBS 中移除此浏览器源。',
     'overlays_root_url_note' => '根覆盖 URL 现在是新的 <strong>Specter Alerts</strong> 系统，在 <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> 中配置它并添加此 OBS 浏览器源：',
     'overlays_makers_crafting' => '创客与手工艺',
     'overlays_manage_projects' => '管理项目',

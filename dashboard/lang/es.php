@@ -2617,8 +2617,10 @@ return [
     'timed_messages_click_to_enable' => 'Haga clic para habilitar',
     'timed_messages_none_found' => 'No se encontraron mensajes cronometrados.',
     // overlays.php
-    'overlays_upcoming_update_title' => '📢 Próxima actualización del sistema de superposición',
-    'overlays_upcoming_update_body' => 'Estamos trabajando en mejoras a nuestro sistema de superposición. Utilice la opción </strong> <strong>"Todas las superposiciones" a continuación con <code>all.php</code> para obtener una experiencia de superposición completa.',
+    'overlays_upcoming_update_title' => '📢 Las superposiciones antiguas se han retirado',
+    'overlays_upcoming_update_body' => 'Specter Alerts ahora gestiona alertas, alertas de sonido, alertas de vídeo, walk-ons, TTS, muertes, clima, entradas de Discord, Ko-fi, Patreon y Fourthwall. Las superposiciones separadas para estos se han retirado y ya no reproducen nada. Las tarjetas de abajo marcadas como <strong>Retirada</strong> indican cuáles quitar de OBS.',
+    'overlays_retired_badge' => 'Retirada',
+    'overlays_retired_note' => 'Retirada. Specter Alerts ahora se encarga de esto. Configúrelo en la página <a href="alerts.php">Alertas</a> y quite esta fuente de navegador de OBS.',
     'overlays_root_url_note' => 'La URL superpuesta raíz ahora es el nuevo sistema <strong>Specter Alerts</strong>, configúrelo en <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> y agregue esta fuente del navegador OBS:',
     'overlays_makers_crafting' => 'Creadores &amp; Elaboración',
     'overlays_manage_projects' => 'Gestionar proyectos',

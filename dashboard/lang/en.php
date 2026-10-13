@@ -2619,8 +2619,10 @@ return [
     'timed_messages_click_to_enable' => 'Click to enable',
     'timed_messages_none_found' => 'No timed messages found.',
     // overlays.php
-    'overlays_upcoming_update_title' => '📢 Upcoming Overlay System Update',
-    'overlays_upcoming_update_body' => 'We\'re working on improvements to our overlay system. Use the <strong>"All Overlays"</strong> option below with <code>all.php</code> for the complete overlay experience.',
+    'overlays_upcoming_update_title' => '📢 Older overlays have been retired',
+    'overlays_upcoming_update_body' => 'Specter Alerts now handles alerts, sound alerts, video alerts, walk-ons, TTS, deaths, weather, Discord joins, Ko-fi, Patreon and Fourthwall. The separate overlays for these are retired and no longer play anything. The cards below marked <strong>Retired</strong> show which ones to remove from OBS.',
+    'overlays_retired_badge' => 'Retired',
+    'overlays_retired_note' => 'Retired. Specter Alerts now does this. Set it up on the <a href="alerts.php">Alerts</a> page and remove this browser source from OBS.',
     'overlays_root_url_note' => 'The root overlay URL is now the new <strong>Specter Alerts</strong> system configure it in <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> and add this OBS browser source:',
     'overlays_makers_crafting' => 'Makers &amp; Crafting',
     'overlays_manage_projects' => 'Manage projects',

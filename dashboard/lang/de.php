@@ -2558,8 +2558,10 @@ return [
     'timed_messages_click_to_enable' => 'Zum Aktivieren klicken',
     'timed_messages_none_found' => 'Keine zeitgesteuerten Nachrichten gefunden.',
     // overlays.php
-    'overlays_upcoming_update_title' => '📢 Bevorstehendes Update des Overlay-Systems',
-    'overlays_upcoming_update_body' => 'Wir arbeiten an Verbesserungen unseres Overlay-Systems. Verwende die Option <strong>"Alle Overlays"</strong> weiter unten mit <code>all.php</code> für das vollständige Overlay-Erlebnis.',
+    'overlays_upcoming_update_title' => '📢 Ältere Overlays wurden eingestellt',
+    'overlays_upcoming_update_body' => 'Specter Alerts übernimmt jetzt Alerts, Sound-Alerts, Video-Alerts, Walk-ons, TTS, Tode, Wetter, Discord-Beitritte, Ko-fi, Patreon und Fourthwall. Die einzelnen Overlays dafür sind eingestellt und spielen nichts mehr ab. Die Karten unten mit <strong>Eingestellt</strong> zeigen, welche du aus OBS entfernen kannst.',
+    'overlays_retired_badge' => 'Eingestellt',
+    'overlays_retired_note' => 'Eingestellt. Specter Alerts übernimmt das jetzt. Richte es auf der Seite <a href="alerts.php">Alerts</a> ein und entferne diese Browserquelle aus OBS.',
     'overlays_root_url_note' => 'Die Root-Overlay-URL ist jetzt das neue <strong>Specter Alerts</strong>-System konfiguriere es unter <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> und füge diese OBS-Browserquelle hinzu:',
     'overlays_makers_crafting' => 'Makers &amp; Crafting',
     'overlays_manage_projects' => 'Projekte verwalten',

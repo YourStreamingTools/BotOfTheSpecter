@@ -85,22 +85,11 @@ ob_start();
     <div style="grid-column:1/-1;">
         <div class="sp-card" style="margin-bottom:0;">
             <div class="sp-card-header">
-                <div class="sp-card-title"><i class="fas fa-layer-group"></i> <?= t('overlays_all_overlays') ?></div>
+                <div class="sp-card-title"><i class="fas fa-layer-group"></i> <?= t('overlays_all_overlays') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
             </div>
             <div class="sp-card-body">
-                <p style="margin-bottom:0.5rem;"><?= t('overlays_all_overlays_desc') ?><br>
-                <span><?= t('overlays_exceptions') ?>:</span></p>
-                <ul style="margin: 0 0 0.75rem 1.25rem; list-style:disc; color:var(--amber);">
-                    <li><?= t('overlays_stream_ending_credits') ?></li>
-                    <li><?= t('overlays_todo_list') ?></li>
-                    <li><?= t('overlays_video_alerts') ?></li>
-                    <li><?= t('overlays_dmca_free_music') ?></li>
-                    <li><?= t('overlays_external_services') ?></li>
-                </ul>
-                <p style="font-size:0.8rem; margin-bottom:0.5rem;"><?= t('overlays_add_once_auto') ?></p>
-                <div class="info-box" style="font-family:monospace; margin-bottom:0;">
-                    https://overlay.botofthespecter.com/all.php?code=API_KEY_HERE
-                </div>
+                <p><?= t('overlays_all_overlays_desc') ?></p>
+                <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
             </div>
         </div>
     </div>
@@ -196,26 +185,22 @@ ob_start();
     <!-- Death Overlay -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-skull-crossbones"></i> <?= t('overlays_death_overlay') ?></div>
+            <div class="sp-card-title"><i class="fas fa-skull-crossbones"></i> <?= t('overlays_death_overlay') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_death_overlay_desc') ?><br>
             <small><?= t('overlays_best_size_death') ?></small>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/deaths.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Weather Overlay -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-cloud-sun"></i> <?= t('overlays_weather_overlay') ?></div>
+            <div class="sp-card-title"><i class="fas fa-cloud-sun"></i> <?= t('overlays_weather_overlay') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_weather_overlay_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/weather.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Media Player (Song Requests) Overlay -->
@@ -272,13 +257,11 @@ ob_start();
     <!-- Discord Join Notifications -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fab fa-discord"></i> <?= t('overlays_discord_join_notifications') ?></div>
+            <div class="sp-card-title"><i class="fab fa-discord"></i> <?= t('overlays_discord_join_notifications') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_discord_join_notifications_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/discord.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Subathon -->
@@ -296,61 +279,51 @@ ob_start();
     <!-- All Audio -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-volume-up"></i> <?= t('overlays_all_audio') ?></div>
+            <div class="sp-card-title"><i class="fas fa-volume-up"></i> <?= t('overlays_all_audio') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_all_audio_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/alert.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Text To Speech (TTS) Only -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-comment-dots"></i> <?= t('overlays_tts_only') ?></div>
+            <div class="sp-card-title"><i class="fas fa-comment-dots"></i> <?= t('overlays_tts_only') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_tts_only_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/tts.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Walkons Only -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-door-open"></i> <?= t('overlays_walkons_only') ?></div>
+            <div class="sp-card-title"><i class="fas fa-door-open"></i> <?= t('overlays_walkons_only') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_walkons_only_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/walkons.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Sound Alerts Only -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-bell"></i> <?= t('overlays_sound_alerts_only') ?></div>
+            <div class="sp-card-title"><i class="fas fa-bell"></i> <?= t('overlays_sound_alerts_only') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_sound_alerts_only_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/sound-alert.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Video Alerts -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-film"></i> <?= t('overlays_video_alerts') ?></div>
+            <div class="sp-card-title"><i class="fas fa-film"></i> <?= t('overlays_video_alerts') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span></div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_video_alerts_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/video-alert.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Chat Overlay -->
@@ -402,45 +375,39 @@ ob_start();
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
             <div class="sp-card-title">
-                <i class="fas fa-store"></i> <?= t('overlays_fourthwall') ?>
+                <i class="fas fa-store"></i> <?= t('overlays_fourthwall') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span>
                 <span class="sp-badge sp-badge-green" style="font-size:0.72rem;"><?= t('overlays_external_service') ?></span>
             </div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_fourthwall_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/fourthwall.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Ko-Fi -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
             <div class="sp-card-title">
-                <i class="fas fa-coffee"></i> <?= t('overlays_kofi') ?>
+                <i class="fas fa-coffee"></i> <?= t('overlays_kofi') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span>
                 <span class="sp-badge sp-badge-green" style="font-size:0.72rem;"><?= t('overlays_external_service') ?></span>
             </div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_kofi_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/kofi.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Patreon -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
             <div class="sp-card-title">
-                <i class="fab fa-patreon"></i> <?= t('overlays_patreon') ?>
+                <i class="fab fa-patreon"></i> <?= t('overlays_patreon') ?> <span class="sp-badge sp-badge-red overlay-retired-badge"><?= t('overlays_retired_badge') ?></span>
                 <span class="sp-badge sp-badge-green" style="font-size:0.72rem;"><?= t('overlays_external_service') ?></span>
             </div>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_patreon_desc') ?>
-            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
-                https://overlay.botofthespecter.com/patreon.php?code=API_KEY_HERE
-            </div>
+            <div class="sp-alert sp-alert-warning overlay-retired-note"><?= t('overlays_retired_note') ?></div>
         </div>
     </div>
     <!-- Counters -->
