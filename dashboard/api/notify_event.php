@@ -191,6 +191,10 @@ try {
             $params['goal_type'] = $_POST['goal_type'] ?? 'follower';
         } elseif ($event === "TTS" && isset($_POST['text'])) {
             $params['text'] = $_POST['text'];
+            // Optional saved voice, so a test sounds like the streamer's real TTS.
+            foreach (['voice', 'language', 'style', 'expressive_voice'] as $ttsField) {
+                if (!empty($_POST[$ttsField])) $params[$ttsField] = $_POST[$ttsField];
+            }
         } elseif ($event === "SUBATHON_ADD_TIME" && isset($_POST['added_minutes'])) {
             $mins = intval($_POST['added_minutes']);
             if ($mins < 1) $mins = 1;
