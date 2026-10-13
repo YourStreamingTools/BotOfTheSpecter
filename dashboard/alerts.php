@@ -1683,6 +1683,8 @@ $(document).ready(function() {
         soundAlertsNote: <?php echo json_encode(t('alerts_sound_alerts_note')); ?>,
         videoAlertsNote: <?php echo json_encode(t('alerts_video_alerts_note')); ?>,
         ttsNote: <?php echo json_encode(t('alerts_tts_note')); ?>,
+        testSaveFirstTitle: <?php echo json_encode(t('alerts_test_save_first_title')); ?>,
+        testSaveFirstText: <?php echo json_encode(t('alerts_test_save_first_text')); ?>,
         goalsPreview: <?php echo json_encode(t('alerts_goals_preview')); ?>
     };
     const previewPlaceholderDefault = $('#preview-placeholder').text();
@@ -2974,22 +2976,36 @@ $(document).ready(function() {
             $btn.prop('disabled', false);
         });
     });
+    // A test value that meets the variant's condition, so the card reads like the real thing.
+    function conditionValue(cond, field, fallback) {
+        var m = String(cond || '').match(new RegExp(field + '\\s*>?=\\s*(\\d+(?:\\.\\d+)?)'));
+        return m ? m[1] : String(fallback);
+    }
     $('#test-alert-btn').on('click', function() {
         if (!currentAlertId) return;
         var a = alertsData[currentAlertId];
+        // The overlay plays saved settings, so unsaved edits would not show in the test.
+        if (isDirty) {
+            Swal.fire({ icon: 'info', title: i18n.testSaveFirstTitle, text: i18n.testSaveFirstText });
+            return;
+        }
+        var cond = a.alert_condition || '';
         var eventMap = {
             'follow':            { event: 'TWITCH_FOLLOW', params: { user: 'TestUser' } },
-            'subscription':      { event: 'TWITCH_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '3' } },
-            'gift_subscription': { event: 'TWITCH_GIFT_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '1' } },
-            'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: '100' } },
-            'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: '42' } },
-            'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: '5' } },
+            'subscription':      { event: 'TWITCH_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: conditionValue(cond, 'months', 1) } },
+            'gift_subscription': { event: 'TWITCH_GIFT_SUB', params: { user: 'TestUser', sub_tier: '1', gift_count: conditionValue(cond, 'gift_count', 1) } },
+            'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: conditionValue(cond, 'bits', 100) } },
+            'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: conditionValue(cond, 'viewers', 42) } },
+            'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: conditionValue(cond, 'level', 1) } },
             'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: String(Math.max(5, Math.min(30, parseInt($('#set-duration').val(), 10) || 15))) } },
-            'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: '100.00 USD', charity_name: 'Example Charity' } },
+            'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: conditionValue(cond, 'amount', 25) + ' USD', charity_name: 'Example Charity' } },
+            'channel_points':    { event: 'TWITCH_CHANNELPOINTS', params: { user: 'TestUser', reward_id: extractRewardId(cond) || '', message: 'Test redemption' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
             'watch_streak':      { event: 'WATCH_STREAK', params: { username: 'TestUser', streak: '7' } },
             'goals':             { event: 'TWITCH_GOAL_BEGIN', params: { description: 'Follower goal', current_amount: '10', target_amount: '100', goal_type: 'follower' } },
             'subathon':          { event: 'SUBATHON_ADD_TIME', params: { added_minutes: '5' } },
+            'deaths':            { event: 'DEATHS', params: { death: '42', game: 'Test Game' } },
+            'weather':           { event: 'WEATHER_DATA', params: {} },
         };
         var config = eventMap[a.alert_category];
         // Fourthwall variants are tied to one of four sub-types via their condition;
@@ -3035,7 +3051,7 @@ $(document).ready(function() {
             Swal.fire({ icon: 'info', title: i18n.testUnavailableTitle, text: i18n.testUnavailableText });
             return;
         }
-        var params = Object.assign({ event: config.event, api_key: apiKey, channel_name: channelName }, config.params);
+        var params = Object.assign({ event: config.event, api_key: apiKey, channel_name: channelName, test_variant: currentAlertId }, config.params);
         $.post('/api/notify_event.php', params, function(resp) {
             if (resp.success) {
                 Swal.fire({ icon: 'success', title: i18n.testSentTitle, text: i18n.testSentText, timer: 2000, showConfirmButton: false });

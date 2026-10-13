@@ -40,6 +40,24 @@ try {
             $params['twitch-username'] = $_POST['user'];
             $params['twitch-tier'] = $_POST['sub_tier'];
             $params['twitch-sub-months'] = $_POST['sub_months'];
+        } elseif ($event === "TWITCH_GIFT_SUB" && isset($_POST['user'])) {
+            $params['twitch-username'] = $_POST['user'];
+            $params['twitch-gift-count'] = max(1, intval($_POST['gift_count'] ?? 1));
+            $params['twitch-tier'] = $_POST['sub_tier'] ?? '1';
+        } elseif ($event === "TWITCH_CHANNELPOINTS" && isset($_POST['user'])) {
+            $params['twitch-username'] = $_POST['user'];
+            $params['reward_id'] = $_POST['reward_id'] ?? '';
+            $params['message'] = $_POST['message'] ?? '';
+        } elseif ($event === "WEATHER_DATA") {
+            // Sample card for the Alerts page live test, in the shape api.py sends.
+            $params['weather_data'] = json_encode([
+                'status' => 'Partly cloudy',
+                'temperature' => '22°C | 72°F',
+                'wind' => '10 kph | 6 mph NE',
+                'humidity' => 'Humidity: 60%',
+                'icon' => 'https://openweathermap.org/img/wn/02d@2x.png',
+                'location' => 'Sydney',
+            ]);
         } elseif ($event === "TWITCH_RAID" && isset($_POST['user'], $_POST['raid_viewers'])) {
             $params['twitch-username'] = $_POST['user'];
             $params['twitch-raid'] = $_POST['raid_viewers'];
@@ -235,6 +253,10 @@ try {
             $response['message'] = "Event '$event' requires additional parameters or is not recognized.";
             echo json_encode($response);
             exit();
+        }
+        // Live tests from the Alerts page name the variant the overlay should play.
+        if (isset($_POST['test_variant'])) {
+            $params['test_variant'] = intval($_POST['test_variant']);
         }
         // Append parameters to the URL
         if (!empty($params)) {
