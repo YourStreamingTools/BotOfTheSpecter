@@ -172,7 +172,6 @@ case 'send_custom_embed':
             }
         }
         $params = [
-            'code' => $api_key,
             'event' => 'post_custom_embed',
             'server_id' => $server_id,
             'channel_id' => $channel_id,
@@ -206,6 +205,7 @@ case 'send_custom_embed':
             exit();
         }
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $api_key]);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         $response = curl_exec($ch);
         if ($response === false) {

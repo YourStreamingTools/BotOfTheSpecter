@@ -97,15 +97,17 @@ $db->query("INSERT INTO maker_overlay_settings (id) VALUES (1) ON DUPLICATE KEY 
 // Signal the live overlay to re-fetch its state.
 function maker_notify_overlay($api_key) {
     if (!$api_key) { return; }
-    $url = "https://websocket.botofthespecter.com/notify?code=" . urlencode($api_key) . "&event=MAKER_UPDATE";
+    // V2: the key goes in the X-API-KEY header, never the URL.
+    $url = "https://websocket.botofthespecter.com/notify?event=MAKER_UPDATE";
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $api_key]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
         curl_exec($ch);
 } else {
-        @file_get_contents($url);
+        @file_get_contents($url, false, stream_context_create(['http' => ['header' => 'X-API-KEY: ' . $api_key]]));
     }
 }
 

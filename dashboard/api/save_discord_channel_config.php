@@ -410,7 +410,6 @@ try {
                     }
                     debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
                     $params = [
-                        'code' => $api_key,
                         'event' => 'post_reaction_roles_message',
                         'server_id' => $server_id,
                         'channel_id' => $reaction_roles_channel_id,
@@ -432,6 +431,7 @@ try {
                         exit();
                     }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $api_key]);
                     curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
                     $response = curl_exec($ch);
                     if ($response === false) {
@@ -632,7 +632,6 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                     }
                     debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
                     $params = [
-                        'code' => $api_key,
                         'event' => 'post_rules_message',
                         'server_id' => $server_id,
                         'channel_id' => $rules_channel_id,
@@ -655,6 +654,7 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                         exit();
                     }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $api_key]);
                     curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
                     $response = curl_exec($ch);
                     if ($response === false) {
@@ -851,7 +851,6 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                     }
                     debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
                     $params = [
-                        'code' => $api_key,
                         'event' => 'post_stream_schedule_message',
                         'server_id' => $server_id,
                         'channel_id' => $schedule_channel_id,
@@ -874,6 +873,7 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                         exit();
                     }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $api_key]);
                     curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
                     $response = curl_exec($ch);
                     if ($response === false) {
@@ -1048,7 +1048,6 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                             }
                         }
                         $params = [
-                            'code' => $api_key,
                             'event' => 'post_custom_embed',
                             'server_id' => $server_id,
                             'channel_id' => $channel_id,
@@ -1082,6 +1081,7 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                             exit();
                         }
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $api_key]);
                         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
                         $response = curl_exec($ch);
                         if ($response === false) {
