@@ -1391,7 +1391,7 @@ ob_start();
                         <div class="alerts-form-group">
                             <label><?= t('alerts_image_scale') ?></label>
                             <div class="alerts-range-wrap">
-                                <input type="range" id="set-image-scale" min="0" max="200" value="100">
+                                <input type="range" id="set-image-scale" min="10" max="200" value="100">
                                 <span class="alerts-range-value" id="image-scale-val">100%</span>
                             </div>
                         </div>
@@ -2168,8 +2168,9 @@ $(document).ready(function() {
         // Visuals
         updateMediaPreview('image', a.alert_image);
         updateMediaPreview('sound', a.alert_sound);
-        $('#set-image-scale').val(a.image_scale);
-        $('#image-scale-val').text(a.image_scale + '%');
+        var imageScale = parseInt(a.image_scale, 10) || 100;
+        $('#set-image-scale').val(imageScale);
+        $('#image-scale-val').text(imageScale + '%');
         $('#set-image-volume').val(a.image_volume);
         $('#image-volume-val').text(a.image_volume + '%');
         $('#set-sound-volume').val(a.sound_volume);
