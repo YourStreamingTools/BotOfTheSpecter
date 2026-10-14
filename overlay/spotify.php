@@ -28,20 +28,25 @@ $host = $username !== '' ? $username : 'specter';
 <head>
     <meta charset="UTF-8">
     <title>Spotify Now Playing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap">
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body>
 <?php if ($theme === 'terminal'): ?>
+<?php $prompt = htmlspecialchars($host) . '@specter'; ?>
 <div id="sp-root" class="spotify-overlay-page spotify-overlay-page-terminal" data-theme="terminal">
     <div class="spotify-overlay-page-term-bar">
-        <span class="spotify-overlay-page-term-host">root@<?php echo htmlspecialchars($host); ?></span>
-        <span class="spotify-overlay-page-term-btns"><i>_</i><i>&#9633;</i><i class="spotify-overlay-page-term-close">&#10005;</i></span>
+        <span class="spotify-overlay-page-term-title"><?php echo $prompt; ?>: ~</span>
+        <span class="spotify-overlay-page-term-btns" aria-hidden="true"><i>&#8212;</i><i>&#9744;</i><i>&#10005;</i></span>
     </div>
     <div class="spotify-overlay-page-term-body">
-        <div class="spotify-overlay-page-term-cmd"><span class="spotify-overlay-page-term-prompt">&gt; ./specter</span> <span class="spotify-overlay-page-term-flag">--nowplaying</span></div>
-        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-label">Title:</span>&nbsp;<span data-sp="title"></span></div>
-        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-label">Artist:</span>&nbsp;<span data-sp="artist"></span></div>
-        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-blocks">[<span class="spotify-overlay-page-term-fill" data-sp="blockfill"></span><span class="spotify-overlay-page-term-empty" data-sp="blockempty"></span>]</span>&nbsp;<span data-sp="cur"></span>&nbsp;/&nbsp;<span data-sp="dur"></span></div>
+        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-user"><?php echo $prompt; ?></span>:<span class="spotify-overlay-page-term-path">~</span>$ specter --now-playing</div>
+        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-key">Title:  </span><span data-sp="title"></span></div>
+        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-key">Artist: </span><span data-sp="artist"></span></div>
+        <div class="spotify-overlay-page-term-line">[<span class="spotify-overlay-page-term-fill" data-sp="blockfill"></span><span class="spotify-overlay-page-term-empty" data-sp="blockempty"></span>]  <span data-sp="cur"></span> / <span data-sp="dur"></span></div>
+        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-user"><?php echo $prompt; ?></span>:<span class="spotify-overlay-page-term-path">~</span>$ <span class="spotify-overlay-page-term-cursor"></span></div>
     </div>
 </div>
 <?php elseif ($theme === 'pill'): ?>
@@ -86,7 +91,7 @@ $host = $username !== '' ? $username : 'specter';
 </div>
 <?php endif; ?>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-<script src="js/specter-ws.js"></script>
+<script src="js/specter-ws.js?v=<?php echo filemtime(__DIR__ . '/js/specter-ws.js'); ?>"></script>
 <script>
 const params = new URLSearchParams(location.search);
 const code = params.get('code');
@@ -130,9 +135,10 @@ const code = params.get('code');
     function paint() {
         const pct = durMs ? Math.min(100, (progMs / durMs) * 100) : 0;
         setAll('fill', el => el.style.width = pct + '%');
-        const N = 14, f = Math.round((pct / 100) * N);
-        setAll('blockfill', el => el.textContent = '▓'.repeat(f));
-        setAll('blockempty', el => el.textContent = '░'.repeat(N - f));
+        // Terminal theme: an ASCII bar of 24 cells.
+        const cells = 24, done = Math.round((pct / 100) * cells);
+        setAll('blockfill', el => el.textContent = '#'.repeat(done));
+        setAll('blockempty', el => el.textContent = '-'.repeat(cells - done));
         setAll('cur', el => el.textContent = fmt(progMs));
         setAll('dur', el => el.textContent = fmt(durMs));
     }
@@ -215,6 +221,7 @@ const code = params.get('code');
             code: code,
             channel: 'Overlay',
             name: 'Spotify',
+            multiInstance: true,
             onStatus: setConnectionStatus,
             bind: function (socket) {
                 socket.on('OVERLAY_REFRESH', function (data) {
