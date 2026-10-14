@@ -79,32 +79,41 @@ if (file_exists($cacheFile) && time() - filemtime($cacheFile) < $cacheExpiration
     $bannedUsersCache = [];
 }
 
-// Handle POST requests for updates
+// Handle POST requests for updates. The page posts in the background and gets JSON back; other posts redirect.
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+  $handled = false;
+  $ok = false;
   if (isset($_POST['username']) && isset($_POST['status'])) {
-    $dbusername = $_POST['username'];
-    $status = $_POST['status'];
+    $handled = true;
+    $dbusername = (string) $_POST['username'];
+    $status = $_POST['status'] === 'True' ? 'True' : 'False';
     $updateQuery = $db->prepare("UPDATE seen_users SET status = ? WHERE username = ?");
     $updateQuery->bind_param('ss', $status, $dbusername);
-    $updateQuery->execute();
+    $ok = $updateQuery->execute();
     $updateQuery->close();
-  }
-  if (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
-    $userId = $_POST['userId'];
-    $newWelcomeMessage = $_POST['newWelcomeMessage'];
+  } elseif (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
+    $handled = true;
+    $userId = (int) $_POST['userId'];
+    $newWelcomeMessage = (string) $_POST['newWelcomeMessage'];
     $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = ? WHERE id = ?");
     $messageQuery->bind_param('si', $newWelcomeMessage, $userId);
-    $messageQuery->execute();
+    $ok = $messageQuery->execute();
     $messageQuery->close();
-    header("Location: known_users.php");
-    exit();
-  }
-  if (isset($_POST['deleteUserId'])) {
-    $deleteUserId = $_POST['deleteUserId'];
+  } elseif (isset($_POST['deleteUserId'])) {
+    $handled = true;
+    $deleteUserId = (int) $_POST['deleteUserId'];
     $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = ?");
     $deleteQuery->bind_param('i', $deleteUserId);
-    $deleteQuery->execute();
+    $ok = $deleteQuery->execute();
     $deleteQuery->close();
+  }
+  if ($handled) {
+    if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
+      while (ob_get_level()) { ob_end_clean(); }
+      header('Content-Type: application/json');
+      echo json_encode(['success' => (bool) $ok]);
+      exit();
+    }
     header("Location: known_users.php");
     exit();
   }
@@ -172,8 +181,10 @@ if (isMobileDevice()) {
               </p>
               <p><?= t('known_users_custom_variables_intro') ?></p>
               <ul>
+                <li><?= t('known_users_variable_user') ?></li>
                 <li><?= t('known_users_variable_shoutout') ?></li>
               </ul>
+              <p style="margin-top:0.5rem;"><?= t('known_users_variables_more') ?></p>
             </div>
             <div class="sp-alert sp-alert-warning" style="margin-bottom:1.25rem;">
               <p style="font-weight:700; margin-bottom:0.25rem;">
@@ -187,15 +198,15 @@ if (isMobileDevice()) {
                 <?= t('known_users_how_to_use_include_text') ?>
               </p>
               <ul style="margin-top:0.5rem;">
-                <li><strong style="color: var(--green);">✓ <?= t('known_users_will_send_label') ?></strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
-                <li><strong style="color: var(--green);">✓ <?= t('known_users_will_send_label') ?></strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: var(--green);">✓ <?= t('known_users_will_send_label') ?></strong> <code>Welcome back, (user)! (shoutout)</code></li>
+                <li><strong style="color: var(--green);">✓ <?= t('known_users_will_send_label') ?></strong> <code>Great to see you again, (user)!</code></li>
                 <li><strong style="color: var(--red);">✗ <?= t('known_users_no_send_label') ?></strong> <code>(shoutout)</code> <em><?= t('known_users_only_variable_note') ?></em></li>
               </ul>
               <p style="margin-top:0.75rem;">
-                <strong style="color: var(--red);">⚠️ <?= t('known_users_note_label') ?></strong> <?= t('known_users_override_note') ?>
+                <strong><?= t('known_users_note_label') ?></strong> <?= t('known_users_override_note') ?>
               </p>
             </div>
-            <div class="sp-alert sp-alert-danger" style="font-weight:700; margin-bottom:1.25rem;"><?php echo t('known_users_edit_notice'); ?></div>
+            <div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;"><?php echo t('known_users_edit_notice'); ?></div>
             <!-- Search Bar -->
             <input type="text" id="searchInput" class="sp-input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()" style="margin-bottom:1rem;">
             <div class="sp-table-wrap">
@@ -263,7 +274,12 @@ const KU_I18N = {
   testError: <?php echo json_encode(t('known_users_test_error')); ?>,
   testFailed: <?php echo json_encode(t('known_users_test_failed')); ?>,
   testInvalid: <?php echo json_encode(t('known_users_test_invalid_response')); ?>,
-  testFailedStatus: <?php echo json_encode(t('known_users_test_failed_status')); ?>
+  testFailedStatus: <?php echo json_encode(t('known_users_test_failed_status')); ?>,
+  welcomeOn: <?php echo json_encode(t('known_users_welcome_on')); ?>,
+  welcomeOff: <?php echo json_encode(t('known_users_welcome_off')); ?>,
+  messageSaved: <?php echo json_encode(t('known_users_message_saved')); ?>,
+  userRemoved: <?php echo json_encode(t('known_users_user_removed')); ?>,
+  saveFailed: <?php echo json_encode(t('known_users_save_failed')); ?>
 };
 
 function escapeHtml(str) {
@@ -328,7 +344,7 @@ function renderKnownUsersTable(users) {
       banHtml = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;margin-left:0.35rem;vertical-align:middle;"></span>';
     }
     var testDisabled = isActive ? '' : ' disabled title="' + escapeHtml(KU_I18N.userInactive) + '"';
-    return '<tr>' +
+    return '<tr data-user-id="' + escapeHtml(userId) + '">' +
       '<td>' +
         '<span class="username" data-username="' + escapeHtml(kuName) + '">' + escapeHtml(kuName) + '</span>' +
         '<span class="banned-status"' + (kuBanCached ? '' : ' data-ban-pending="1"') + '>' + banHtml + '</span>' +
@@ -345,7 +361,7 @@ function renderKnownUsersTable(users) {
         '</div>' +
       '</td>' +
       '<td style="text-align:center; vertical-align:middle;">' +
-        '<span style="color: ' + (isActive ? 'var(--green)' : 'var(--red)') + ';">' +
+        '<span class="ku-status" style="color: ' + (isActive ? 'var(--green)' : 'var(--red)') + ';">' +
           escapeHtml(isActive ? KU_I18N.statusTrue : KU_I18N.statusFalse) +
         '</span>' +
       '</td>' +
@@ -450,12 +466,6 @@ function bindKnownUsersTableEvents() {
   if (!tbody || tbody.dataset.kuBound === '1') return;
   tbody.dataset.kuBound = '1';
   tbody.addEventListener('click', function(e) {
-    var toggleIcon = e.target.closest('.status-toggle-icon');
-    if (toggleIcon) {
-      var checkbox = toggleIcon.previousElementSibling;
-      if (checkbox) checkbox.click();
-      return;
-    }
     var editBtn = e.target.closest('.edit-btn');
     if (editBtn) {
       var userId = editBtn.getAttribute('data-user-id');
@@ -493,7 +503,11 @@ function bindKnownUsersTableEvents() {
       var saveBtn = editActionGroup.querySelector('.save-edit-btn');
       var editBox = document.getElementById('edit-box-' + userId);
       var welcomeMessage = document.getElementById('welcome-message-' + userId);
-      if (editBox) editBox.style.display = 'none';
+      if (editBox) {
+        var textarea = editBox.querySelector('.welcome-message');
+        if (textarea && welcomeMessage) textarea.value = welcomeMessage.textContent;
+        editBox.style.display = 'none';
+      }
       if (welcomeMessage) welcomeMessage.style.display = '';
       if (editBtn) editBtn.style.display = '';
       if (saveBtn) saveBtn.style.display = 'none';
@@ -503,7 +517,7 @@ function bindKnownUsersTableEvents() {
     var deleteBtn = e.target.closest('.delete-user-btn');
     if (deleteBtn) {
       e.preventDefault();
-      var form = deleteBtn.closest('form');
+      var deleteRow = deleteBtn.closest('tr');
       Swal.fire({
         title: KU_I18N.deleteTitle,
         text: KU_I18N.deleteText,
@@ -514,8 +528,8 @@ function bindKnownUsersTableEvents() {
         confirmButtonText: KU_I18N.deleteBtn,
         cancelButtonText: KU_I18N.cancel
       }).then(function(result) {
-        if (result.isConfirmed && form) {
-          form.submit();
+        if (result.isConfirmed && deleteRow) {
+          deleteKnownUser(deleteRow, deleteBtn);
         }
       });
       return;
@@ -563,7 +577,7 @@ function bindKnownUsersTableEvents() {
   });
   tbody.addEventListener('change', function(e) {
     if (e.target.classList.contains('toggle-checkbox')) {
-      toggleStatus(e.target.getAttribute('data-username'), e.target.checked);
+      toggleStatus(e.target);
     }
   });
   tbody.addEventListener('input', function(e) {
@@ -748,41 +762,97 @@ function updateLoadingNotice() {
     loadingNotice.innerText = KU_I18N.loadingJs.replace('{loaded}', loadedUsers).replace('{total}', totalUsers);
   }
 }
+function postKnownUsers(params) {
+  return fetch('known_users.php', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+    body: new URLSearchParams(params).toString()
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (!data || !data.success) throw new Error('save failed');
+    return data;
+  });
+}
+
+function notify(message, success) {
+  loadToastify().then(function() { showToast(message, success); });
+}
+
+function setRowStatus(row, isActive) {
+  if (!row) return;
+  var statusText = row.querySelector('.ku-status');
+  if (statusText) {
+    statusText.textContent = isActive ? KU_I18N.statusTrue : KU_I18N.statusFalse;
+    statusText.style.color = isActive ? 'var(--green)' : 'var(--red)';
+  }
+  var icon = row.querySelector('.status-toggle-icon i');
+  if (icon) {
+    icon.classList.toggle('fa-toggle-on', isActive);
+    icon.classList.toggle('fa-toggle-off', !isActive);
+  }
+  var testBtn = row.querySelector('.test-welcome-btn');
+  if (testBtn) {
+    testBtn.disabled = !isActive;
+    if (isActive) testBtn.removeAttribute('title');
+    else testBtn.title = KU_I18N.userInactive;
+  }
+}
+
 function updateWelcomeMessage(userId, newWelcomeMessage, button, originalIcon, editBtn, cancelBtn) {
-  console.log(`Updating welcome message for user ID ${userId} to "${newWelcomeMessage}"`);
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      // Restore button state
-      button.innerHTML = originalIcon;
-      button.disabled = false;
-      // Hide save/cancel, show edit
+  postKnownUsers({ userId: userId, newWelcomeMessage: newWelcomeMessage })
+    .then(function() {
+      var display = document.getElementById('welcome-message-' + userId);
+      var editBox = document.getElementById('edit-box-' + userId);
+      if (display) {
+        display.textContent = newWelcomeMessage;
+        display.style.display = '';
+      }
+      if (editBox) editBox.style.display = 'none';
       button.style.display = 'none';
       if (cancelBtn) cancelBtn.style.display = 'none';
       if (editBtn) editBtn.style.display = '';
-      console.log(`Response received for updating welcome message of user ID ${userId}`);
-      location.reload();
-    }
-  };
-  xhr.send("userId=" + encodeURIComponent(userId) + "&newWelcomeMessage=" + encodeURIComponent(newWelcomeMessage));
+      var row = button.closest('tr');
+      var testBtn = row ? row.querySelector('.test-welcome-btn') : null;
+      if (testBtn) testBtn.setAttribute('data-message', newWelcomeMessage);
+      notify(KU_I18N.messageSaved, true);
+    })
+    .catch(function() { notify(KU_I18N.saveFailed, false); })
+    .finally(function() {
+      button.innerHTML = originalIcon;
+      button.disabled = false;
+    });
 }
 
-function toggleStatus(username, isChecked) {
-  console.log(`Toggling status for ${username} to ${isChecked ? 'True' : 'False'}`);
-  var status = isChecked ? 'True' : 'False';
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "", true);
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      console.log(`Response received for toggling status of ${username}`);
-      console.log(xhr.responseText);
-      location.reload();
-    }
-  };
-  xhr.send("username=" + encodeURIComponent(username) + "&status=" + status);
+// The checkbox is disabled while saving so a second click can't race the first.
+function toggleStatus(checkbox) {
+  var row = checkbox.closest('tr');
+  var isActive = checkbox.checked;
+  checkbox.disabled = true;
+  setRowStatus(row, isActive);
+  postKnownUsers({ username: checkbox.getAttribute('data-username'), status: isActive ? 'True' : 'False' })
+    .then(function() { notify(isActive ? KU_I18N.welcomeOn : KU_I18N.welcomeOff, true); })
+    .catch(function() {
+      checkbox.checked = !isActive;
+      setRowStatus(row, !isActive);
+      notify(KU_I18N.saveFailed, false);
+    })
+    .finally(function() { checkbox.disabled = false; });
+}
+
+function deleteKnownUser(row, button) {
+  var userId = row.getAttribute('data-user-id');
+  button.disabled = true;
+  postKnownUsers({ deleteUserId: userId })
+    .then(function() {
+      row.remove();
+      totalUsers = Math.max(0, totalUsers - 1);
+      if (!document.querySelector('#user-table tr')) renderKnownUsersTable([]);
+      notify(KU_I18N.userRemoved, true);
+    })
+    .catch(function() {
+      button.disabled = false;
+      notify(KU_I18N.saveFailed, false);
+    });
 }
 </script>
 <?php
