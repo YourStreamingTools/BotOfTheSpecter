@@ -7,6 +7,7 @@
  *   const session = SpecterOverlayWS.create({
  *     code: apiKey,
  *     name: 'Deaths',                 // string or () => string
+ *     multiInstance: true,            // optional: lets this overlay be open in more than one place
  *     channel: 'Overlay',             // default
  *     onStatus: (text, state) => {},  // optional UI
  *     onRegistered: (socket, data) => {}, // after SUCCESS (post-register hooks)
@@ -41,6 +42,9 @@
         var onDisconnect = typeof options.onDisconnect === 'function' ? options.onDisconnect : null;
         var onError = typeof options.onError === 'function' ? options.onError : null;
         var bind = typeof options.bind === 'function' ? options.bind : null;
+        // The server replaces an older session with the same name, so each copy of a multi-instance
+        // overlay gets its own tag. It is fixed for this page load, so a reconnect still replaces its own old session.
+        var instanceTag = options.multiInstance ? ' #' + Math.random().toString(36).slice(2, 8) : '';
 
         var socket = null;
         var attempts = 0;
@@ -118,7 +122,7 @@
             socket.on('connect', function () {
                 // Transport up — not ready until SUCCESS
                 status('Registering…', 'connecting');
-                var regName = resolveName(nameOpt);
+                var regName = resolveName(nameOpt) + instanceTag;
                 try {
                     socket.emit('REGISTER', {
                         code: code,

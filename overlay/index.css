@@ -2258,37 +2258,72 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 }
 
 /* --- Theme: terminal --- */
+/* A plain shell window: bash-coloured prompt, grey output, ASCII progress, a steady block cursor. */
 .spotify-overlay-page-terminal {
-    width: 420px;
-    background: rgba(13, 13, 15, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
+    width: 440px;
+    background: rgba(12, 12, 12, 0.95);
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-    font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    color: #cccccc;
+    font-family: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
 }
 .spotify-overlay-page-term-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    font-size: 15px;
-    color: #c4b5f0;
+    gap: 12px;
+    height: 32px;
+    padding: 0 6px 0 12px;
+    background: #202020;
+    border-bottom: 1px solid #2c2c2c;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: 12px;
+    color: #a0a0a0;
 }
-.spotify-overlay-page-term-host { color: #d9cffa; font-weight: 700; }
-.spotify-overlay-page-term-btns i { font-style: normal; margin-left: 9px; color: #8a8aa0; }
-.spotify-overlay-page-term-close { color: #f87171; }
-.spotify-overlay-page-term-body { padding: 12px 16px; font-size: 17px; line-height: 1.6; }
-.spotify-overlay-page-term-prompt { color: #9070d8; font-weight: 700; }
-.spotify-overlay-page-term-flag { color: #8a8aa0; }
-.spotify-overlay-page-term-label { color: #b8b8cc; font-weight: 600; }
-.spotify-overlay-page-term-blocks { color: #6c6c84; letter-spacing: 1px; }
-.spotify-overlay-page-term-fill { color: #b39ddb; }
-.spotify-overlay-page-term-empty { color: #4a4a5e; }
+.spotify-overlay-page-term-title {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spotify-overlay-page-term-btns {
+    flex: 0 0 auto;
+    display: flex;
+}
+.spotify-overlay-page-term-btns i {
+    width: 30px;
+    text-align: center;
+    font-style: normal;
+    font-size: 11px;
+    color: #9a9a9a;
+}
+.spotify-overlay-page-term-body {
+    padding: 10px 14px 12px;
+    font-size: 15px;
+    line-height: 1.5;
+}
+/* One line each so long titles or artists never grow the window; overflow ends in an ellipsis. */
+.spotify-overlay-page-term-line {
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spotify-overlay-page-term-user { color: #16c60c; font-weight: 700; }
+.spotify-overlay-page-term-path { color: #3b78ff; font-weight: 700; }
+.spotify-overlay-page-term-key { color: #8a8a8a; }
 .spotify-overlay-page-terminal [data-sp="title"],
-.spotify-overlay-page-terminal [data-sp="artist"] { color: #e8e8f0; font-weight: 600; }
+.spotify-overlay-page-terminal [data-sp="artist"] { color: #f2f2f2; }
+.spotify-overlay-page-term-fill { color: #16c60c; }
+.spotify-overlay-page-term-empty { color: #4a4a4a; }
+.spotify-overlay-page-term-cursor {
+    display: inline-block;
+    width: 0.6em;
+    height: 1.1em;
+    vertical-align: text-bottom;
+    background: #cccccc;
+}
 
 /* --- Theme: pill --- */
 .spotify-overlay-page-pill {
@@ -2329,6 +2364,10 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 /* marquee: only active when JS detects the text overflows the pill */
 .spotify-overlay-page-pill-scrolling .spotify-overlay-page-pill-chunk { padding-right: 48px; }
 .spotify-overlay-page-pill-scrolling .spotify-overlay-page-pill-chunk-dupe { display: inline-flex; }
+.spotify-overlay-page-pill-scrolling .spotify-overlay-page-pill-text {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 16px), transparent 100%);
+}
 .spotify-overlay-page-pill-scrolling .spotify-overlay-page-pill-track {
     animation: spotify-pill-marquee var(--marquee-dur, 12s) linear infinite;
 }
