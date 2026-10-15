@@ -407,6 +407,7 @@ song_requests = {}                                      # Tracks song request fr
 looped_tasks = {}                                       # Set for looped tasks
 active_timed_messages = {}                              # Dictionary to track active timed message IDs and their details
 message_tasks = {}                                      # Dictionary to track individual message tasks by ID
+timed_messages_paused_for_rerun = False                 # True while a Specter VOD rerun is live so timed messages stay quiet
 active_timer_routines = {}                              # Personal timer routines by user_id (key: pomo_{user_id})
 gift_sub_recipients = {}                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                         # Seconds to track gift recipients
@@ -12344,9 +12345,9 @@ class TwitchBot(commands.AutoBot):
 RERUN_NOTICE_MESSAGE = "@{user} Heads up! This is a rerun of a past stream, so {channel} may be away from keyboard and might not see your messages right away."
 RERUN_NOTICE_CHECK_SECONDS = 60
 
-async def get_live_rerun_id():
+async def get_live_rerun_id(force=False):
     now = time.time()
-    if now - rerun_notice_state["checked_at"] < RERUN_NOTICE_CHECK_SECONDS:
+    if not force and now - rerun_notice_state["checked_at"] < RERUN_NOTICE_CHECK_SECONDS:
         return rerun_notice_state["rerun_id"]
     rerun_notice_state["checked_at"] = now
     rerun_id = None
@@ -15963,13 +15964,18 @@ async def perform_lotto_draw(announce_empty=True):
 
 # Function for timed messages
 async def timed_message():
-    global stream_online
+    global stream_online, timed_messages_paused_for_rerun
     chat_logger.info(f"Timed message function called. Stream online status: {stream_online}")
     if stream_online:
         chat_logger.info("Starting dynamic timed message system...")
         try:
-            await update_timed_messages()
-            chat_logger.info("Successfully updated timed messages")
+            # A rerun still looks live to Twitch, so keep the checker running and hold the messages
+            if await get_live_rerun_id(force=True):
+                await pause_timed_messages_for_rerun()
+            else:
+                timed_messages_paused_for_rerun = False
+                await update_timed_messages()
+                chat_logger.info("Successfully updated timed messages")
             # Start the periodic checker
             # Recreate the checker when it's missing or finished (it exits while the stream is briefly offline)
             checker = looped_tasks.get("timed_message_checker")
@@ -15983,22 +15989,28 @@ async def timed_message():
         await stop_all_timed_messages()
 
 async def periodic_message_checker():
-    global stream_online
+    global stream_online, timed_messages_paused_for_rerun
     try:
         while stream_online:
             await sleep(60)  # Check every minute
-            if stream_online:
+            if not stream_online:
+                break
+            if await get_live_rerun_id(force=True):
+                await pause_timed_messages_for_rerun()
+            elif timed_messages_paused_for_rerun:
+                chat_logger.info("Rerun finished, resuming timed messages")
+                timed_messages_paused_for_rerun = False
                 await update_timed_messages()
             else:
-                break
+                await update_timed_messages()
     except asyncioCancelledError:
         chat_logger.info("Periodic message checker cancelled")
     except Exception as e:
         bot_logger.error(f"Error in periodic_message_checker: {e}")
 
 async def update_timed_messages():
-    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online
-    if not stream_online:
+    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online, timed_messages_paused_for_rerun
+    if not stream_online or timed_messages_paused_for_rerun:
         return
     connection = None
     try:
@@ -16095,8 +16107,30 @@ async def stop_timed_message(message_id):
     if message_id in chat_trigger_tasks:
         del chat_trigger_tasks[message_id]
 
+# Stop running timed messages while a rerun is live. The periodic checker stays up so they can resume.
+async def pause_timed_messages_for_rerun():
+    global timed_messages_paused_for_rerun, chat_line_count, active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
+    had_running = bool(active_timed_messages or message_tasks or chat_trigger_tasks or scheduled_tasks)
+    already = timed_messages_paused_for_rerun
+    timed_messages_paused_for_rerun = True
+    if not had_running:
+        if not already:
+            chat_logger.info("A rerun is playing, timed messages stay paused")
+        return
+    chat_logger.info("A rerun is playing, pausing timed messages")
+    for message_id in list(active_timed_messages.keys()):
+        await stop_timed_message(message_id)
+    for message_id in list(message_tasks.keys()):
+        await stop_timed_message(message_id)
+    for task in list(scheduled_tasks):
+        task.cancel()
+    scheduled_tasks.clear()
+    chat_trigger_tasks.clear()
+    chat_line_count = 0
+
 async def stop_all_timed_messages():
-    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count
+    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count, timed_messages_paused_for_rerun
+    timed_messages_paused_for_rerun = False
     chat_logger.info("Stopping all timed messages...")
     # Cancel periodic checker
     if "timed_message_checker" in looped_tasks:
@@ -16116,8 +16150,12 @@ async def stop_all_timed_messages():
     chat_line_count = 0
 
 async def handle_chat_message(messageAuthor, messageContent=""):
-    global chat_trigger_tasks, chat_line_count, stream_online
-    if not stream_online:
+    global chat_trigger_tasks, chat_line_count, stream_online, timed_messages_paused_for_rerun
+    if not stream_online or timed_messages_paused_for_rerun:
+        return
+    # Cache is filled by the rerun notice and the minute checker; a known live rerun stops the count immediately
+    if rerun_notice_state.get("rerun_id"):
+        await pause_timed_messages_for_rerun()
         return
     # Don't count bot messages
     if messageAuthor.lower() == BOT_USERNAME.lower():
@@ -16140,22 +16178,36 @@ async def handle_chat_message(messageAuthor, messageContent=""):
             chat_logger.info(f"Chat count trigger reached for message ID: {message_id}")
 
 async def send_interval_message(message_id, message, interval_seconds):
-    global stream_online, scheduled_tasks
+    global stream_online, scheduled_tasks, timed_messages_paused_for_rerun
     switchs = ["(game)",]
     if message and any(switch in message for switch in switchs):
         game_name = await get_current_game()
         message = message.replace("(game)", game_name)
-    while stream_online:
+    while stream_online and not timed_messages_paused_for_rerun:
         await sleep(interval_seconds)
-        if stream_online:
+        if stream_online and not timed_messages_paused_for_rerun:
             await send_timed_message(message_id, message, 0)
         else:
             break
 
+# True when a live rerun should swallow this timed message. Sets the pause flag before the caller loops again.
+async def rerun_blocks_timed_message(message_id):
+    global timed_messages_paused_for_rerun
+    if not timed_messages_paused_for_rerun and not await get_live_rerun_id(force=True):
+        return False
+    chat_logger.info(f"Skipped message ID: {message_id} because a rerun is playing")
+    if not timed_messages_paused_for_rerun:
+        timed_messages_paused_for_rerun = True
+        safe_create_task(pause_timed_messages_for_rerun())
+    return True
+
 async def send_timed_message(message_id, message, delay):
-    global stream_online, last_message_time
+    global stream_online, last_message_time, timed_messages_paused_for_rerun
     if delay > 0:
         await sleep(delay)
+    # Fresh check so a message does not land in the minute before the checker notices the rerun
+    if await rerun_blocks_timed_message(message_id):
+        return False
     if stream_online:
         # Ensure a delay between consecutive messages
         current_time = get_event_loop().time()
@@ -16166,16 +16218,24 @@ async def send_timed_message(message_id, message, delay):
                 wait_time = safe_gap - elapsed
                 chat_logger.info(f"Waiting {wait_time} more seconds before sending Timed Message ID: {message_id}")
                 await sleep(wait_time)
+        # The gap sleep can outlast the moment a rerun goes live
+        if not stream_online:
+            chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
+            return False
+        if await rerun_blocks_timed_message(message_id):
+            return False
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
             await send_chat_message(message)
             last_message_time = get_event_loop().time()
             chat_logger.info(f"Message sent successfully")
+            return True
         except Exception as e:
             bot_logger.error(f"Error sending message: {e}")
             bot_logger.error(f"BOTS_TWITCH_BOT state: {BOTS_TWITCH_BOT._connection._status}")
-    else:
-        chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
+            return False
+    chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
+    return False
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
 _MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1"
