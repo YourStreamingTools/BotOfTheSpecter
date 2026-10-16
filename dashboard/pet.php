@@ -605,6 +605,22 @@ function pet_apply_template_pack($db, $packId) {
     }
     $sel->close();
     $save->close();
+    // Drop starter animations the new pack doesn't have (switching from Dog left its bark/bite playing on the new pet)
+    $staleRes = $db->query("SELECT id, name FROM pet_animations WHERE sprite_file LIKE 'template:%'");
+    if ($staleRes) {
+        $staleDel = $db->prepare('DELETE FROM pet_animations WHERE id = ?');
+        while ($staleRow = $staleRes->fetch_assoc()) {
+            if ($staleDel && !isset($pack['animations'][(string) $staleRow['name']])) {
+                $staleId = (int) $staleRow['id'];
+                $staleDel->bind_param('i', $staleId);
+                $staleDel->execute();
+            }
+        }
+        $staleRes->free();
+        if ($staleDel) {
+            $staleDel->close();
+        }
+    }
     $idle = 'idle';
     $idleStmt = $db->prepare(
         'INSERT INTO pet_settings (id, idle_animation) VALUES (1, ?) ON DUPLICATE KEY UPDATE idle_animation = VALUES(idle_animation)'
