@@ -1054,14 +1054,23 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                     return new Promise((resolve) => {
                         const img = new Image();
                         img.onload = () => {
+                            const kind = spec.kind === 'gif' || /\.gif(\?|#|$)/i.test(url) ? 'gif' : 'sheet';
+                            const frameWidth = Math.max(1, toNumber(spec.frame_width, 1));
+                            const frameHeight = Math.max(1, toNumber(spec.frame_height, 1));
+                            let frameCount = Math.max(1, toNumber(spec.frame_count, 1));
+                            // Never step past the cells the sheet really has, or the pet vanishes on the empty ones
+                            if (kind === 'sheet') {
+                                const cells = Math.floor(img.naturalWidth / frameWidth) * Math.floor(img.naturalHeight / frameHeight);
+                                frameCount = Math.max(1, Math.min(frameCount, cells));
+                            }
                             sheets[name] = {
                                 name: name,
                                 img: img,
                                 url: url,
-                                kind: spec.kind === 'gif' || /\.gif(\?|#|$)/i.test(url) ? 'gif' : 'sheet',
-                                frame_width: Math.max(1, toNumber(spec.frame_width, 1)),
-                                frame_height: Math.max(1, toNumber(spec.frame_height, 1)),
-                                frame_count: Math.max(1, toNumber(spec.frame_count, 1)),
+                                kind: kind,
+                                frame_width: frameWidth,
+                                frame_height: frameHeight,
+                                frame_count: frameCount,
                                 fps: Math.max(1, Math.min(60, toNumber(spec.fps, 12))),
                                 loop: spec.loop ? 1 : 0,
                             };

@@ -2592,10 +2592,13 @@ ob_start();
         const img = new Image();
         img.onload = () => {
             previewImg = img;
+            const cellW = Math.max(1, fw | 0);
+            const cellH = Math.max(1, fh | 0);
+            const cells = Math.floor(img.naturalWidth / cellW) * Math.floor(img.naturalHeight / cellH);
             previewState = {
-                fw: Math.max(1, fw | 0),
-                fh: Math.max(1, fh | 0),
-                count: Math.max(1, Math.min(64, count | 0)),
+                fw: cellW,
+                fh: cellH,
+                count: Math.max(1, Math.min(64, count | 0, cells)),
                 fps: Math.max(1, fps | 0),
                 loop: !!loop,
                 frame: 0,
