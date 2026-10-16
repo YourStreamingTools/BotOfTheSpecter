@@ -996,9 +996,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
                 }
                 $stateIns->close();
             } elseif (
-                pet_clamp_stat($stateRow['happiness'] ?? 80) !== $startHappiness
-                || pet_clamp_stat($stateRow['hunger'] ?? 80) !== $startHunger
-                || pet_clamp_stat($stateRow['energy'] ?? 80) !== $startEnergy
+                // Only an edit to the start values resets the live stats; comparing against the live state wiped them on every save
+                (int) $pet['start_happiness'] !== $startHappiness
+                || (int) $pet['start_hunger'] !== $startHunger
+                || (int) $pet['start_energy'] !== $startEnergy
             ) {
                 $now = gmdate('Y-m-d H:i:s');
                 $stateUp = $db->prepare(
