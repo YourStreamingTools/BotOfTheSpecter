@@ -1134,7 +1134,11 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 bind: (socket) => {
                     socket.on('PET_REACT', handlePetReact);
                     socket.on('PET_STATE', applyStatePayload);
-                    socket.on('STREAM_ONLINE', () => { stats.streamOnline = true; });
+                    socket.on('STREAM_ONLINE', () => {
+                        // Stats were frozen while offline, so decay restarts now rather than from when the last stream ended
+                        if (!stats.streamOnline) stats.lastInteractionAt = Date.now();
+                        stats.streamOnline = true;
+                    });
                     socket.on('STREAM_OFFLINE', () => {
                         allowedStatKeys.forEach((key) => { stats[key] = currentStat(key); });
                         stats.lastInteractionAt = Date.now();
