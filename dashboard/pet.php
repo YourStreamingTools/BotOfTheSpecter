@@ -2494,6 +2494,7 @@ ob_start();
     let previewObjectUrl = '';
     let previewImg = null;
     let previewState = null;
+    let previewToken = 0;
 
     const isGifFile = (file) => {
         if (!file) return false;
@@ -2513,6 +2514,7 @@ ob_start();
     };
 
     const stopPreview = () => {
+        previewToken += 1;
         if (previewRaf) {
             cancelAnimationFrame(previewRaf);
             previewRaf = 0;
@@ -2589,8 +2591,11 @@ ob_start();
             return;
         }
         if (canvas) canvas.classList.add('is-active');
+        const token = previewToken;
         const img = new Image();
         img.onload = () => {
+            // A newer preview started while this sheet was loading; a second loop here would double the speed
+            if (token !== previewToken) return;
             previewImg = img;
             const cellW = Math.max(1, fw | 0);
             const cellH = Math.max(1, fh | 0);
