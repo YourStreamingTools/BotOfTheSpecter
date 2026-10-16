@@ -147,7 +147,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20260929';
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261016';
 }
 
 function pet_parse_template_sprite($filename) {
