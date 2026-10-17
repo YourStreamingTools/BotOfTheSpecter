@@ -376,7 +376,7 @@ async def pet_apply_state_effects(trigger, cache):
     if applied:
         await pet_check_low_stats({"happiness": happiness, "hunger": hunger, "energy": energy})
 
-# Function to commit decayed stats before going offline so they stay frozen until the next stream
+# Function to refill happiness/hunger/energy to 100 when the stream ends; they stay there until the next stream starts
 async def pet_freeze_for_stream_offline():
     cache = await pet_get_cache()
     if not cache.get("configured"):
@@ -384,25 +384,15 @@ async def pet_freeze_for_stream_offline():
     now = datetime.now(timezone.utc)
     now_naive = now.replace(tzinfo=None)
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    happiness = hunger = energy = 100
     async with _pet_state_lock:
         connection = None
         try:
             connection = await _bot.open_connection()
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT happiness, hunger, energy, level, xp, last_interaction_at FROM pet_state WHERE id = 1")
+                await cursor.execute("SELECT xp FROM pet_state WHERE id = 1")
                 row = await cursor.fetchone()
-                if row:
-                    happiness = row.get("happiness") if row.get("happiness") is not None else 80
-                    hunger = row.get("hunger") if row.get("hunger") is not None else 80
-                    energy = row.get("energy") if row.get("energy") is not None else 80
-                    xp = max(0, int(row.get("xp") or 0))
-                    last_at = row.get("last_interaction_at")
-                else:
-                    happiness, hunger, energy, xp, last_at = 80, 80, 80, 0, None
-                decayed = pet_decay_stats(happiness, hunger, energy, last_at, cache, allow_decay=True)
-                happiness = decayed["happiness"]
-                hunger = decayed["hunger"]
-                energy = decayed["energy"]
+                xp = max(0, int((row or {}).get("xp") or 0))
                 level = min(99, 1 + xp // 100)
                 await cursor.execute(
                     "INSERT INTO pet_state (id, happiness, hunger, energy, level, xp, last_interaction_at) VALUES (1, %s, %s, %s, %s, %s, %s) "
