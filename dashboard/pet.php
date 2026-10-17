@@ -405,7 +405,25 @@ function pet_stream_is_online($db) {
     $row = $res->fetch_assoc();
     $res->free();
     $status = strtolower(trim((string) ($row['status'] ?? '')));
-    return in_array($status, ['true', '1', 'online'], true);
+    if (!in_array($status, ['true', '1', 'online'], true)) {
+        return false;
+    }
+    // A Specter VOD rerun replays an old stream, so the pet treats it as offline
+    return !pet_rerun_is_live($db);
+}
+
+function pet_rerun_is_live($db) {
+    try {
+        $res = $db->query("SELECT id FROM website.vod_reruns WHERE username = DATABASE() AND status = 'live' LIMIT 1");
+        if (!($res instanceof mysqli_result)) {
+            return false;
+        }
+        $live = $res->num_rows > 0;
+        $res->free();
+        return $live;
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 function pet_utc_timestamp($value) {

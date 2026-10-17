@@ -53,6 +53,9 @@ PET_ALERT_DEFAULT_MESSAGES = {
 }
 # stat -> time of the last alert while that stat stays low (cleared once it recovers)
 _pet_alert_state = {}
+# A Specter VOD rerun replays an old stream, so the pet sits it out. Once a rerun is seen it holds until the stream goes offline.
+_pet_rerun = {"live": False, "checked_at": 0.0}
+PET_RERUN_CHECK_SECONDS = 60
 _PET_TOKEN_STRIP = ".,!?;:\"'`~()[]{}<>*_-\x01"
 _PET_INTERACTION_FALLBACKS = {
     "feed": {"id": None, "animation": "eat", "bubble_text": "", "effect_happiness": 0, "effect_hunger": 15, "effect_energy": 0, "xp": 0, "cooldown_seconds": 0},
@@ -243,10 +246,37 @@ async def pet_get_cache():
     _pet_cache[_bot.get_api_token()] = loaded
     return loaded
 
-# Function to apply lazy decay to stored pet stats (NULL last_interaction_at means no decay). Offline streams never decay.
+# Function to check (at most once a minute) whether this stream is a Specter VOD rerun
+async def pet_refresh_rerun(force=False):
+    if _pet_rerun["live"]:
+        return True
+    now = time.time()
+    if not force and (not _bot.is_stream_online() or now - _pet_rerun["checked_at"] < PET_RERUN_CHECK_SECONDS):
+        return False
+    _pet_rerun["checked_at"] = now
+    connection = None
+    try:
+        connection = await _bot.open_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT id FROM vod_reruns WHERE username = %s AND status = 'live' LIMIT 1", (_bot.get_channel_name(),))
+            if await cursor.fetchone():
+                _pet_rerun["live"] = True
+                _bot.logger.info("[PET] A rerun is playing, so the pet's stats and XP are paused until the stream ends")
+    except Exception as e:
+        _bot.logger.warning(f"[PET] Could not check for a live rerun: {e}")
+    finally:
+        if connection:
+            await _bot.close_connection(connection)
+    return _pet_rerun["live"]
+
+# Function to tell whether the pet counts the stream as live (online and not a rerun)
+def pet_stream_counts():
+    return bool(_bot.is_stream_online()) and not _pet_rerun["live"]
+
+# Function to apply lazy decay to stored pet stats (NULL last_interaction_at means no decay). Offline streams and reruns never decay.
 def pet_decay_stats(happiness, hunger, energy, last_interaction_at, cache, allow_decay=None):
     if allow_decay is None:
-        allow_decay = bool(_bot.is_stream_online())
+        allow_decay = pet_stream_counts()
     last_dt = pet_parse_interaction_time(last_interaction_at)
     hours = 0.0
     if allow_decay and last_dt is not None:
@@ -261,7 +291,7 @@ def pet_state_notice_data(happiness, hunger, energy, level, xp, last_iso, cache,
     decay_happiness = float(cache.get("decay_happiness") or 2)
     decay_hunger = float(cache.get("decay_hunger") or 3)
     decay_energy = float(cache.get("decay_energy") or 1)
-    online = _bot.is_stream_online() if stream_online_override is None else stream_online_override
+    online = pet_stream_counts() if stream_online_override is None else stream_online_override
     return {
         "happiness": happiness,
         "hunger": hunger,
@@ -295,6 +325,7 @@ async def pet_current_stats():
     }
     if not cache.get("configured"):
         return result
+    await pet_refresh_rerun()
     connection = None
     try:
         connection = await _bot.open_connection()
@@ -380,6 +411,10 @@ async def pet_apply_state_effects(trigger, cache):
 
 # Function to refill happiness/hunger/energy to 100 when the stream ends; they stay there until the next stream starts
 async def pet_freeze_for_stream_offline():
+    if _pet_rerun["live"]:
+        _pet_rerun["live"] = False
+        _pet_rerun["checked_at"] = 0.0
+        return
     cache = await pet_get_cache()
     if not cache.get("configured"):
         return
@@ -416,6 +451,10 @@ async def pet_reset_for_new_stream():
     cache = await pet_get_cache()
     if not cache.get("configured"):
         return
+    _pet_rerun["live"] = False
+    if await pet_refresh_rerun(force=True):
+        await pet_notify_stored_state(cache)
+        return
     now = datetime.now(timezone.utc)
     now_naive = now.replace(tzinfo=None)
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -446,7 +485,32 @@ async def pet_reset_for_new_stream():
             if connection:
                 await _bot.close_connection(connection)
 
-# Function to cooldown-gate a pet trigger, emit PET_REACT, and apply stat effects
+# Function to re-send the stored stats unchanged (a rerun leaves them alone but the overlay must stop counting down)
+async def pet_notify_stored_state(cache):
+    connection = None
+    try:
+        connection = await _bot.open_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT happiness, hunger, energy, xp, last_interaction_at FROM pet_state WHERE id = 1")
+            row = await cursor.fetchone()
+        if not row:
+            return
+        xp = max(0, int(row.get("xp") or 0))
+        last_dt = pet_parse_interaction_time(row.get("last_interaction_at"))
+        last_iso = last_dt.strftime("%Y-%m-%dT%H:%M:%SZ") if last_dt else None
+        _bot.safe_create_task(_bot.websocket_notice(event="PET_STATE", additional_data=pet_state_notice_data(
+            pet_clamp_stat(row.get("happiness") if row.get("happiness") is not None else 80),
+            pet_clamp_stat(row.get("hunger") if row.get("hunger") is not None else 80),
+            pet_clamp_stat(row.get("energy") if row.get("energy") is not None else 80),
+            min(99, 1 + xp // 100), xp, last_iso, cache
+        )))
+    except Exception as e:
+        _bot.logger.error(f"[PET] Failed to send the stored pet state: {e}")
+    finally:
+        if connection:
+            await _bot.close_connection(connection)
+
+# Function to cooldown-gate a pet trigger, emit PET_REACT, and apply stat effects (reactions still play during a rerun, but stats and XP stay put)
 async def pet_apply_trigger(trigger, user_display_name, personalized=False):
     cache = await pet_get_cache()
     if not cache.get("enabled") or not trigger:
@@ -470,6 +534,8 @@ async def pet_apply_trigger(trigger, user_display_name, personalized=False):
         if bubble_text:
             react_data["bubble_text"] = bubble_text
         _bot.safe_create_task(_bot.websocket_notice(event="PET_REACT", additional_data=react_data))
+    if await pet_refresh_rerun():
+        return True
     await pet_apply_state_effects(trigger, cache)
     return True
 
@@ -555,7 +621,7 @@ def pet_alert_message_lines(raw):
 async def pet_check_low_stats(stats=None):
     try:
         cache = await pet_get_cache()
-        if not (cache.get("enabled") and cache.get("alert_enabled")) or not _bot.is_stream_online():
+        if not (cache.get("enabled") and cache.get("alert_enabled")) or not _bot.is_stream_online() or await pet_refresh_rerun():
             _pet_alert_state.clear()
             return
         if stats is None:
