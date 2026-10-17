@@ -6765,7 +6765,7 @@ return [
     'pet_alert_msg_happiness' => '低快乐消息',
     'pet_current_stats_title' => '当前属性',
     'pet_current_stats_live' => '直播中：这些数值会在开播期间自动下降。',
-    'pet_current_stats_offline' => '未开播：属性会冻结，直到下次开播。',
+    'pet_current_stats_offline' => '未开播：直播结束时属性会恢复到 100%，并保持到下次开播。',
     'pet_current_stats_live_badge' => '直播中',
     'pet_current_stats_offline_badge' => '未开播',
     'pet_start_happiness' => '开播时的快乐',
