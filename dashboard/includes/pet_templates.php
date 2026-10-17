@@ -120,6 +120,28 @@ function pet_template_catalog() {
             'preview' => 'idle.png',
             'animations' => pet_template_anims(),
         ],
+        // Fox, axolotl and pumpkin have their own 30-frame gift loop (the pet opens a present and closes it again), not the shared 58-frame box
+        'fox' => [
+            'id' => 'fox',
+            'name_key' => 'pet_template_fox_name',
+            'desc_key' => 'pet_template_fox_desc',
+            'preview' => 'idle.png',
+            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+        ],
+        'axolotl' => [
+            'id' => 'axolotl',
+            'name_key' => 'pet_template_axolotl_name',
+            'desc_key' => 'pet_template_axolotl_desc',
+            'preview' => 'idle.png',
+            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+        ],
+        'pumpkin' => [
+            'id' => 'pumpkin',
+            'name_key' => 'pet_template_pumpkin_name',
+            'desc_key' => 'pet_template_pumpkin_desc',
+            'preview' => 'idle.png',
+            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+        ],
     ];
 }
 
