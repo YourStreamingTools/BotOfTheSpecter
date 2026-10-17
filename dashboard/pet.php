@@ -499,9 +499,16 @@ function pet_apply_state_and_notify($db, $apiKey, $effectHappiness, $effectHunge
         $lastAt = $row['last_interaction_at'];
     }
     $hours = pet_decay_hours($lastAt, pet_stream_is_online($db));
-    $happiness = pet_clamp_stat($happiness - $rates['happiness'] * $hours + (int) $effectHappiness);
-    $hunger = pet_clamp_stat($hunger - $rates['hunger'] * $hours + (int) $effectHunger);
-    $energy = pet_clamp_stat($energy - $rates['energy'] * $hours + (int) $effectEnergy);
+    $happiness = pet_clamp_stat($happiness - $rates['happiness'] * $hours);
+    $hunger = pet_clamp_stat($hunger - $rates['hunger'] * $hours);
+    $energy = pet_clamp_stat($energy - $rates['energy'] * $hours);
+    // A pet already at 100% on every stat earns no XP
+    if ($happiness >= 100 && $hunger >= 100 && $energy >= 100) {
+        $xpAdd = 0;
+    }
+    $happiness = pet_clamp_stat($happiness + (int) $effectHappiness);
+    $hunger = pet_clamp_stat($hunger + (int) $effectHunger);
+    $energy = pet_clamp_stat($energy + (int) $effectEnergy);
     $xp = max(0, $xp + (int) $xpAdd);
     $level = min(99, 1 + intdiv($xp, 100));
     $now = gmdate('Y-m-d H:i:s');

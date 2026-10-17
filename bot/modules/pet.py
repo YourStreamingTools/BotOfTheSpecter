@@ -348,10 +348,12 @@ async def pet_apply_state_effects(trigger, cache):
                 else:
                     happiness, hunger, energy, xp, last_at = 80, 80, 80, 0, None
                 decayed = pet_decay_stats(happiness, hunger, energy, last_at, cache)
+                # A pet already at 100% on every stat earns no XP
+                at_full = all(decayed[stat] >= 100 for stat in ("happiness", "hunger", "energy"))
                 happiness = pet_clamp_stat(decayed["happiness"] + int((trigger or {}).get("effect_happiness") or 0))
                 hunger = pet_clamp_stat(decayed["hunger"] + int((trigger or {}).get("effect_hunger") or 0))
                 energy = pet_clamp_stat(decayed["energy"] + int((trigger or {}).get("effect_energy") or 0))
-                xp_gained = max(0, int((trigger or {}).get("xp") or 0))
+                xp_gained = 0 if at_full else max(0, int((trigger or {}).get("xp") or 0))
                 old_level = min(PET_XP_MAX_LEVEL, 1 + xp // PET_XP_PER_LEVEL)
                 xp = max(0, xp + xp_gained)
                 progress = pet_xp_progress(xp)
