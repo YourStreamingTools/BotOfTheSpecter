@@ -131,7 +131,7 @@ function pet_template_catalog() {
             'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
-        // Fox, axolotl and pumpkin have their own 30-frame gift loop (the pet opens a present and closes it again), not the shared 58-frame box
+        // Fox, axolotl, pumpkin, capybara, dragon and penguin have their own 30-frame gift loop (the pet opens a present and closes it again), not the shared 58-frame box
         'fox' => [
             'id' => 'fox',
             'name_key' => 'pet_template_fox_name',
@@ -157,6 +157,33 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'seasonal',
             'added' => '2026-10-17',
+            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+        ],
+        'capybara' => [
+            'id' => 'capybara',
+            'name_key' => 'pet_template_capybara_name',
+            'desc_key' => 'pet_template_capybara_desc',
+            'preview' => 'static.png',
+            'category' => 'animals',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+        ],
+        'dragon' => [
+            'id' => 'dragon',
+            'name_key' => 'pet_template_dragon_name',
+            'desc_key' => 'pet_template_dragon_desc',
+            'preview' => 'static.png',
+            'category' => 'fantasy',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+        ],
+        'penguin' => [
+            'id' => 'penguin',
+            'name_key' => 'pet_template_penguin_name',
+            'desc_key' => 'pet_template_penguin_desc',
+            'preview' => 'static.png',
+            'category' => 'animals',
+            'added' => '2026-10-19',
             'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
         ],
     ];
