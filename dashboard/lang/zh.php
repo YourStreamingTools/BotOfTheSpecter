@@ -6846,7 +6846,7 @@ return [
     'pet_template_squirrel_name' => '松鼠',
     'pet_template_squirrel_desc' => '一只大尾巴松鼠，同样六套循环。',
     'pet_template_chicken_name' => '鸡',
-    'pet_template_chicken_desc' => '一只圆滚滚的小鸡，同样六套循环。',
+    'pet_template_chicken_desc' => '一只毛茸茸的黄色小鸡，头顶红色鸡冠，正在啃玉米棒。赠送订阅时由它亲自打开礼物。',
     'pet_template_cow_name' => '牛',
     'pet_template_cow_desc' => '一只黑白花奶牛吉祥物，同样六套循环。',
     'pet_template_duck_name' => '鸭',
