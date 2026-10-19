@@ -276,6 +276,42 @@ function pet_template_catalog() {
             'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
+        'turkey' => [
+            'id' => 'turkey',
+            'name_key' => 'pet_template_turkey_name',
+            'desc_key' => 'pet_template_turkey_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'lovebug' => [
+            'id' => 'lovebug',
+            'name_key' => 'pet_template_lovebug_name',
+            'desc_key' => 'pet_template_lovebug_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'unicorn' => [
+            'id' => 'unicorn',
+            'name_key' => 'pet_template_unicorn_name',
+            'desc_key' => 'pet_template_unicorn_desc',
+            'preview' => 'static.png',
+            'category' => 'fantasy',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'fairy' => [
+            'id' => 'fairy',
+            'name_key' => 'pet_template_fairy_name',
+            'desc_key' => 'pet_template_fairy_desc',
+            'preview' => 'static.png',
+            'category' => 'fantasy',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
     ];
 }
 
