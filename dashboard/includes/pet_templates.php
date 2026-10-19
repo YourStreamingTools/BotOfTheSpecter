@@ -94,7 +94,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_squirrel_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'animations' => pet_template_anims(),
+            // idle.png plays forward then back (58 frames) so the mouth and tail no longer snap when the loop restarts
+            'animations' => pet_template_anims(['idle' => ['frame_count' => 58]]),
         ],
         'chicken' => [
             'id' => 'chicken',
@@ -224,7 +225,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019';
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019b';
 }
 
 function pet_parse_template_sprite($filename) {
