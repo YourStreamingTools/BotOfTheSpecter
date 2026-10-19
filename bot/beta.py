@@ -417,6 +417,14 @@ _tanggle_no_creds_logged = False                                                
 _tanggle_rejected_creds = None                                                          # (token, community uuid) last rejected with HTTP 401/403
 _stream_bingo_no_creds_logged = False                                                   # Tracks whether the "no credentials" message has been logged for Stream Bingo
 _current_bingo_game_id = None                                                           # Tracks the internally generated ID for the currently active bingo game
+BINGO_EVENT_BATCH_WINDOW = 6                                                            # Seconds of quiet after the latest called bingo event before chat is sent
+BINGO_EVENT_BATCH_MAX_WAIT = 20                                                         # Max seconds from the first queued called event, so a steady stream still posts
+BINGO_EVENT_SEND_RETRIES = 2                                                            # Times a failed batch is requeued before its events are logged as dropped
+_bingo_pending_events = []                                                              # Queued called events: dicts of display_number, event_name, attempts
+_bingo_first_event_time = 0.0                                                           # Monotonic time the oldest queued called event arrived
+_bingo_last_event_time = 0.0                                                            # Monotonic time the newest queued called event arrived
+_bingo_flush_task = None                                                                # Timer task that sends the queued called events
+_bingo_flush_lock = asyncio.Lock()                                                      # Keeps batch sends from interleaving with other bingo chat messages
 _streak_schema_ready = False                                                            # Tracks whether highest_streak/total_streams_watched columns have been verified
 
 # Initialize global variables
@@ -3357,11 +3365,93 @@ async def process_tanggle_room_complete(data):
     except Exception as e:
         integrations_logger.error(f"[TANGGLE] Tanggle: Failed to process room.complete payload: {e}")
 
+# Function to group called bingo events into as few chat lines as fit the message limit
+def build_bingo_called_batches(events):
+    batches = []
+    for event in events:
+        item = f"{event['display_number']} \"{event['event_name']}\""
+        if batches and len(batches[-1][0]) + 2 + len(item) <= MAX_CHAT_MESSAGE_LENGTH:
+            batches[-1][0] += f", {item}"
+            batches[-1][1].append(event)
+        else:
+            batches.append([f"Events called: {item}", [event]])
+    # A line with one event keeps the original single-event wording
+    return [(f"Event {group[0]['display_number']} called: \"{group[0]['event_name']}\"" if len(group) == 1 else line, group) for line, group in batches]
+
+# Function to queue a called bingo event and start the batch timer if needed
+def queue_bingo_called_event(display_number, event_name):
+    global _bingo_first_event_time, _bingo_last_event_time, _bingo_flush_task
+    now = time.monotonic()
+    if not _bingo_pending_events:
+        _bingo_first_event_time = now
+    _bingo_last_event_time = now
+    _bingo_pending_events.append({"display_number": display_number, "event_name": event_name, "attempts": 0})
+    if _bingo_flush_task is None or _bingo_flush_task.done():
+        _bingo_flush_task = safe_create_task(bingo_called_events_timer())
+
+# Function to wait for a quiet window (or the max wait) and then send the queued called events
+async def bingo_called_events_timer():
+    try:
+        while _bingo_pending_events:
+            now = time.monotonic()
+            deadline = min(_bingo_last_event_time + BINGO_EVENT_BATCH_WINDOW, _bingo_first_event_time + BINGO_EVENT_BATCH_MAX_WAIT)
+            if now < deadline:
+                await sleep(deadline - now)
+                continue
+            await flush_bingo_called_events()
+    except asyncioCancelledError:
+        raise
+    except Exception as e:
+        integrations_logger.error(f"[STREAM BINGO] Stream Bingo: Batch timer error: {e}")
+
+# Function to send every queued called event now, requeueing any that fail to send
+async def flush_bingo_called_events():
+    global _bingo_first_event_time, _bingo_last_event_time, _bingo_flush_task
+    async with _bingo_flush_lock:
+        if not _bingo_pending_events:
+            return
+        events = list(_bingo_pending_events)
+        _bingo_pending_events.clear()
+        integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Sending {len(events)} called event(s) to chat")
+        unsent = []
+        for index, (line, group) in enumerate(build_bingo_called_batches(events)):
+            if unsent:
+                unsent.extend(group)
+                continue
+            if index:
+                await sleep(0.5)
+            try:
+                sent = await send_chat_message(line)
+            except Exception as e:
+                integrations_logger.error(f"[STREAM BINGO] Stream Bingo: Error sending called events: {e}")
+                sent = False
+            if not sent:
+                unsent.extend(group)
+        if not unsent:
+            return
+        retry = [dict(event, attempts=event["attempts"] + 1) for event in unsent if event["attempts"] < BINGO_EVENT_SEND_RETRIES]
+        dropped = [(event["display_number"], event["event_name"]) for event in unsent if event["attempts"] >= BINGO_EVENT_SEND_RETRIES]
+        if dropped:
+            integrations_logger.error(f"[STREAM BINGO] Stream Bingo: Dropping called event(s) after {BINGO_EVENT_SEND_RETRIES} retries: {dropped}")
+        if retry:
+            integrations_logger.warning(f"[STREAM BINGO] Stream Bingo: Requeueing {len(retry)} called event(s) after a failed send")
+            now = time.monotonic()
+            if not _bingo_pending_events:
+                _bingo_first_event_time = now
+            _bingo_last_event_time = now
+            _bingo_pending_events[:0] = retry
+            # An early flush from another bingo message may have no timer running to retry these
+            if _bingo_flush_task is None or _bingo_flush_task.done():
+                _bingo_flush_task = safe_create_task(bingo_called_events_timer())
+
 async def process_stream_bingo_message(data):
     global _current_bingo_game_id
     try:
         event_type = data.get('type', 'unknown')
         integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Processing event type: {event_type}")
+        # Send queued called events first so chat order matches the bingo feed
+        if event_type not in ['number_called', 'EVENT_CALLED', 'PLAYER_JOINED']:
+            await flush_bingo_called_events()
         # Connect to user database for storing bingo data
         user_db = await mysql_connection()
         try:
@@ -3406,7 +3496,7 @@ async def process_stream_bingo_message(data):
                 event_id = data.get('eventid')
                 event_name = data.get('eventname')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - Event: {event_name} (#{display_number}, ID: {event_id})")
-                await send_chat_message(f"Event {display_number} called: \"{event_name}\"")
+                queue_bingo_called_event(display_number, event_name)
                 safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EVENT_CALLED",
                     additional_data={"display_number": display_number, "event_name": event_name, "event_id": event_id}
