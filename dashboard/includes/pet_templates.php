@@ -74,7 +74,6 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'animals',
             'theme_of' => 'cat',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
         ],
         'dog' => [
@@ -156,7 +155,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_fox_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'added' => '2026-10-17',
             'animations' => pet_template_anims(),
         ],
         'axolotl' => [
@@ -165,7 +163,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_axolotl_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'added' => '2026-10-17',
             'animations' => pet_template_anims(),
         ],
         'pumpkin' => [
@@ -174,7 +171,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_pumpkin_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-17',
             'animations' => pet_template_anims(),
         ],
         'capybara' => [
@@ -183,7 +179,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_capybara_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'dragon' => [
@@ -192,7 +187,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_dragon_desc',
             'preview' => 'static.png',
             'category' => 'fantasy',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'penguin' => [
@@ -201,7 +195,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_penguin_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'skeleton' => [
@@ -210,7 +203,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_skeleton_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'vampire' => [
@@ -219,7 +211,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_vampire_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'mummy' => [
@@ -228,7 +219,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_mummy_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'witch' => [
@@ -237,7 +227,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_witch_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'santa' => [
@@ -246,7 +235,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_santa_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'snowman' => [
@@ -255,7 +243,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_snowman_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'reindeer' => [
@@ -264,7 +251,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_reindeer_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'gingerbread' => [
@@ -273,7 +259,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_gingerbread_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'turkey' => [
@@ -282,7 +267,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_turkey_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'lovebug' => [
@@ -291,7 +275,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_lovebug_desc',
             'preview' => 'static.png',
             'category' => 'seasonal',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'unicorn' => [
@@ -300,7 +283,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_unicorn_desc',
             'preview' => 'static.png',
             'category' => 'fantasy',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
         'fairy' => [
@@ -309,7 +291,6 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_fairy_desc',
             'preview' => 'static.png',
             'category' => 'fantasy',
-            'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
     ];
@@ -332,12 +313,6 @@ function pet_template_categories() {
 // The pack a theme belongs to (a pack with no 'theme_of' is its own base)
 function pet_template_base_id($pack) {
     return (string) ($pack['theme_of'] ?? $pack['id']);
-}
-
-// A pack added in the last 45 days gets a "New" badge on the starter pet picker
-function pet_template_is_new($pack) {
-    $added = isset($pack['added']) ? strtotime((string) $pack['added']) : false;
-    return $added !== false && (time() - $added) < 45 * 86400;
 }
 
 function pet_is_template_sprite($filename) {

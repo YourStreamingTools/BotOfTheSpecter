@@ -6899,7 +6899,6 @@ return [
     'pet_template_cat_animals' => '动物',
     'pet_template_cat_fantasy' => '奇幻',
     'pet_template_cat_seasonal' => '节日',
-    'pet_template_new' => '新',
     'pet_template_no_match' => '没有符合搜索的初始宠物。',
     'pet_template_animations' => '动画',
     'pet_template_apply' => '使用此宠物',
