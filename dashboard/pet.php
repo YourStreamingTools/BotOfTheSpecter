@@ -1650,8 +1650,11 @@ ob_start();
         <p class="pet-page-help"><?= t('pet_templates_help') ?></p>
         <?php
         $petTemplateSelected = isset($petTemplateCatalog[$petActiveTemplate]) ? $petActiveTemplate : (string) array_key_first($petTemplateCatalog);
-        $petTemplateCounts = ['all' => count($petTemplateCatalog)];
-        foreach ($petTemplateCatalog as $pack) {
+        // theme packs (like the black cat) live on their base pet's card, not as tiles of their own
+        $petTemplateTiles = array_filter($petTemplateCatalog, function ($pack) { return empty($pack['theme_of']); });
+        $petActiveBase = isset($petTemplateCatalog[$petActiveTemplate]) ? pet_template_base_id($petTemplateCatalog[$petActiveTemplate]) : '';
+        $petTemplateCounts = ['all' => count($petTemplateTiles)];
+        foreach ($petTemplateTiles as $pack) {
             $cat = (string) ($pack['category'] ?? 'animals');
             $petTemplateCounts[$cat] = ($petTemplateCounts[$cat] ?? 0) + 1;
         }
@@ -1672,6 +1675,10 @@ ob_start();
                         <span class="sp-badge sp-badge-accent" id="petPickerNew"<?= pet_template_is_new($selPack) ? '' : ' hidden' ?>><?= t('pet_template_new') ?></span>
                     </div>
                     <p class="pet-page-help" id="petPickerDesc"><?= htmlspecialchars(t($selPack['desc_key'])) ?></p>
+                    <div class="pet-picker-themes" id="petPickerThemes" hidden>
+                        <span class="pet-picker-themes-label"><?= t('pet_template_theme') ?></span>
+                        <div class="pet-picker-theme-chips" id="petPickerThemeChips" role="group" aria-label="<?= htmlspecialchars(t('pet_template_theme')) ?>"></div>
+                    </div>
                     <div class="pet-picker-anims" id="petPickerAnims" role="group" aria-label="<?= htmlspecialchars(t('pet_template_animations')) ?>"></div>
                     <div class="pet-picker-actions">
                         <button type="button"
@@ -1696,17 +1703,22 @@ ob_start();
                     </div>
                 </div>
                 <div class="pet-picker-grid" id="petPickerGrid">
-                    <?php foreach ($petTemplateCatalog as $pack):
+                    <?php foreach ($petTemplateTiles as $pack):
                         $packId = (string) $pack['id'];
-                        $isActive = $petActiveTemplate === $packId;
+                        $isActive = $petActiveBase === $packId;
+                        $searchText = t($pack['name_key']) . ' ' . $packId;
+                        foreach (($pack['themes'] ?? []) as $themeKey) {
+                            $searchText .= ' ' . t($themeKey);
+                        }
                     ?>
                         <button type="button"
-                            class="pet-picker-tile<?= $isActive ? ' is-active' : '' ?><?= $packId === $petTemplateSelected ? ' is-selected' : '' ?>"
+                            class="pet-picker-tile<?= $isActive ? ' is-active' : '' ?><?= $packId === pet_template_base_id($selPack) ? ' is-selected' : '' ?>"
                             data-pet-pack="<?= htmlspecialchars($packId) ?>"
                             data-pet-category="<?= htmlspecialchars((string) ($pack['category'] ?? 'animals')) ?>"
-                            data-pet-search="<?= htmlspecialchars(mb_strtolower(t($pack['name_key']) . ' ' . $packId)) ?>"
-                            aria-pressed="<?= $packId === $petTemplateSelected ? 'true' : 'false' ?>">
-                            <img src="<?= htmlspecialchars(pet_template_cdn_url($packId, $pack['preview'] ?? 'static.png')) ?>" alt="" width="128" height="128" loading="lazy">
+                            data-pet-search="<?= htmlspecialchars(mb_strtolower($searchText)) ?>"
+                            aria-pressed="<?= $packId === pet_template_base_id($selPack) ? 'true' : 'false' ?>">
+                            <?php $tileId = $isActive ? $petActiveTemplate : $packId; $tilePack = $petTemplateCatalog[$tileId]; ?>
+                            <img src="<?= htmlspecialchars(pet_template_cdn_url($tileId, $tilePack['preview'] ?? 'static.png')) ?>" alt="" width="128" height="128" loading="lazy">
                             <span class="pet-picker-tile-name"><?= htmlspecialchars(t($pack['name_key'])) ?></span>
                             <?php if ($isActive): ?>
                                 <span class="pet-picker-tile-flag is-using" title="<?= htmlspecialchars(t('pet_template_using')) ?>"><i class="fas fa-check"></i></span>
@@ -2291,7 +2303,13 @@ ob_start();
                 'fps' => (int) $spec['fps'],
             ];
         }
+        $pickerThemes = [];
+        foreach (($pack['themes'] ?? []) as $themeId => $themeKey) {
+            $pickerThemes[] = ['id' => (string) $themeId, 'label' => t($themeKey)];
+        }
         $petPickerData['packs'][$packId] = [
+            'base' => pet_template_base_id($pack),
+            'themes' => $pickerThemes,
             'name' => t($pack['name_key']),
             'desc' => t($pack['desc_key']),
             'isNew' => pet_template_is_new($pack),
@@ -2538,6 +2556,8 @@ ob_start();
         const searchEl = document.getElementById('petPickerSearch');
         const emptyEl = document.getElementById('petPickerEmpty');
         const tiles = Array.from(pickerGrid.querySelectorAll('.pet-picker-tile'));
+        const themeBox = document.getElementById('petPickerThemes');
+        const themeChips = document.getElementById('petPickerThemeChips');
         const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         let playTimer = null;
         let playToken = 0;
@@ -2585,8 +2605,20 @@ ob_start();
         const selectPack = (id) => {
             const pack = petPicker.packs[id];
             if (!pack) return;
+            const base = petPicker.packs[pack.base] || pack;
+            themeChips.innerHTML = '';
+            themeBox.hidden = !(base.themes && base.themes.length > 1);
+            (base.themes || []).forEach((theme) => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'pet-picker-filter' + (theme.id === id ? ' is-active' : '');
+                chip.setAttribute('aria-pressed', theme.id === id ? 'true' : 'false');
+                chip.textContent = theme.label;
+                chip.addEventListener('click', () => selectPack(theme.id));
+                themeChips.appendChild(chip);
+            });
             tiles.forEach((tile) => {
-                const on = tile.getAttribute('data-pet-pack') === id;
+                const on = tile.getAttribute('data-pet-pack') === pack.base;
                 tile.classList.toggle('is-selected', on);
                 tile.setAttribute('aria-pressed', on ? 'true' : 'false');
             });

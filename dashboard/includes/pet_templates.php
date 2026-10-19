@@ -61,7 +61,20 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_cat_desc',
             'preview' => 'static.png',
             'category' => 'animals',
+            // pack id => lang key; the picker shows these as theme chips on the cat's card
+            'themes' => ['cat' => 'pet_template_theme_tabby', 'cat_black' => 'pet_template_theme_black'],
             // sleep plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
+        ],
+        // The black cat is a theme of the cat (same art, recoloured), so it has no tile of its own in the picker
+        'cat_black' => [
+            'id' => 'cat_black',
+            'name_key' => 'pet_template_cat_black_name',
+            'desc_key' => 'pet_template_cat_black_desc',
+            'preview' => 'static.png',
+            'category' => 'animals',
+            'theme_of' => 'cat',
+            'added' => '2026-10-19',
             'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
         ],
         'dog' => [
@@ -191,6 +204,42 @@ function pet_template_catalog() {
             'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
+        'skeleton' => [
+            'id' => 'skeleton',
+            'name_key' => 'pet_template_skeleton_name',
+            'desc_key' => 'pet_template_skeleton_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'vampire' => [
+            'id' => 'vampire',
+            'name_key' => 'pet_template_vampire_name',
+            'desc_key' => 'pet_template_vampire_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'mummy' => [
+            'id' => 'mummy',
+            'name_key' => 'pet_template_mummy_name',
+            'desc_key' => 'pet_template_mummy_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'witch' => [
+            'id' => 'witch',
+            'name_key' => 'pet_template_witch_name',
+            'desc_key' => 'pet_template_witch_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
     ];
 }
 
@@ -206,6 +255,11 @@ function pet_template_categories() {
         'fantasy' => 'pet_template_cat_fantasy',
         'seasonal' => 'pet_template_cat_seasonal',
     ];
+}
+
+// The pack a theme belongs to (a pack with no 'theme_of' is its own base)
+function pet_template_base_id($pack) {
+    return (string) ($pack['theme_of'] ?? $pack['id']);
 }
 
 // A pack added in the last 45 days gets a "New" badge on the starter pet picker
