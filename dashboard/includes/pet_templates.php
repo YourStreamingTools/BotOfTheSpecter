@@ -134,8 +134,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_bunny_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            // sad and sleep play forward then back (58 frames) so the loop no longer jumps
-            'animations' => pet_template_anims(['sad' => ['frame_count' => 58], 'sleep' => ['frame_count' => 58]]),
+            // sad and sleep play forward then back (58 frames) so the loop no longer jumps; idle is a calmer 60-frame bob (feet stay down, half speed)
+            'animations' => pet_template_anims(['idle' => ['frame_count' => 60], 'sad' => ['frame_count' => 58], 'sleep' => ['frame_count' => 58]]),
         ],
         'fox' => [
             'id' => 'fox',
@@ -233,7 +233,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019e';
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019f';
 }
 
 function pet_parse_template_sprite($filename) {
