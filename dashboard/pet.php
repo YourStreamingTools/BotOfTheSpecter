@@ -1681,11 +1681,7 @@ ob_start();
                             <?= $selActive ? 'disabled' : '' ?>>
                             <?= $selActive ? t('pet_template_using') : t('pet_template_apply') ?>
                         </button>
-                        <a class="sp-btn sp-btn-secondary sp-btn-sm" id="petPickerGif" href="<?= htmlspecialchars(pet_template_cdn_url($petTemplateSelected, 'idle.gif')) ?>" download target="_blank" rel="noopener">
-                            <i class="fas fa-download"></i> <span id="petPickerGifLabel"><?= t('pet_template_download_gif') ?></span>
-                        </a>
                     </div>
-                    <p class="pet-page-help pet-page-help-last pet-picker-gif-note"><?= t('pet_template_gif_note') ?></p>
                 </div>
             </div>
             <div class="pet-picker-browse">
@@ -2291,7 +2287,6 @@ ob_start();
             $pickerAnims[] = [
                 'name' => (string) $animName,
                 'sheet' => pet_template_cdn_url($packId, $spec['file']),
-                'gif' => pet_template_cdn_url($packId, preg_replace('/\.png$/', '.gif', (string) $spec['file'])),
                 'frames' => (int) $spec['frame_count'],
                 'fps' => (int) $spec['fps'],
             ];
@@ -2540,7 +2535,6 @@ ob_start();
         const sprite = document.getElementById('petPickerSprite');
         const animBox = document.getElementById('petPickerAnims');
         const applyBtn = document.getElementById('petPickerApply');
-        const gifLink = document.getElementById('petPickerGif');
         const searchEl = document.getElementById('petPickerSearch');
         const emptyEl = document.getElementById('petPickerEmpty');
         const tiles = Array.from(pickerGrid.querySelectorAll('.pet-picker-tile'));
@@ -2563,7 +2557,6 @@ ob_start();
         };
         const playSheet = (anim) => {
             const token = ++playToken;
-            gifLink.href = anim.gif;
             if (reduceMotion) return;
             const img = new Image();
             img.onload = () => {
