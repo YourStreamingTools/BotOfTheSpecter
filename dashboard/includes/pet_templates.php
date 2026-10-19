@@ -43,7 +43,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_specter_desc',
             'preview' => 'static.png',
             'category' => 'fantasy',
-            'animations' => pet_template_anims(),
+            // sleep plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
         ],
         'bot' => [
             'id' => 'bot',
@@ -51,7 +52,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_bot_desc',
             'preview' => 'static.png',
             'category' => 'fantasy',
-            'animations' => pet_template_anims(),
+            // sad and eat play forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sad' => ['frame_count' => 58], 'eat' => ['frame_count' => 58]]),
         ],
         'cat' => [
             'id' => 'cat',
@@ -59,7 +61,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_cat_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'animations' => pet_template_anims(),
+            // sleep plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
         ],
         'dog' => [
             'id' => 'dog',
@@ -78,7 +81,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_bat_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'animations' => pet_template_anims(),
+            // sleep plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
         ],
         'alien' => [
             'id' => 'alien',
@@ -86,7 +90,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_alien_desc',
             'preview' => 'static.png',
             'category' => 'fantasy',
-            'animations' => pet_template_anims(),
+            // sleep plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sleep' => ['frame_count' => 58]]),
         ],
         'squirrel' => [
             'id' => 'squirrel',
@@ -111,7 +116,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_cow_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'animations' => pet_template_anims(),
+            // sad plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sad' => ['frame_count' => 58]]),
         ],
         'duck' => [
             'id' => 'duck',
@@ -119,7 +125,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_duck_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'animations' => pet_template_anims(),
+            // eat plays forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['eat' => ['frame_count' => 58]]),
         ],
         'bunny' => [
             'id' => 'bunny',
@@ -127,7 +134,8 @@ function pet_template_catalog() {
             'desc_key' => 'pet_template_bunny_desc',
             'preview' => 'static.png',
             'category' => 'animals',
-            'animations' => pet_template_anims(),
+            // sad and sleep play forward then back (58 frames) so the loop no longer jumps
+            'animations' => pet_template_anims(['sad' => ['frame_count' => 58], 'sleep' => ['frame_count' => 58]]),
         ],
         'fox' => [
             'id' => 'fox',
@@ -225,7 +233,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019d';
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019e';
 }
 
 function pet_parse_template_sprite($filename) {
