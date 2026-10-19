@@ -44,28 +44,32 @@ function pet_template_catalog() {
             'id' => 'specter',
             'name_key' => 'pet_template_specter_name',
             'desc_key' => 'pet_template_specter_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'fantasy',
             'animations' => pet_template_anims(),
         ],
         'bot' => [
             'id' => 'bot',
             'name_key' => 'pet_template_bot_name',
             'desc_key' => 'pet_template_bot_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'fantasy',
             'animations' => pet_template_anims(),
         ],
         'cat' => [
             'id' => 'cat',
             'name_key' => 'pet_template_cat_name',
             'desc_key' => 'pet_template_cat_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         'dog' => [
             'id' => 'dog',
             'name_key' => 'pet_template_dog_name',
             'desc_key' => 'pet_template_dog_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             // sad.png was a hard cut from standing (frames 0-9) to lying down (10-29) with no way back,
             // so looping it snapped the dog upright again. The CDN file is now 58 frames (the same lie-down,
             // then played back in reverse) so it stands back up before looping instead of popping.
@@ -75,49 +79,56 @@ function pet_template_catalog() {
             'id' => 'bat',
             'name_key' => 'pet_template_bat_name',
             'desc_key' => 'pet_template_bat_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         'alien' => [
             'id' => 'alien',
             'name_key' => 'pet_template_alien_name',
             'desc_key' => 'pet_template_alien_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'fantasy',
             'animations' => pet_template_anims(),
         ],
         'squirrel' => [
             'id' => 'squirrel',
             'name_key' => 'pet_template_squirrel_name',
             'desc_key' => 'pet_template_squirrel_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         'chicken' => [
             'id' => 'chicken',
             'name_key' => 'pet_template_chicken_name',
             'desc_key' => 'pet_template_chicken_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         'cow' => [
             'id' => 'cow',
             'name_key' => 'pet_template_cow_name',
             'desc_key' => 'pet_template_cow_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         'duck' => [
             'id' => 'duck',
             'name_key' => 'pet_template_duck_name',
             'desc_key' => 'pet_template_duck_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         'bunny' => [
             'id' => 'bunny',
             'name_key' => 'pet_template_bunny_name',
             'desc_key' => 'pet_template_bunny_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
         // Fox, axolotl and pumpkin have their own 30-frame gift loop (the pet opens a present and closes it again), not the shared 58-frame box
@@ -125,21 +136,27 @@ function pet_template_catalog() {
             'id' => 'fox',
             'name_key' => 'pet_template_fox_name',
             'desc_key' => 'pet_template_fox_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
+            'added' => '2026-10-17',
             'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
         ],
         'axolotl' => [
             'id' => 'axolotl',
             'name_key' => 'pet_template_axolotl_name',
             'desc_key' => 'pet_template_axolotl_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'animals',
+            'added' => '2026-10-17',
             'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
         ],
         'pumpkin' => [
             'id' => 'pumpkin',
             'name_key' => 'pet_template_pumpkin_name',
             'desc_key' => 'pet_template_pumpkin_desc',
-            'preview' => 'idle.png',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-17',
             'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
         ],
     ];
@@ -148,6 +165,21 @@ function pet_template_catalog() {
 function pet_template_get($packId) {
     $catalog = pet_template_catalog();
     return isset($catalog[$packId]) ? $catalog[$packId] : null;
+}
+
+// Category id => lang key, in the order the starter pet filter shows them
+function pet_template_categories() {
+    return [
+        'animals' => 'pet_template_cat_animals',
+        'fantasy' => 'pet_template_cat_fantasy',
+        'seasonal' => 'pet_template_cat_seasonal',
+    ];
+}
+
+// A pack added in the last 45 days gets a "New" badge on the starter pet picker
+function pet_template_is_new($pack) {
+    $added = isset($pack['added']) ? strtotime((string) $pack['added']) : false;
+    return $added !== false && (time() - $added) < 45 * 86400;
 }
 
 function pet_is_template_sprite($filename) {

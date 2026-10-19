@@ -1648,28 +1648,80 @@ ob_start();
     </div>
     <div class="sp-card-body">
         <p class="pet-page-help"><?= t('pet_templates_help') ?></p>
-        <div class="pet-page-template-grid">
-            <?php foreach ($petTemplateCatalog as $pack):
-                $packId = (string) $pack['id'];
-                $isActive = $petActiveTemplate === $packId;
-                $previewUrl = pet_template_cdn_url($packId, $pack['preview'] ?? 'idle.png');
-            ?>
-                <div class="pet-page-template-card<?= $isActive ? ' is-active' : '' ?>">
-                    <div class="pet-page-template-preview">
-                        <?php if ($previewUrl !== ''): ?>
-                            <img src="<?= htmlspecialchars($previewUrl) ?>" alt="" width="128" height="128">
-                        <?php endif; ?>
-                    </div>
-                    <strong><?= t($pack['name_key']) ?></strong>
-                    <p class="pet-page-help"><?= t($pack['desc_key']) ?></p>
-                    <button type="button"
-                        class="sp-btn <?= $isActive ? 'sp-btn-secondary' : 'sp-btn-primary' ?> sp-btn-sm pet-page-template-apply"
-                        data-pet-template="<?= htmlspecialchars($packId) ?>"
-                        <?= $isActive ? 'disabled' : '' ?>>
-                        <?= $isActive ? t('pet_template_using') : t('pet_template_apply') ?>
-                    </button>
+        <?php
+        $petTemplateSelected = isset($petTemplateCatalog[$petActiveTemplate]) ? $petActiveTemplate : (string) array_key_first($petTemplateCatalog);
+        $petTemplateCounts = ['all' => count($petTemplateCatalog)];
+        foreach ($petTemplateCatalog as $pack) {
+            $cat = (string) ($pack['category'] ?? 'animals');
+            $petTemplateCounts[$cat] = ($petTemplateCounts[$cat] ?? 0) + 1;
+        }
+        $petTemplateFilters = array_merge(['all' => 'pet_template_filter_all'], pet_template_categories());
+        $selPack = $petTemplateCatalog[$petTemplateSelected];
+        $selActive = $petTemplateSelected === $petActiveTemplate;
+        ?>
+        <div class="pet-picker">
+            <div class="pet-picker-detail" id="petPickerDetail" aria-live="polite">
+                <div class="pet-picker-stage">
+                    <div class="pet-picker-sprite" id="petPickerSprite" role="img" aria-label="<?= htmlspecialchars(t($selPack['name_key'])) ?>"
+                        style="background-image: url('<?= htmlspecialchars(pet_template_cdn_url($petTemplateSelected, $selPack['preview'] ?? 'static.png')) ?>');"></div>
                 </div>
-            <?php endforeach; ?>
+                <div class="pet-picker-info">
+                    <div class="pet-picker-title">
+                        <strong id="petPickerName"><?= htmlspecialchars(t($selPack['name_key'])) ?></strong>
+                        <span class="sp-badge sp-badge-green" id="petPickerInUse"<?= $selActive ? '' : ' hidden' ?>><i class="fas fa-check"></i> <?= t('pet_template_using') ?></span>
+                        <span class="sp-badge sp-badge-accent" id="petPickerNew"<?= pet_template_is_new($selPack) ? '' : ' hidden' ?>><?= t('pet_template_new') ?></span>
+                    </div>
+                    <p class="pet-page-help" id="petPickerDesc"><?= htmlspecialchars(t($selPack['desc_key'])) ?></p>
+                    <div class="pet-picker-anims" id="petPickerAnims" role="group" aria-label="<?= htmlspecialchars(t('pet_template_animations')) ?>"></div>
+                    <div class="pet-picker-actions">
+                        <button type="button"
+                            class="sp-btn <?= $selActive ? 'sp-btn-secondary' : 'sp-btn-primary' ?> sp-btn-sm pet-page-template-apply"
+                            id="petPickerApply"
+                            data-pet-template="<?= htmlspecialchars($petTemplateSelected) ?>"
+                            <?= $selActive ? 'disabled' : '' ?>>
+                            <?= $selActive ? t('pet_template_using') : t('pet_template_apply') ?>
+                        </button>
+                        <a class="sp-btn sp-btn-secondary sp-btn-sm" id="petPickerGif" href="<?= htmlspecialchars(pet_template_cdn_url($petTemplateSelected, 'idle.gif')) ?>" download target="_blank" rel="noopener">
+                            <i class="fas fa-download"></i> <span id="petPickerGifLabel"><?= t('pet_template_download_gif') ?></span>
+                        </a>
+                    </div>
+                    <p class="pet-page-help pet-page-help-last pet-picker-gif-note"><?= t('pet_template_gif_note') ?></p>
+                </div>
+            </div>
+            <div class="pet-picker-browse">
+                <div class="pet-picker-toolbar">
+                    <input type="search" class="sp-input pet-picker-search" id="petPickerSearch" placeholder="<?= htmlspecialchars(t('pet_template_search')) ?>" aria-label="<?= htmlspecialchars(t('pet_template_search')) ?>" autocomplete="off">
+                    <div class="pet-picker-filters" role="group">
+                        <?php foreach ($petTemplateFilters as $catId => $catKey): if (empty($petTemplateCounts[$catId])) continue; ?>
+                            <button type="button" class="pet-picker-filter<?= $catId === 'all' ? ' is-active' : '' ?>" data-pet-filter="<?= htmlspecialchars($catId) ?>" aria-pressed="<?= $catId === 'all' ? 'true' : 'false' ?>">
+                                <?= t($catKey) ?> <span class="pet-picker-count"><?= (int) $petTemplateCounts[$catId] ?></span>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="pet-picker-grid" id="petPickerGrid">
+                    <?php foreach ($petTemplateCatalog as $pack):
+                        $packId = (string) $pack['id'];
+                        $isActive = $petActiveTemplate === $packId;
+                    ?>
+                        <button type="button"
+                            class="pet-picker-tile<?= $isActive ? ' is-active' : '' ?><?= $packId === $petTemplateSelected ? ' is-selected' : '' ?>"
+                            data-pet-pack="<?= htmlspecialchars($packId) ?>"
+                            data-pet-category="<?= htmlspecialchars((string) ($pack['category'] ?? 'animals')) ?>"
+                            data-pet-search="<?= htmlspecialchars(mb_strtolower(t($pack['name_key']) . ' ' . $packId)) ?>"
+                            aria-pressed="<?= $packId === $petTemplateSelected ? 'true' : 'false' ?>">
+                            <img src="<?= htmlspecialchars(pet_template_cdn_url($packId, $pack['preview'] ?? 'static.png')) ?>" alt="" width="128" height="128" loading="lazy">
+                            <span class="pet-picker-tile-name"><?= htmlspecialchars(t($pack['name_key'])) ?></span>
+                            <?php if ($isActive): ?>
+                                <span class="pet-picker-tile-flag is-using" title="<?= htmlspecialchars(t('pet_template_using')) ?>"><i class="fas fa-check"></i></span>
+                            <?php elseif (pet_template_is_new($pack)): ?>
+                                <span class="pet-picker-tile-flag is-new"><?= t('pet_template_new') ?></span>
+                            <?php endif; ?>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <p class="pet-page-help pet-page-help-last pet-picker-empty" id="petPickerEmpty" hidden><?= t('pet_template_no_match') ?></p>
+            </div>
         </div>
     </div>
 </div>
@@ -2231,6 +2283,29 @@ ob_start();
     const petUrlMasked = <?php echo json_encode($overlayLinkMasked, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     const petIdleFallback = <?php echo json_encode((string) $pet['idle_animation'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     const hasRedemptionOptions = <?php echo !empty($petRewards) ? 'true' : 'false'; ?>;
+    <?php
+    $petPickerData = ['active' => $petActiveTemplate, 'apply' => t('pet_template_apply'), 'using' => t('pet_template_using'), 'packs' => []];
+    foreach ($petTemplateCatalog as $packId => $pack) {
+        $pickerAnims = [];
+        foreach ($pack['animations'] as $animName => $spec) {
+            $pickerAnims[] = [
+                'name' => (string) $animName,
+                'sheet' => pet_template_cdn_url($packId, $spec['file']),
+                'gif' => pet_template_cdn_url($packId, preg_replace('/\.png$/', '.gif', (string) $spec['file'])),
+                'frames' => (int) $spec['frame_count'],
+                'fps' => (int) $spec['fps'],
+            ];
+        }
+        $petPickerData['packs'][$packId] = [
+            'name' => t($pack['name_key']),
+            'desc' => t($pack['desc_key']),
+            'isNew' => pet_template_is_new($pack),
+            'static' => pet_template_cdn_url($packId, $pack['preview'] ?? 'static.png'),
+            'anims' => $pickerAnims,
+        ];
+    }
+    ?>
+    const petPicker = <?php echo json_encode($petPickerData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
 
     const postPet = (fields) => {
         const fd = new FormData();
@@ -2457,6 +2532,121 @@ ob_start();
                     setStatus(enableStatus, false, petLang.saveError);
                 });
         });
+    }
+
+    // Starter pet picker: tiles pick a pack, the detail panel plays its sprite sheets and holds the apply button
+    const pickerGrid = document.getElementById('petPickerGrid');
+    if (pickerGrid && petPicker && petPicker.packs) {
+        const sprite = document.getElementById('petPickerSprite');
+        const animBox = document.getElementById('petPickerAnims');
+        const applyBtn = document.getElementById('petPickerApply');
+        const gifLink = document.getElementById('petPickerGif');
+        const searchEl = document.getElementById('petPickerSearch');
+        const emptyEl = document.getElementById('petPickerEmpty');
+        const tiles = Array.from(pickerGrid.querySelectorAll('.pet-picker-tile'));
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let playTimer = null;
+        let playToken = 0;
+        let filter = 'all';
+
+        const stopSprite = () => {
+            if (playTimer) {
+                clearInterval(playTimer);
+                playTimer = null;
+            }
+        };
+        const showStatic = (url) => {
+            stopSprite();
+            sprite.style.backgroundImage = 'url("' + url + '")';
+            sprite.style.backgroundSize = '100% 100%';
+            sprite.style.backgroundPosition = '0 0';
+        };
+        const playSheet = (anim) => {
+            const token = ++playToken;
+            gifLink.href = anim.gif;
+            if (reduceMotion) return;
+            const img = new Image();
+            img.onload = () => {
+                if (token !== playToken) return;
+                stopSprite();
+                const frames = Math.max(1, Math.round(img.naturalWidth / (img.naturalHeight || 128)) || anim.frames);
+                let frame = 0;
+                sprite.style.backgroundImage = 'url("' + anim.sheet + '")';
+                sprite.style.backgroundSize = (frames * 100) + '% 100%';
+                const step = () => {
+                    sprite.style.backgroundPosition = (frames > 1 ? (frame / (frames - 1)) * 100 : 0) + '% 0';
+                    frame = (frame + 1) % frames;
+                };
+                step();
+                playTimer = setInterval(step, 1000 / Math.max(1, anim.fps || 15));
+            };
+            img.src = anim.sheet;
+        };
+        const selectAnim = (pack, index) => {
+            animBox.querySelectorAll('.pet-picker-anim').forEach((btn, i) => {
+                btn.classList.toggle('is-active', i === index);
+                btn.setAttribute('aria-pressed', i === index ? 'true' : 'false');
+            });
+            playSheet(pack.anims[index]);
+        };
+        const selectPack = (id) => {
+            const pack = petPicker.packs[id];
+            if (!pack) return;
+            tiles.forEach((tile) => {
+                const on = tile.getAttribute('data-pet-pack') === id;
+                tile.classList.toggle('is-selected', on);
+                tile.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            const inUse = id === petPicker.active;
+            document.getElementById('petPickerName').textContent = pack.name;
+            document.getElementById('petPickerDesc').textContent = pack.desc;
+            document.getElementById('petPickerInUse').hidden = !inUse;
+            document.getElementById('petPickerNew').hidden = !pack.isNew;
+            sprite.setAttribute('aria-label', pack.name);
+            applyBtn.setAttribute('data-pet-template', id);
+            applyBtn.disabled = inUse;
+            applyBtn.textContent = inUse ? petPicker.using : petPicker.apply;
+            applyBtn.classList.toggle('sp-btn-primary', !inUse);
+            applyBtn.classList.toggle('sp-btn-secondary', inUse);
+            animBox.innerHTML = '';
+            pack.anims.forEach((anim, i) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'pet-picker-anim';
+                btn.textContent = anim.name;
+                btn.addEventListener('click', () => selectAnim(pack, i));
+                animBox.appendChild(btn);
+            });
+            showStatic(pack.static);
+            selectAnim(pack, 0);
+        };
+        const applyFilter = () => {
+            const q = (searchEl.value || '').trim().toLowerCase();
+            let shown = 0;
+            tiles.forEach((tile) => {
+                const okCat = filter === 'all' || tile.getAttribute('data-pet-category') === filter;
+                const okText = q === '' || (tile.getAttribute('data-pet-search') || '').indexOf(q) !== -1;
+                tile.hidden = !(okCat && okText);
+                if (!tile.hidden) shown++;
+            });
+            emptyEl.hidden = shown > 0;
+        };
+
+        tiles.forEach((tile) => {
+            tile.addEventListener('click', () => selectPack(tile.getAttribute('data-pet-pack')));
+        });
+        document.querySelectorAll('.pet-picker-filter').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                filter = btn.getAttribute('data-pet-filter') || 'all';
+                document.querySelectorAll('.pet-picker-filter').forEach((b) => {
+                    b.classList.toggle('is-active', b === btn);
+                    b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+                });
+                applyFilter();
+            });
+        });
+        searchEl.addEventListener('input', applyFilter);
+        selectPack(applyBtn.getAttribute('data-pet-template'));
     }
 
     const templateStatus = document.getElementById('petTemplateStatus');
