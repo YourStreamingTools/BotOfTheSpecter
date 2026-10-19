@@ -6873,8 +6873,6 @@ return [
     'pet_template_new' => '新',
     'pet_template_no_match' => '没有符合搜索的初始宠物。',
     'pet_template_animations' => '动画',
-    'pet_template_download_gif' => '下载 GIF',
-    'pet_template_gif_note' => 'GIF 用于在其他地方使用宠物。GIF 的边缘较硬，因此叠加层仍使用更平滑的精灵图。',
     'pet_template_apply' => '使用此宠物',
     'pet_template_using' => '使用中',
     'pet_template_applied' => '已应用起始宠物。',

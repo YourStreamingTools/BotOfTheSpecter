@@ -5840,10 +5840,6 @@ label.checkbox input[type="checkbox"] {
     flex-wrap: wrap;
     gap: 0.5rem;
 }
-.pet-picker-gif-note {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-}
 .pet-picker-toolbar {
     display: flex;
     flex-wrap: wrap;
