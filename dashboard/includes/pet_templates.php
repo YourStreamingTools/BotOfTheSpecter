@@ -240,6 +240,42 @@ function pet_template_catalog() {
             'added' => '2026-10-19',
             'animations' => pet_template_anims(),
         ],
+        'santa' => [
+            'id' => 'santa',
+            'name_key' => 'pet_template_santa_name',
+            'desc_key' => 'pet_template_santa_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'snowman' => [
+            'id' => 'snowman',
+            'name_key' => 'pet_template_snowman_name',
+            'desc_key' => 'pet_template_snowman_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'reindeer' => [
+            'id' => 'reindeer',
+            'name_key' => 'pet_template_reindeer_name',
+            'desc_key' => 'pet_template_reindeer_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
+        'gingerbread' => [
+            'id' => 'gingerbread',
+            'name_key' => 'pet_template_gingerbread_name',
+            'desc_key' => 'pet_template_gingerbread_desc',
+            'preview' => 'static.png',
+            'category' => 'seasonal',
+            'added' => '2026-10-19',
+            'animations' => pet_template_anims(),
+        ],
     ];
 }
 
