@@ -1672,7 +1672,6 @@ ob_start();
                     <div class="pet-picker-title">
                         <strong id="petPickerName"><?= htmlspecialchars(t($selPack['name_key'])) ?></strong>
                         <span class="sp-badge sp-badge-green" id="petPickerInUse"<?= $selActive ? '' : ' hidden' ?>><i class="fas fa-check"></i> <?= t('pet_template_using') ?></span>
-                        <span class="sp-badge sp-badge-accent" id="petPickerNew"<?= pet_template_is_new($selPack) ? '' : ' hidden' ?>><?= t('pet_template_new') ?></span>
                     </div>
                     <p class="pet-page-help" id="petPickerDesc"><?= htmlspecialchars(t($selPack['desc_key'])) ?></p>
                     <div class="pet-picker-themes" id="petPickerThemes" hidden>
@@ -1722,8 +1721,6 @@ ob_start();
                             <span class="pet-picker-tile-name"><?= htmlspecialchars(t($pack['name_key'])) ?></span>
                             <?php if ($isActive): ?>
                                 <span class="pet-picker-tile-flag is-using" title="<?= htmlspecialchars(t('pet_template_using')) ?>"><i class="fas fa-check"></i></span>
-                            <?php elseif (pet_template_is_new($pack)): ?>
-                                <span class="pet-picker-tile-flag is-new"><?= t('pet_template_new') ?></span>
                             <?php endif; ?>
                         </button>
                     <?php endforeach; ?>
@@ -2312,7 +2309,6 @@ ob_start();
             'themes' => $pickerThemes,
             'name' => t($pack['name_key']),
             'desc' => t($pack['desc_key']),
-            'isNew' => pet_template_is_new($pack),
             'static' => pet_template_cdn_url($packId, $pack['preview'] ?? 'static.png'),
             'anims' => $pickerAnims,
         ];
@@ -2626,7 +2622,6 @@ ob_start();
             document.getElementById('petPickerName').textContent = pack.name;
             document.getElementById('petPickerDesc').textContent = pack.desc;
             document.getElementById('petPickerInUse').hidden = !inUse;
-            document.getElementById('petPickerNew').hidden = !pack.isNew;
             sprite.setAttribute('aria-label', pack.name);
             applyBtn.setAttribute('data-pet-template', id);
             applyBtn.disabled = inUse;

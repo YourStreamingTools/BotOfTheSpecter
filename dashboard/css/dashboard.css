@@ -5938,10 +5938,6 @@ label.checkbox input[type="checkbox"] {
     color: var(--green);
     padding: 0.15rem 0.3rem;
 }
-.pet-picker-tile-flag.is-new {
-    background: var(--accent-light);
-    color: var(--accent-hover);
-}
 .pet-picker-empty { margin-top: 0.5rem; }
 @media (max-width: 900px) {
     .pet-picker { grid-template-columns: minmax(0, 1fr); }
