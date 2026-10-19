@@ -19,12 +19,9 @@ function pet_template_anims($overrides = []) {
         $extra = isset($overrides[$name]) && is_array($overrides[$name]) ? $overrides[$name] : [];
         $anims[$name] = array_merge($frame, ['file' => $name . '.png'], $extra);
     }
-    // gift.png is a 30-frame open, held-open, then a hard cut back to closed on loop (pops when it repeats
-    // during a gift_sub celebration, or if a streamer sets it as their idle animation). The art is unchanged;
-    // the CDN file is now 58 frames (open 0-29, then the same frames played back 28-1) so it closes again
-    // before looping. Only bump frame_count when the caller hasn't already given 'gift' its own override.
+    // Every pack's gift.png is a 45-frame loop: the present pops into the pet's hands, the lid flies off, then it puffs away
     if (isset($anims['gift']) && !isset($overrides['gift']['frame_count'])) {
-        $anims['gift']['frame_count'] = 58;
+        $anims['gift']['frame_count'] = 45;
     }
     return $anims;
 }
@@ -131,7 +128,6 @@ function pet_template_catalog() {
             'category' => 'animals',
             'animations' => pet_template_anims(),
         ],
-        // Fox, axolotl, pumpkin, capybara, dragon and penguin have their own 30-frame gift loop (the pet opens a present and closes it again), not the shared 58-frame box
         'fox' => [
             'id' => 'fox',
             'name_key' => 'pet_template_fox_name',
@@ -139,7 +135,7 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'animals',
             'added' => '2026-10-17',
-            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+            'animations' => pet_template_anims(),
         ],
         'axolotl' => [
             'id' => 'axolotl',
@@ -148,7 +144,7 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'animals',
             'added' => '2026-10-17',
-            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+            'animations' => pet_template_anims(),
         ],
         'pumpkin' => [
             'id' => 'pumpkin',
@@ -157,7 +153,7 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'seasonal',
             'added' => '2026-10-17',
-            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+            'animations' => pet_template_anims(),
         ],
         'capybara' => [
             'id' => 'capybara',
@@ -166,7 +162,7 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'animals',
             'added' => '2026-10-19',
-            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+            'animations' => pet_template_anims(),
         ],
         'dragon' => [
             'id' => 'dragon',
@@ -175,7 +171,7 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'fantasy',
             'added' => '2026-10-19',
-            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+            'animations' => pet_template_anims(),
         ],
         'penguin' => [
             'id' => 'penguin',
@@ -184,7 +180,7 @@ function pet_template_catalog() {
             'preview' => 'static.png',
             'category' => 'animals',
             'added' => '2026-10-19',
-            'animations' => pet_template_anims(['gift' => ['frame_count' => 30]]),
+            'animations' => pet_template_anims(),
         ],
     ];
 }
@@ -228,7 +224,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261016';
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20261019';
 }
 
 function pet_parse_template_sprite($filename) {
