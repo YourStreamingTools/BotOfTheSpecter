@@ -5835,6 +5835,24 @@ label.checkbox input[type="checkbox"] {
     color: var(--text-muted);
     font-size: 0.74rem;
 }
+.pet-picker-themes {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.pet-picker-themes-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.pet-picker-theme-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
 .pet-picker-actions {
     display: flex;
     flex-wrap: wrap;
