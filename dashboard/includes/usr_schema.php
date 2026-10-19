@@ -225,6 +225,31 @@ function usr_schema_collect_diff(mysqli $conn, $dbname, array $tables, array $co
         }
     }
 
+    $searchIndexes = [
+        ['chat_history', 'idx_timestamp', 'timestamp'],
+        ['seen_users', 'idx_username', 'username'],
+        ['seen_users', 'idx_first_seen', 'first_seen'],
+        ['bot_points', 'idx_user_name', 'user_name'],
+        ['followers_data', 'idx_user_id', 'user_id'],
+        ['followers_data', 'idx_followed_at', 'followed_at'],
+        ['watch_time', 'idx_total_watch_time_live', 'total_watch_time_live'],
+        ['watch_time', 'idx_username', 'username'],
+    ];
+    foreach ($searchIndexes as [$idxTable, $idxName, $idxColumn]) {
+        if (!isset($existingTables[$idxTable])) {
+            continue;
+        }
+        $idxCheck = $conn->query("SHOW INDEX FROM `$idxTable` WHERE Key_name = '$idxName'");
+        if ($idxCheck !== false && $idxCheck->num_rows === 0) {
+            $pending[] = usr_schema_change(
+                'add_index',
+                "Index $idxName is missing on $idxTable",
+                "ALTER TABLE `$idxTable` ADD INDEX `$idxName` (`$idxColumn`)",
+                $idxTable
+            );
+        }
+    }
+
     if (isset($existingTables['user_tasks'])) {
         $idxBacklog = $conn->query("SHOW INDEX FROM user_tasks WHERE Key_name = 'idx_backlog'");
         if ($idxBacklog !== false && $idxBacklog->num_rows === 0) {
