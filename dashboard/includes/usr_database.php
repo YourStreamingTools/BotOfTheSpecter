@@ -288,7 +288,9 @@ try {
                 user_id VARCHAR(255),
                 user_name VARCHAR(255),
                 source VARCHAR(50) DEFAULT 'Twitch',
-                followed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                followed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_user_id (user_id),
+                INDEX idx_followed_at (followed_at)
             ) ENGINE=InnoDB",
         'raid_data' => "
             CREATE TABLE IF NOT EXISTS raid_data (
@@ -336,7 +338,9 @@ try {
                 status VARCHAR(255),
                 source VARCHAR(50) DEFAULT 'Twitch',
                 first_seen DATETIME DEFAULT NULL,
-                last_seen DATETIME DEFAULT NULL
+                last_seen DATETIME DEFAULT NULL,
+                INDEX idx_username (username),
+                INDEX idx_first_seen (first_seen)
             ) ENGINE=InnoDB",
         'seen_today' => "
             CREATE TABLE IF NOT EXISTS seen_today (
@@ -427,7 +431,8 @@ try {
                 user_name VARCHAR(50),
                 points INT DEFAULT 0,
                 source VARCHAR(50) DEFAULT 'Twitch',
-                PRIMARY KEY (user_id)
+                PRIMARY KEY (user_id),
+                INDEX idx_user_name (user_name)
             ) ENGINE=InnoDB",
         'bot_settings' => "
             CREATE TABLE IF NOT EXISTS bot_settings (
@@ -677,7 +682,9 @@ try {
                 total_watch_time_offline INT DEFAULT 0,
                 last_active VARCHAR(255),
                 source VARCHAR(50) DEFAULT 'Twitch',
-                PRIMARY KEY (user_id)
+                PRIMARY KEY (user_id),
+                INDEX idx_total_watch_time_live (total_watch_time_live),
+                INDEX idx_username (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'watch_time_excluded_users' => "
             CREATE TABLE IF NOT EXISTS watch_time_excluded_users (
@@ -847,7 +854,8 @@ try {
                 author VARCHAR(255),
                 message TEXT,
                 source VARCHAR(50) DEFAULT 'Twitch',
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_timestamp (timestamp)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'member_streams' => "
             CREATE TABLE IF NOT EXISTS member_streams (
@@ -1733,6 +1741,28 @@ try {
     // Ensure default options for task_settings exist
     if ($usrDBconn->query("INSERT INTO task_settings (require_approval, default_reward_points, allow_user_tasks, task_visible_overlay) SELECT 0, 50, 1, 1 WHERE NOT EXISTS (SELECT 1 FROM task_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default task_settings options ensured.');
+    }
+    // Migration: search/filter indexes on high-traffic tables (columns auto-migrate, indexes do not)
+    $search_indexes = [
+        ['chat_history', 'idx_timestamp', 'timestamp'],
+        ['seen_users', 'idx_username', 'username'],
+        ['seen_users', 'idx_first_seen', 'first_seen'],
+        ['bot_points', 'idx_user_name', 'user_name'],
+        ['followers_data', 'idx_user_id', 'user_id'],
+        ['followers_data', 'idx_followed_at', 'followed_at'],
+        ['watch_time', 'idx_total_watch_time_live', 'total_watch_time_live'],
+        ['watch_time', 'idx_username', 'username'],
+    ];
+    foreach ($search_indexes as [$idx_table, $idx_name, $idx_column]) {
+        if ($usrDBconn->query("SHOW TABLES LIKE '$idx_table'")->num_rows === 0) continue;
+        $check_idx = $usrDBconn->query("SHOW INDEX FROM `$idx_table` WHERE Key_name = '$idx_name'");
+        if ($check_idx !== false && $check_idx->num_rows == 0) {
+            if ($usrDBconn->query("ALTER TABLE `$idx_table` ADD INDEX `$idx_name` (`$idx_column`)") === TRUE) {
+                async_log("$idx_table: added $idx_name index.");
+            } else {
+                async_log("Error adding $idx_name index to $idx_table: " . $usrDBconn->error);
+            }
+        }
     }
     // Migration: user_tasks - add idx_backlog index for the Phase 2 backlog model (columns auto-migrate, indexes do not)
     $user_tasks_exists = $usrDBconn->query("SHOW TABLES LIKE 'user_tasks'")->num_rows > 0;
