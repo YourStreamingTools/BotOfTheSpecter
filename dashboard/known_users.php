@@ -94,11 +94,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   } elseif (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
     $handled = true;
     $userId = (int) $_POST['userId'];
-    $newWelcomeMessage = (string) $_POST['newWelcomeMessage'];
-    $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = ? WHERE id = ?");
-    $messageQuery->bind_param('si', $newWelcomeMessage, $userId);
-    $ok = $messageQuery->execute();
-    $messageQuery->close();
+    $newWelcomeMessage = mb_substr(trim((string) $_POST['newWelcomeMessage']), 0, 255);
+    if (preg_match('/[\x{10000}-\x{10FFFF}]/u', $newWelcomeMessage)) {
+      $ok = false;
+      $errorDetail = "Emoji aren't supported in welcome messages.";
+    } else try {
+      $messageQuery = $db->prepare("UPDATE seen_users SET welcome_message = ? WHERE id = ?");
+      $messageQuery->bind_param('si', $newWelcomeMessage, $userId);
+      $ok = $messageQuery->execute();
+      $messageQuery->close();
+    } catch (mysqli_sql_exception $e) {
+      $ok = false;
+      $errorDetail = $e->getMessage();
+      error_log("known_users welcome save failed for user $userId: " . $errorDetail);
+    }
   } elseif (isset($_POST['deleteUserId'])) {
     $handled = true;
     $deleteUserId = (int) $_POST['deleteUserId'];
@@ -111,7 +120,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest') {
       while (ob_get_level()) { ob_end_clean(); }
       header('Content-Type: application/json');
-      echo json_encode(['success' => (bool) $ok]);
+      echo json_encode(['success' => (bool) $ok, 'error' => $errorDetail ?? null]);
       exit();
     }
     header("Location: known_users.php");
@@ -307,7 +316,7 @@ function showToast(message, success) {
   if (window.Toastify) {
     Toastify({
       text: message,
-      duration: 3500,
+      duration: success ? 3500 : -1, // Errors stay until closed with the X.
       close: true,
       gravity: 'top',
       position: 'right',
@@ -768,8 +777,16 @@ function postKnownUsers(params) {
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
     body: new URLSearchParams(params).toString()
-  }).then(function(r) { return r.json(); }).then(function(data) {
-    if (!data || !data.success) throw new Error('save failed');
+  }).then(function(r) {
+    return r.text().then(function(body) {
+      try { return JSON.parse(body); }
+      catch (e) { console.error('known_users: non-JSON response (HTTP ' + r.status + '):', body); throw new Error('Server returned HTTP ' + r.status + ' (see console)'); }
+    });
+  }).then(function(data) {
+    if (!data || !data.success) {
+      console.error('known_users: save failed', data);
+      throw new Error((data && data.error) || 'save failed');
+    }
     return data;
   });
 }
@@ -799,6 +816,12 @@ function setRowStatus(row, isActive) {
 }
 
 function updateWelcomeMessage(userId, newWelcomeMessage, button, originalIcon, editBtn, cancelBtn) {
+  if (/[\u{10000}-\u{10FFFF}]/u.test(newWelcomeMessage)) {
+    notify("Emoji aren't supported in welcome messages.", false);
+    button.innerHTML = originalIcon;
+    button.disabled = false;
+    return;
+  }
   postKnownUsers({ userId: userId, newWelcomeMessage: newWelcomeMessage })
     .then(function() {
       var display = document.getElementById('welcome-message-' + userId);
@@ -816,7 +839,7 @@ function updateWelcomeMessage(userId, newWelcomeMessage, button, originalIcon, e
       if (testBtn) testBtn.setAttribute('data-message', newWelcomeMessage);
       notify(KU_I18N.messageSaved, true);
     })
-    .catch(function() { notify(KU_I18N.saveFailed, false); })
+    .catch(function(err) { console.error(err); notify(KU_I18N.saveFailed + ' (' + err.message + ')', false); })
     .finally(function() {
       button.innerHTML = originalIcon;
       button.disabled = false;
@@ -831,10 +854,11 @@ function toggleStatus(checkbox) {
   setRowStatus(row, isActive);
   postKnownUsers({ username: checkbox.getAttribute('data-username'), status: isActive ? 'True' : 'False' })
     .then(function() { notify(isActive ? KU_I18N.welcomeOn : KU_I18N.welcomeOff, true); })
-    .catch(function() {
+    .catch(function(err) {
+      console.error(err);
       checkbox.checked = !isActive;
       setRowStatus(row, !isActive);
-      notify(KU_I18N.saveFailed, false);
+      notify(KU_I18N.saveFailed + ' (' + err.message + ')', false);
     })
     .finally(function() { checkbox.disabled = false; });
 }
@@ -849,9 +873,10 @@ function deleteKnownUser(row, button) {
       if (!document.querySelector('#user-table tr')) renderKnownUsersTable([]);
       notify(KU_I18N.userRemoved, true);
     })
-    .catch(function() {
+    .catch(function(err) {
+      console.error(err);
       button.disabled = false;
-      notify(KU_I18N.saveFailed, false);
+      notify(KU_I18N.saveFailed + ' (' + err.message + ')', false);
     });
 }
 </script>
