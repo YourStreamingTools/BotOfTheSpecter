@@ -1446,7 +1446,7 @@ async def cmd_watchtime(ctx: _Ctx):
     target = ctx.args[0].lstrip("@").lower() if ctx.args else ctx.user_name
     async with await mysql_connection() as conn:
         async with conn.cursor(DictCursor) as cur:
-            await cur.execute("SELECT watch_time FROM watch_time WHERE user_name=%s", (target,))
+            await cur.execute("SELECT watch_time FROM watch_time WHERE username=%s", (target,))
             row = await cur.fetchone()
     if row:
         hours, mins = divmod(row["watch_time"], 60)
