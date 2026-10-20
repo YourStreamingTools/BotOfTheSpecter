@@ -646,9 +646,14 @@
 			"syntax": "!permit @botofthespecter"
 		},
 		"permitsong": {
-			"description": "Gives a viewer one request that can bypass the same-song gap. Mods and the broadcaster only. The permit is used on their next request that would have been refused as played too soon.",
+			"description": "Gives a viewer extra song requests (one by default) that can bypass the same-song gap or the per-stream song request limit. Mods and the broadcaster only. Each permit is used on a request that would otherwise have been refused.",
 			"force_level": "mod",
-			"syntax": "!permitsong @username"
+			"syntax": "!permitsong @username [count]"
+		},
+		"srreset": {
+			"description": "Resets this stream's song request counts for the per-stream limit, for one viewer or everyone when no name is given. Mods and the broadcaster only. Counts also reset when the stream goes live.",
+			"force_level": "mod",
+			"syntax": "!srreset [@username]"
 		},
 		"warn": {
 			"description": "Issues a formal channel warning to a viewer. Mods and the broadcaster only. Warnings are stored in the channel database and can be reviewed or cleared on the Channel Moderation dashboard page (Analytics).",

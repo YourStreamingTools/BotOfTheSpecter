@@ -17,7 +17,7 @@ session_write_close();
 // The media tables (media_queue / media_request_settings / media_banlist) are created
 // centrally by usr_database.php. Here we only handle settings/ban-list edits and load
 // current state. $db is the channel's own per-user database connection (same one music.php uses).
-$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream', 'artist_limit_scope' => 'all', 'same_song_minutes' => 720];
+$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream', 'artist_limit_scope' => 'all', 'same_song_minutes' => 720, 'per_viewer_stream_limit' => 0];
 $banlist = [];
 $artistLimits = [];
 // Same normalisation as clean_request_artist()/artist_list_key() in bot/modules/media_helpers.py, so list entries match what the bot sees.
@@ -43,6 +43,7 @@ try {
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
         "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
         "ALTER TABLE media_queue ADD COLUMN requested_by_id VARCHAR(64) NULL AFTER requested_by",
+        "ALTER TABLE media_request_settings ADD COLUMN per_viewer_stream_limit INT NOT NULL DEFAULT 0",
     ] as $artistLimitSql) {
         try {
             $db->query($artistLimitSql);
@@ -65,8 +66,9 @@ try {
             $als = 'all';
         }
         $ssm = max(0, (int) ($_POST['same_song_minutes'] ?? 720));
-        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period), artist_limit_scope=VALUES(artist_limit_scope), same_song_minutes=VALUES(same_song_minutes)");
-        $stmt->bind_param("iiiiiissi", $en, $mss, $mql, $pvl, $vol, $alc, $alp, $als, $ssm);
+        $pvs = max(0, (int) ($_POST['per_viewer_stream_limit'] ?? 0));
+        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes, per_viewer_stream_limit) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period), artist_limit_scope=VALUES(artist_limit_scope), same_song_minutes=VALUES(same_song_minutes), per_viewer_stream_limit=VALUES(per_viewer_stream_limit)");
+        $stmt->bind_param("iiiiiissii", $en, $mss, $mql, $pvl, $vol, $alc, $alp, $als, $ssm, $pvs);
         $stmt->execute();
         $stmt->close();
     }
@@ -88,7 +90,7 @@ try {
         $stmt->close();
     }
 
-    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1");
+    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes, per_viewer_stream_limit FROM media_request_settings WHERE id=1");
     if ($res && ($row = $res->fetch_assoc())) {
         $mediaSettings = $row;
     }
@@ -158,58 +160,217 @@ $overlayUrlMasked = $overlayBase . "?code=" . str_repeat('•', 24);
 
 ob_start();
 ?>
-<div class="sp-card mb-4">
+<?php
+// Relative time with the full timestamp on hover
+function mp_time_cell($at, $age) {
+    $age = max(0, (int)$age);
+    if ($age < 60) { $rel = t('mp_time_just_now'); }
+    elseif ($age < 3600) { $rel = sprintf(t('mp_time_minutes_ago'), intdiv($age, 60)); }
+    elseif ($age < 86400) { $rel = sprintf(t('mp_time_hours_ago'), intdiv($age, 3600)); }
+    else { $rel = sprintf(t('mp_time_days_ago'), intdiv($age, 86400)); }
+    return '<time datetime="' . htmlspecialchars((string)$at) . '" title="' . htmlspecialchars((string)$at) . '">' . htmlspecialchars($rel) . '</time>';
+}
+?>
+<?php
+// Spotify player control card - only when Spotify is linked & authorized.
+$spotifyConnected = false;
+$spStmt = $conn->prepare("SELECT access_token, has_access, own_client FROM spotify_tokens WHERE user_id = ? LIMIT 1");
+$spStmt->bind_param('i', $user_id);
+$spStmt->execute();
+$spRow = $spStmt->get_result()->fetch_assoc();
+$spStmt->close();
+if ($spRow && !empty($spRow['access_token'])
+    && (((int)($spRow['has_access'] ?? 0) === 1) || ((int)($spRow['own_client'] ?? 0) === 1))) {
+    $spotifyConnected = true;
+}
+$spotifyActAs = !empty($_SESSION['admin_act_as_active']);
+?>
+<?php
+// Song Request Analytics (Spotify) - moved here from spotifylink.php.
+// Table is created by usr_database.php; the bot logs each !songrequest into song_request_analytics.
+$analyticsTableExists = $db->query("SHOW TABLES LIKE 'song_request_analytics'")->num_rows > 0;
+if ($analyticsTableExists):
+    $srTotalResult = $db->query("SELECT COUNT(*) AS total FROM song_request_analytics");
+    $srTotal = $srTotalResult ? (int)$srTotalResult->fetch_assoc()['total'] : 0;
+    $srUniqueRes = $db->query("SELECT COUNT(DISTINCT song_name, artist_name) AS c FROM song_request_analytics");
+    $srUnique = $srUniqueRes ? (int)$srUniqueRes->fetch_assoc()['c'] : 0;
+    $srTopSongs = $db->query("SELECT song_name, artist_name, COUNT(*) AS request_count FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY request_count DESC LIMIT 10");
+    $srTopSongs = $srTopSongs ? $srTopSongs->fetch_all(MYSQLI_ASSOC) : [];
+    $srRecentRequests = $db->query("SELECT song_name, artist_name, requested_by, requested_at, TIMESTAMPDIFF(SECOND, requested_at, NOW()) AS age_seconds FROM song_request_analytics ORDER BY requested_at DESC LIMIT 10");
+    $srRecentRequests = $srRecentRequests ? $srRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
+endif;
+?>
+<?php
+// YouTube Song Request Analytics - from media_queue (created by usr_database.php).
+// Shown only when the user is actually using YouTube song requests (queue has rows).
+$ytTableExists = $db->query("SHOW TABLES LIKE 'media_queue'")->num_rows > 0;
+$ytTotal = 0; $ytUnique = 0; $ytTopVideos = []; $ytRecentRequests = [];
+if ($ytTableExists) {
+    $ytTotalResult = $db->query("SELECT COUNT(*) AS total FROM media_queue");
+    $ytTotal = $ytTotalResult ? (int)$ytTotalResult->fetch_assoc()['total'] : 0;
+    if ($ytTotal > 0) {
+        $ytUniqueRes = $db->query("SELECT COUNT(DISTINCT video_id) AS c FROM media_queue");
+        $ytUnique = $ytUniqueRes ? (int)$ytUniqueRes->fetch_assoc()['c'] : 0;
+        $ytTopVideos = $db->query("SELECT title, uploader, COUNT(*) AS request_count FROM media_queue GROUP BY title, uploader ORDER BY request_count DESC LIMIT 10");
+        $ytTopVideos = $ytTopVideos ? $ytTopVideos->fetch_all(MYSQLI_ASSOC) : [];
+        $ytRecentRequests = $db->query("SELECT title, uploader, requested_by, requested_at, TIMESTAMPDIFF(SECOND, requested_at, NOW()) AS age_seconds FROM media_queue ORDER BY requested_at DESC LIMIT 10");
+        $ytRecentRequests = $ytRecentRequests ? $ytRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
+    }
+}
+?>
+<div class="mp-page">
+<div class="mp-live-grid<?php echo $spotifyConnected ? '' : ' mp-live-single'; ?>">
+<div class="sp-card mp-live-card">
     <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-play-circle"></i> <?php echo t('media_player_title'); ?></span>
+        <span class="sp-card-title"><i class="fas fa-list-ol"></i> <?php echo t('media_player_queue'); ?></span>
+        <div style="display:flex;gap:0.5rem;">
+            <button id="btn-skip" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><i class="fas fa-forward"></i> <?php echo t('media_player_skip'); ?></button>
+            <button id="btn-clear" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><i class="fas fa-trash"></i> <?php echo t('media_player_clear'); ?></button>
+        </div>
+    </header>
+    <div class="sp-card-body" id="media-queue-region" aria-busy="true">
+        <div id="now-playing" class="mp-now-playing">
+            <span class="sp-skeleton-line w-70" aria-hidden="true"></span>
+        </div>
+        <ol id="queue-list" class="mp-track-list">
+            <li class="sp-skeleton-table-row" aria-hidden="true"><span class="sp-skeleton-line w-80"></span><span class="sp-skeleton-line w-20"></span></li>
+            <li class="sp-skeleton-table-row" aria-hidden="true"><span class="sp-skeleton-line w-60"></span><span class="sp-skeleton-line w-20"></span></li>
+            <li class="sp-skeleton-table-row" aria-hidden="true"><span class="sp-skeleton-line w-70"></span><span class="sp-skeleton-line w-20"></span></li>
+        </ol>
+        <div id="queue-empty" class="mp-empty" style="display:none;">
+            <i class="fas fa-music"></i>
+            <div class="mp-empty-title"><?php echo t('mp_queue_empty_title'); ?></div>
+            <div class="sp-help"><?php echo t('mp_queue_empty_help'); ?> <code>!songrequest</code></div>
+        </div>
+    </div>
+</div>
+<?php if ($spotifyConnected): ?>
+<div class="sp-card mp-live-card" id="spotify-player-card">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('media_player_spotify_control_title'); ?></span>
     </header>
     <div class="sp-card-body">
-        <p style="margin-bottom:1rem;"><?php echo t('media_player_intro'); ?></p>
-        <label class="sp-label"><?php echo t('media_player_overlay_url'); ?></label>
-        <div class="cc-url-row">
-            <code class="info-box cc-url-box" id="mp-overlay-url"><?php echo htmlspecialchars($overlayUrlMasked); ?></code>
-            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" id="mp-url-reveal" aria-pressed="false"><i class="fas fa-eye"></i> <span class="mp-url-reveal-label"><?php echo t('media_player_overlay_url_show'); ?></span></button>
-            <button type="button" class="sp-btn sp-btn-sm sp-btn-primary" id="mp-url-copy"><i class="fas fa-copy"></i> <span class="mp-url-copy-label"><?php echo t('media_player_overlay_url_copy'); ?></span></button>
-        </div>
-        <form method="post" style="margin-top:1.25rem;display:flex;flex-direction:column;gap:0.75rem;max-width:440px;">
-            <label class="sp-label"><input type="checkbox" name="enabled" <?php echo $mediaSettings['enabled'] ? 'checked' : ''; ?>>&nbsp;<?php echo t('media_player_enabled'); ?></label>
-            <label class="sp-label"><?php echo t('media_player_max_len'); ?>
-                <input class="sp-input" type="number" name="max_song_seconds" min="30" value="<?php echo (int)$mediaSettings['max_song_seconds']; ?>"></label>
-            <label class="sp-label"><?php echo t('media_player_max_queue'); ?>
-                <input class="sp-input" type="number" name="max_queue_length" min="1" value="<?php echo (int)$mediaSettings['max_queue_length']; ?>"></label>
-            <label class="sp-label"><?php echo t('media_player_per_viewer'); ?>
-                <input class="sp-input" type="number" name="per_viewer_limit" min="0" value="<?php echo (int)$mediaSettings['per_viewer_limit']; ?>">
-                <span class="sp-help"><?php echo t('per_viewer_limit_unlimited_help'); ?></span></label>
-            <label class="sp-label"><?php echo t('media_player_artist_limit'); ?>
-                <input class="sp-input" type="number" name="artist_limit_count" min="0" value="<?php echo (int)($mediaSettings['artist_limit_count'] ?? 0); ?>">
-                <span class="sp-help"><?php echo t('media_player_artist_limit_help'); ?></span></label>
-            <label class="sp-label"><?php echo t('media_player_artist_scope'); ?>
-                <?php $artistScope = (string)($mediaSettings['artist_limit_scope'] ?? 'all'); ?>
-                <select class="sp-select" name="artist_limit_scope">
-                    <option value="all" <?php echo $artistScope === 'all' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_all'); ?></option>
-                    <option value="listed" <?php echo $artistScope === 'listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_listed'); ?></option>
-                    <option value="except_listed" <?php echo $artistScope === 'except_listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_except'); ?></option>
-                </select>
-                <span class="sp-help"><?php echo t('media_player_artist_scope_help'); ?></span></label>
-            <label class="sp-label"><?php echo t('media_player_same_song'); ?>
-                <input class="sp-input" type="number" name="same_song_minutes" min="0" value="<?php echo (int)($mediaSettings['same_song_minutes'] ?? 720); ?>">
-                <span class="sp-help"><?php echo t('media_player_same_song_help'); ?></span></label>
-            <label class="sp-label"><?php echo t('media_player_artist_period'); ?>
-                <select class="sp-select" name="artist_limit_period">
-                    <?php $artistPeriod = (string)($mediaSettings['artist_limit_period'] ?? 'stream'); ?>
-                    <option value="stream" <?php echo $artistPeriod === 'stream' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_stream'); ?></option>
-                    <option value="week" <?php echo $artistPeriod === 'week' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_week'); ?></option>
-                    <option value="month" <?php echo $artistPeriod === 'month' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_month'); ?></option>
-                </select></label>
-            <div>
-                <label class="sp-label" for="vol-range"><?php echo t('media_player_volume'); ?></label>
-                <input id="vol-range" name="volume" class="modern-volume" type="range" min="0" max="100" value="<?php echo (int)$mediaSettings['volume']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_volume')); ?>">
+        <?php if ($spotifyActAs): ?>
+            <div class="sp-alert sp-alert-warning"><i class="fas fa-exclamation-circle"></i> <?php echo t('media_player_spotify_actas'); ?></div>
+        <?php else: ?>
+            <div id="sp-player-status" class="sp-alert sp-alert-info" style="display:none; margin-bottom:1rem;"></div>
+            <div id="sp-paused-badge" class="sp-badge sp-badge-amber" style="display:none; margin-bottom:0.75rem;"><i class="fas fa-pause"></i> <?php echo t('mp_paused'); ?></div>
+            <div id="sp-player-skeleton" aria-hidden="true" style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+                <span class="sp-skeleton" style="width:64px;height:64px;border-radius:var(--radius-sm);flex-shrink:0;"></span>
+                <div class="sp-skeleton-stack" style="flex:1;min-width:0;">
+                    <span class="sp-skeleton-line w-70"></span>
+                    <span class="sp-skeleton-line w-50"></span>
+                    <span class="sp-skeleton-line w-40"></span>
+                </div>
             </div>
+            <div id="sp-now-playing" style="display:none; gap:1rem; align-items:center; margin-bottom:1rem;">
+                <img id="sp-art" alt="" style="width:64px; height:64px; border-radius:var(--radius-sm); object-fit:cover; background:var(--bg-input);">
+                <div style="min-width:0;">
+                    <div id="sp-track" style="font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                    <div id="sp-artist" style="color:var(--text-secondary); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                    <div id="sp-requester" class="mp-requester" style="display:none;"><i class="fas fa-user"></i> <span></span></div>
+                    <div id="sp-device" style="color:var(--text-secondary); font-size:0.8rem; margin-top:0.25rem;"></div>
+                </div>
+            </div>
+            <div id="sp-progress-row" class="sp-progress-row" style="display:none;">
+                <span id="sp-time-cur" class="sp-progress-time">0:00</span>
+                <div class="sp-progress"><div id="sp-progress-fill" class="sp-progress-fill"></div></div>
+                <span id="sp-time-dur" class="sp-progress-time">0:00</span>
+            </div>
+            <div id="sp-controls" style="display:none; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <button id="sp-prev" class="sp-btn sp-btn-ghost" type="button" aria-label="Previous">&#9198;</button>
+                <button id="sp-playpause" class="sp-btn sp-btn-primary mp-playpause" type="button" aria-label="Play" aria-pressed="false"><i class="fas fa-play"></i> <span class="mp-playpause-label"><?php echo t('mp_play'); ?></span></button>
+                <button id="sp-next" class="sp-btn sp-btn-ghost" type="button" aria-label="Next">&#9197;</button>
+                <label class="sp-label" for="sp-volume" style="margin:0;text-transform:none;letter-spacing:0;"><?php echo t('music_volume'); ?></label>
+                <input id="sp-volume" type="range" min="0" max="100" value="0" class="modern-volume" style="flex:1; min-width:120px;" aria-label="<?php echo htmlspecialchars(t('music_volume')); ?>">
+                <span id="sp-volume-val" class="mp-volume-val">0%</span>
+            </div>
+            <div id="sp-upcoming" style="display:none; margin-top:1rem;">
+                <div class="sp-label"><?php echo t('media_player_spotify_upcoming'); ?></div>
+                <ol id="sp-upcoming-list" class="mp-track-list"></ol>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+</div>
+<div class="sp-card mb-4">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-sliders"></i> <?php echo t('mp_settings_title'); ?></span>
+    </header>
+    <div class="sp-card-body">
+        <p class="sp-help" style="margin:0 0 1rem;"><?php echo t('media_player_intro'); ?></p>
+        <form method="post" class="sr-settings-form">
+          <div class="mp-settings-top">
+              <label class="sp-label mp-switch-label"><input type="checkbox" name="enabled" <?php echo $mediaSettings['enabled'] ? 'checked' : ''; ?>>&nbsp;<?php echo t('media_player_enabled'); ?></label>
+              <div class="mp-url-block">
+                    <label class="sp-label"><?php echo t('media_player_overlay_url'); ?></label>
+                    <div class="cc-url-row">
+                        <code class="info-box cc-url-box" id="mp-overlay-url"><?php echo htmlspecialchars($overlayUrlMasked); ?></code>
+                        <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" id="mp-url-reveal" aria-pressed="false"><i class="fas fa-eye"></i> <span class="mp-url-reveal-label"><?php echo t('media_player_overlay_url_show'); ?></span></button>
+                        <button type="button" class="sp-btn sp-btn-sm sp-btn-primary" id="mp-url-copy"><i class="fas fa-copy"></i> <span class="mp-url-copy-label"><?php echo t('media_player_overlay_url_copy'); ?></span></button>
+                    </div>
+              </div>
+          </div>
+          <div class="sr-settings-grid">
+            <section class="sr-settings-section">
+                <h3 class="sr-settings-title"><i class="fas fa-sliders"></i> <?php echo t('sr_section_general'); ?></h3>
+                    <div>
+                        <label class="sp-label" for="vol-range"><?php echo t('media_player_volume'); ?></label>
+                        <input id="vol-range" name="volume" class="modern-volume" type="range" min="0" max="100" value="<?php echo (int)$mediaSettings['volume']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_volume')); ?>">
+                    </div>
+            </section>
+            <section class="sr-settings-section">
+                <h3 class="sr-settings-title"><i class="fas fa-list-ol"></i> <?php echo t('sr_section_queue'); ?></h3>
+                    <label class="sp-label"><?php echo t('media_player_max_len'); ?>
+                        <input class="sp-input" type="number" name="max_song_seconds" min="30" value="<?php echo (int)$mediaSettings['max_song_seconds']; ?>"></label>
+                    <label class="sp-label"><?php echo t('media_player_max_queue'); ?>
+                        <input class="sp-input" type="number" name="max_queue_length" min="1" value="<?php echo (int)$mediaSettings['max_queue_length']; ?>"></label>
+            </section>
+            <section class="sr-settings-section">
+                <h3 class="sr-settings-title"><i class="fas fa-user-clock"></i> <?php echo t('sr_section_per_viewer'); ?></h3>
+                    <label class="sp-label"><?php echo t('media_player_per_viewer'); ?>
+                        <input class="sp-input" type="number" name="per_viewer_limit" min="0" value="<?php echo (int)$mediaSettings['per_viewer_limit']; ?>">
+                        <span class="sp-help"><?php echo t('per_viewer_limit_unlimited_help'); ?></span></label>
+                    <label class="sp-label"><?php echo t('sr_per_viewer_stream'); ?>
+                        <input class="sp-input" type="number" name="per_viewer_stream_limit" min="0" value="<?php echo (int)($mediaSettings['per_viewer_stream_limit'] ?? 0); ?>">
+                        <span class="sp-help"><?php echo t('sr_per_viewer_stream_help'); ?></span></label>
+                    <span class="sp-help"><?php echo t('sr_per_viewer_commands_help'); ?></span>
+            </section>
+            <section class="sr-settings-section">
+                <h3 class="sr-settings-title"><i class="fas fa-microphone"></i> <?php echo t('sr_section_artist'); ?></h3>
+                    <label class="sp-label"><?php echo t('media_player_artist_limit'); ?>
+                        <input class="sp-input" type="number" name="artist_limit_count" min="0" value="<?php echo (int)($mediaSettings['artist_limit_count'] ?? 0); ?>">
+                        <span class="sp-help"><?php echo t('media_player_artist_limit_help'); ?></span></label>
+                    <label class="sp-label"><?php echo t('media_player_artist_scope'); ?>
+                        <?php $artistScope = (string)($mediaSettings['artist_limit_scope'] ?? 'all'); ?>
+                        <select class="sp-select" name="artist_limit_scope">
+                            <option value="all" <?php echo $artistScope === 'all' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_all'); ?></option>
+                            <option value="listed" <?php echo $artistScope === 'listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_listed'); ?></option>
+                            <option value="except_listed" <?php echo $artistScope === 'except_listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_except'); ?></option>
+                        </select>
+                        <span class="sp-help"><?php echo t('media_player_artist_scope_help'); ?></span></label>
+                    <label class="sp-label"><?php echo t('media_player_artist_period'); ?>
+                        <select class="sp-select" name="artist_limit_period">
+                            <?php $artistPeriod = (string)($mediaSettings['artist_limit_period'] ?? 'stream'); ?>
+                            <option value="stream" <?php echo $artistPeriod === 'stream' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_stream'); ?></option>
+                            <option value="week" <?php echo $artistPeriod === 'week' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_week'); ?></option>
+                            <option value="month" <?php echo $artistPeriod === 'month' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_month'); ?></option>
+                        </select></label>
+            </section>
+            <section class="sr-settings-section">
+                <h3 class="sr-settings-title"><i class="fas fa-repeat"></i> <?php echo t('sr_section_repeats'); ?></h3>
+                    <label class="sp-label"><?php echo t('media_player_same_song'); ?>
+                        <input class="sp-input" type="number" name="same_song_minutes" min="0" value="<?php echo (int)($mediaSettings['same_song_minutes'] ?? 720); ?>">
+                        <span class="sp-help"><?php echo t('media_player_same_song_help'); ?></span></label>
+            </section>
+          </div>
             <button class="sp-btn sp-btn-primary" type="submit" name="save_settings" value="1"><?php echo t('media_player_save'); ?></button>
         </form>
     </div>
 </div>
-
-<div class="sp-card mb-4">
+<div class="mp-lists-grid">
+<div class="sp-card">
     <header class="sp-card-header">
         <span class="sp-card-title"><i class="fas fa-user-lock"></i> <?php echo t('media_player_artist_list'); ?></span>
     </header>
@@ -225,17 +386,20 @@ ob_start();
             <button class="sp-btn sp-btn-primary" type="submit" name="add_artist_limit" value="1"><?php echo t('media_player_add'); ?></button>
         </form>
         <p class="sp-help"><?php echo t('media_player_artist_custom_help'); ?></p>
+        <?php if (!empty($artistLimits)): ?>
+            <input type="search" class="sp-input mp-filter" id="mp-artist-filter" placeholder="<?php echo htmlspecialchars(t('mp_artist_filter')); ?>" aria-label="<?php echo htmlspecialchars(t('mp_artist_filter')); ?>">
+        <?php endif; ?>
         <?php if (empty($artistLimits)): ?>
             <p class="sp-help"><?php echo t('media_player_artist_list_empty'); ?></p>
         <?php else: ?>
-            <ul class="mp-artist-list">
+            <ul class="mp-artist-list mp-artist-list-compact" id="mp-artist-list">
                 <?php foreach ($artistLimits as $a): ?>
                     <?php $overrideValue = ($a['limit_count'] === null || $a['limit_count'] === '') ? '' : (int)$a['limit_count']; ?>
-                    <li class="mp-artist-row">
+                    <li class="mp-artist-row" data-name="<?php echo htmlspecialchars(mb_strtolower($a['artist_name'])); ?>">
                         <span class="mp-artist-name"><?php echo htmlspecialchars($a['artist_name']); ?></span>
                         <form method="post" class="mp-artist-row-form">
-                            <input class="sp-input mp-artist-limit" type="number" name="artist_limit_override" min="0" value="<?php echo $overrideValue; ?>" placeholder="<?php echo htmlspecialchars(t('media_player_artist_custom_placeholder')); ?>" aria-label="<?php echo htmlspecialchars(t('media_player_artist_custom_limit')); ?>">
-                            <button class="sp-btn sp-btn-secondary sp-btn-sm" type="submit" name="save_artist_limit" value="<?php echo (int)$a['id']; ?>"><?php echo t('media_player_save'); ?></button>
+                            <input class="sp-input mp-artist-limit" type="number" data-artist-id="<?php echo (int)$a['id']; ?>" name="artist_limit_override" min="0" value="<?php echo $overrideValue; ?>" placeholder="<?php echo htmlspecialchars(t('media_player_artist_custom_placeholder')); ?>" aria-label="<?php echo htmlspecialchars(t('media_player_artist_custom_limit')); ?>">
+                            <span class="mp-saved-tick" aria-live="polite" title="<?php echo htmlspecialchars(t('mp_saved')); ?>"><i class="fas fa-check"></i></span>
                             <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit" name="del_artist_limit" value="<?php echo (int)$a['id']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_artist_list_remove')); ?>">✕</button>
                         </form>
                     </li>
@@ -244,332 +408,116 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
-
-<div class="sp-card mb-4">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-list-ol"></i> <?php echo t('media_player_queue'); ?></span>
-        <div style="display:flex;gap:0.5rem;">
-            <button id="btn-skip" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_skip'); ?></button>
-            <button id="btn-clear" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_clear'); ?></button>
-        </div>
-    </header>
-    <div class="sp-card-body" id="media-queue-region" aria-busy="true">
-        <div id="now-playing" style="margin-bottom:0.75rem;font-weight:600;">
-            <span class="sp-skeleton-line w-70" aria-hidden="true"></span>
-        </div>
-        <ol id="queue-list" style="margin:0;padding-left:1.25rem;list-style:none;">
-            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
-                <span class="sp-skeleton-line w-80"></span>
-                <span class="sp-skeleton-line w-20"></span>
-            </li>
-            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
-                <span class="sp-skeleton-line w-60"></span>
-                <span class="sp-skeleton-line w-20"></span>
-            </li>
-            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
-                <span class="sp-skeleton-line w-70"></span>
-                <span class="sp-skeleton-line w-20"></span>
-            </li>
-            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
-                <span class="sp-skeleton-line w-55"></span>
-                <span class="sp-skeleton-line w-20"></span>
-            </li>
-        </ol>
-    </div>
-</div>
-
-<div class="sp-card mb-4">
+<div class="sp-card">
     <header class="sp-card-header">
         <span class="sp-card-title"><i class="fas fa-ban"></i> <?php echo t('media_player_banlist'); ?></span>
     </header>
     <div class="sp-card-body">
-        <form method="post" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
-            <select class="sp-select" name="ban_type">
+        <form method="post" class="mp-ban-form">
+            <select class="sp-select" name="ban_type" aria-label="<?php echo htmlspecialchars(t('mp_ban_type')); ?>">
                 <option value="keyword"><?php echo t('media_player_ban_keyword'); ?></option>
                 <option value="video_id"><?php echo t('media_player_ban_video'); ?></option>
             </select>
-            <input class="sp-input" name="ban_value" placeholder="<?php echo t('media_player_ban_value'); ?>" style="flex:1;min-width:160px;">
-            <button class="sp-btn sp-btn-primary" type="submit" name="add_ban" value="1"><?php echo t('media_player_add'); ?></button>
+            <input class="sp-input" name="ban_value" required placeholder="<?php echo t('media_player_ban_value'); ?>">
+            <button class="sp-btn sp-btn-primary" type="submit" name="add_ban" value="1"><i class="fas fa-plus"></i> <?php echo t('media_player_add'); ?></button>
         </form>
-        <ul style="margin:0;padding-left:1.25rem;">
-            <?php foreach ($banlist as $b): ?>
-                <li style="margin-bottom:0.35rem;">
-                    <?php echo htmlspecialchars($b['type'] . ': ' . $b['value']); ?>
-                    <form method="post" style="display:inline;">
-                        <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit" name="del_ban" value="<?php echo (int)$b['id']; ?>">✕</button>
-                    </form>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-</div>
-<?php
-// Spotify player control card - only when Spotify is linked & authorized.
-$spotifyConnected = false;
-$spStmt = $conn->prepare("SELECT access_token, has_access, own_client FROM spotify_tokens WHERE user_id = ? LIMIT 1");
-$spStmt->bind_param('i', $user_id);
-$spStmt->execute();
-$spRow = $spStmt->get_result()->fetch_assoc();
-$spStmt->close();
-if ($spRow && !empty($spRow['access_token'])
-    && (((int)($spRow['has_access'] ?? 0) === 1) || ((int)($spRow['own_client'] ?? 0) === 1))) {
-    $spotifyConnected = true;
-}
-$spotifyActAs = !empty($_SESSION['admin_act_as_active']);
-?>
-<?php if ($spotifyConnected): ?>
-<div class="sp-card mb-4" id="spotify-player-card">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('media_player_spotify_control_title'); ?></span>
-    </header>
-    <div class="sp-card-body">
-        <?php if ($spotifyActAs): ?>
-            <div class="sp-alert sp-alert-warning"><i class="fas fa-exclamation-circle"></i> <?php echo t('media_player_spotify_actas'); ?></div>
+        <?php if (empty($banlist)): ?>
+            <p class="sp-help"><?php echo t('mp_ban_empty'); ?></p>
         <?php else: ?>
-            <div id="sp-player-status" class="sp-alert sp-alert-info" style="display:none; margin-bottom:1rem;"></div>
-            <div id="sp-player-skeleton" aria-hidden="true" style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
-                <span class="sp-skeleton" style="width:64px;height:64px;border-radius:var(--radius-sm);flex-shrink:0;"></span>
-                <div class="sp-skeleton-stack" style="flex:1;min-width:0;">
-                    <span class="sp-skeleton-line w-70"></span>
-                    <span class="sp-skeleton-line w-50"></span>
-                    <span class="sp-skeleton-line w-40"></span>
-                </div>
-            </div>
-            <div id="sp-now-playing" style="display:none; gap:1rem; align-items:center; margin-bottom:1rem;">
-                <img id="sp-art" alt="" style="width:64px; height:64px; border-radius:var(--radius-sm); object-fit:cover; background:var(--bg-input);">
-                <div style="min-width:0;">
-                    <div id="sp-track" style="font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
-                    <div id="sp-artist" style="color:var(--text-secondary); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
-                    <div id="sp-device" style="color:var(--text-secondary); font-size:0.8rem; margin-top:0.25rem;"></div>
-                </div>
-            </div>
-            <div id="sp-progress-row" class="sp-progress-row" style="display:none;">
-                <span id="sp-time-cur" class="sp-progress-time">0:00</span>
-                <div class="sp-progress"><div id="sp-progress-fill" class="sp-progress-fill"></div></div>
-                <span id="sp-time-dur" class="sp-progress-time">0:00</span>
-            </div>
-            <div id="sp-controls" style="display:none; gap:0.5rem; align-items:center;">
-                <button id="sp-prev" class="sp-btn sp-btn-ghost" type="button" aria-label="Previous">&#9198;</button>
-                <button id="sp-playpause" class="sp-btn sp-btn-primary" type="button" aria-label="Play/Pause">&#9654;</button>
-                <button id="sp-next" class="sp-btn sp-btn-ghost" type="button" aria-label="Next">&#9197;</button>
-                <label class="sp-label" for="sp-volume" style="margin:0;text-transform:none;letter-spacing:0;"><?php echo t('music_volume'); ?></label>
-                <input id="sp-volume" type="range" min="0" max="100" value="0" class="modern-volume" style="flex:1; min-width:120px;" aria-label="<?php echo htmlspecialchars(t('music_volume')); ?>">
-            </div>
-            <div id="sp-upcoming" style="display:none; margin-top:1rem;">
-                <div class="sp-label"><?php echo t('media_player_spotify_upcoming'); ?></div>
-                <ol id="sp-upcoming-list" style="margin:0.35rem 0 0; padding-left:1.25rem;"></ol>
+            <div class="mp-chip-list">
+                <?php foreach ($banlist as $b): ?>
+                    <form method="post" class="mp-chip">
+                        <span class="mp-chip-type"><?php echo $b['type'] === 'video_id' ? t('media_player_ban_video') : t('media_player_ban_keyword'); ?></span>
+                        <span class="mp-chip-value"><?php echo htmlspecialchars($b['value']); ?></span>
+                        <button class="mp-chip-remove" type="submit" name="del_ban" value="<?php echo (int)$b['id']; ?>" aria-label="<?php echo htmlspecialchars(t('mp_ban_remove')); ?>"><i class="fas fa-xmark"></i></button>
+                    </form>
+                <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </div>
 </div>
-<?php endif; ?>
-<?php
-// Song Request Analytics (Spotify) - moved here from spotifylink.php.
-// Table is created by usr_database.php; the bot logs each !songrequest into song_request_analytics.
-$analyticsTableExists = $db->query("SHOW TABLES LIKE 'song_request_analytics'")->num_rows > 0;
-if ($analyticsTableExists):
-    $srTotalResult = $db->query("SELECT COUNT(*) AS total FROM song_request_analytics");
-    $srTotal = $srTotalResult ? (int)$srTotalResult->fetch_assoc()['total'] : 0;
-    $srTopSongs = $db->query("SELECT song_name, artist_name, COUNT(*) AS request_count FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY request_count DESC LIMIT 10");
-    $srTopSongs = $srTopSongs ? $srTopSongs->fetch_all(MYSQLI_ASSOC) : [];
-    $srRecentRequests = $db->query("SELECT song_name, artist_name, requested_by, requested_at FROM song_request_analytics ORDER BY requested_at DESC LIMIT 10");
-    $srRecentRequests = $srRecentRequests ? $srRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
-endif;
-?>
+</div>
 <?php if ($analyticsTableExists): ?>
 <div class="sp-card mb-4">
     <div class="sp-card-header">
-        <div class="sp-card-title">
-            <i class="fab fa-spotify" style="color: var(--green);"></i>
-            <?php echo t('media_player_sr_spotify_title'); ?>
-        </div>
+        <div class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('media_player_sr_spotify_title'); ?></div>
     </div>
     <div class="sp-card-body">
-        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--green);"><?php echo number_format($srTotal); ?></div>
-                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_total_requests'); ?></div>
-            </div>
-            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--blue);"><?php echo count($srTopSongs); ?></div>
-                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_unique_songs'); ?></div>
-            </div>
+        <div class="sp-stat-row mp-stat-row">
+            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('spotifylink_stat_total_requests'); ?></div><div class="sp-stat-value"><?php echo number_format($srTotal); ?></div></div>
+            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('spotifylink_stat_unique_songs'); ?></div><div class="sp-stat-value"><?php echo number_format($srUnique); ?></div></div>
         </div>
-        <?php if (!empty($srTopSongs)): ?>
-        <div class="sp-card" style="margin-bottom: 1.5rem;">
-            <div class="sp-card-header">
-                <div class="sp-card-title" style="font-size: 0.95rem;">
-                    <i class="fas fa-trophy" style="color: var(--yellow, #f5c542);"></i>
-                    <?php echo t('spotifylink_top_requested_songs'); ?>
-                </div>
-            </div>
-            <div class="sp-card-body" style="padding: 0;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">#</th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_song'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_artist'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requests'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($srTopSongs as $i => $row): ?>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo $i + 1; ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['song_name']); ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['artist_name']); ?></td>
-                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--green); font-weight: 600;"><?php echo $row['request_count']; ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <?php endif; ?>
-        <?php if (!empty($srRecentRequests)): ?>
-        <div class="sp-card">
-            <div class="sp-card-header">
-                <div class="sp-card-title" style="font-size: 0.95rem;">
-                    <i class="fas fa-history" style="color: var(--text-secondary);"></i>
-                    <?php echo t('spotifylink_recent_requests'); ?>
-                </div>
-            </div>
-            <div class="sp-card-body" style="padding: 0;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_song'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_artist'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requested_by'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_time'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($srRecentRequests as $row): ?>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['song_name']); ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['artist_name']); ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['requested_by']); ?></td>
-                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); white-space: nowrap;"><?php echo htmlspecialchars($row['requested_at']); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <?php endif; ?>
         <?php if (empty($srTopSongs) && empty($srRecentRequests)): ?>
-        <div class="sp-alert sp-alert-info">
-            <i class="fas fa-info-circle"></i>
-            <?php echo t('spotifylink_analytics_empty'); ?>
+        <div class="sp-alert sp-alert-info"><i class="fas fa-info-circle"></i> <?php echo t('spotifylink_analytics_empty'); ?></div>
+        <?php else: ?>
+        <div class="mp-stats-grid">
+            <div class="mp-stats-panel">
+                <div class="mp-stats-title"><i class="fas fa-trophy"></i> <?php echo t('spotifylink_top_requested_songs'); ?></div>
+                <div class="sp-table-wrap"><table class="sp-table mp-table">
+                    <thead><tr><th>#</th><th><?php echo t('spotifylink_th_song'); ?></th><th class="mp-num"><?php echo t('spotifylink_th_requests'); ?></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($srTopSongs as $i => $row): ?>
+                        <tr><td class="mp-muted"><?php echo $i + 1; ?></td><td><div class="mp-cell-main"><?php echo htmlspecialchars($row['song_name']); ?></div><div class="mp-cell-sub"><?php echo htmlspecialchars($row['artist_name']); ?></div></td><td class="mp-num mp-strong"><?php echo (int)$row['request_count']; ?></td></tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table></div>
+            </div>
+            <div class="mp-stats-panel">
+                <div class="mp-stats-title"><i class="fas fa-history"></i> <?php echo t('spotifylink_recent_requests'); ?></div>
+                <div class="sp-table-wrap"><table class="sp-table mp-table">
+                    <thead><tr><th><?php echo t('spotifylink_th_song'); ?></th><th><?php echo t('spotifylink_th_requested_by'); ?></th><th class="mp-num"><?php echo t('spotifylink_th_time'); ?></th></tr></thead>
+                    <tbody>
+                    <?php foreach ($srRecentRequests as $row): ?>
+                        <tr><td><div class="mp-cell-main"><?php echo htmlspecialchars($row['song_name']); ?></div><div class="mp-cell-sub"><?php echo htmlspecialchars($row['artist_name']); ?></div></td><td class="mp-muted"><?php echo htmlspecialchars($row['requested_by']); ?></td><td class="mp-num mp-muted"><?php echo mp_time_cell($row['requested_at'], $row['age_seconds'] ?? 0); ?></td></tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table></div>
+            </div>
         </div>
         <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
-<?php
-// YouTube Song Request Analytics - from media_queue (created by usr_database.php).
-// Shown only when the user is actually using YouTube song requests (queue has rows).
-$ytTableExists = $db->query("SHOW TABLES LIKE 'media_queue'")->num_rows > 0;
-$ytTotal = 0; $ytTopVideos = []; $ytRecentRequests = [];
-if ($ytTableExists) {
-    $ytTotalResult = $db->query("SELECT COUNT(*) AS total FROM media_queue");
-    $ytTotal = $ytTotalResult ? (int)$ytTotalResult->fetch_assoc()['total'] : 0;
-    if ($ytTotal > 0) {
-        $ytTopVideos = $db->query("SELECT title, uploader, COUNT(*) AS request_count FROM media_queue GROUP BY title, uploader ORDER BY request_count DESC LIMIT 10");
-        $ytTopVideos = $ytTopVideos ? $ytTopVideos->fetch_all(MYSQLI_ASSOC) : [];
-        $ytRecentRequests = $db->query("SELECT title, uploader, requested_by, requested_at FROM media_queue ORDER BY requested_at DESC LIMIT 10");
-        $ytRecentRequests = $ytRecentRequests ? $ytRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
-    }
-}
-?>
 <?php if ($ytTableExists && $ytTotal > 0): ?>
 <div class="sp-card mb-4">
     <div class="sp-card-header">
-        <div class="sp-card-title">
-            <i class="fab fa-youtube" style="color: #ff0000;"></i>
-            <?php echo t('media_player_sr_youtube_title'); ?>
-        </div>
+        <div class="sp-card-title"><i class="fab fa-youtube" style="color: #ff0000;"></i> <?php echo t('media_player_sr_youtube_title'); ?></div>
     </div>
     <div class="sp-card-body">
-        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--green);"><?php echo number_format($ytTotal); ?></div>
-                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_total_requests'); ?></div>
-            </div>
-            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
-                <div style="font-size: 2rem; font-weight: 700; color: var(--blue);"><?php echo count($ytTopVideos); ?></div>
-                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('media_player_sr_unique_videos'); ?></div>
-            </div>
+        <div class="sp-stat-row mp-stat-row">
+            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('spotifylink_stat_total_requests'); ?></div><div class="sp-stat-value"><?php echo number_format($ytTotal); ?></div></div>
+            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('media_player_sr_unique_videos'); ?></div><div class="sp-stat-value"><?php echo number_format($ytUnique); ?></div></div>
         </div>
-        <?php if (!empty($ytTopVideos)): ?>
-        <div class="sp-card" style="margin-bottom: 1.5rem;">
-            <div class="sp-card-header">
-                <div class="sp-card-title" style="font-size: 0.95rem;">
-                    <i class="fas fa-trophy" style="color: var(--yellow, #f5c542);"></i>
-                    <?php echo t('media_player_sr_top_videos'); ?>
-                </div>
-            </div>
-            <div class="sp-card-body" style="padding: 0;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">#</th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_video'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_uploader'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requests'); ?></th>
-                        </tr>
-                    </thead>
+        <?php if (!empty($ytTopVideos) || !empty($ytRecentRequests)): ?>
+        <div class="mp-stats-grid">
+            <div class="mp-stats-panel">
+                <div class="mp-stats-title"><i class="fas fa-trophy"></i> <?php echo t('media_player_sr_top_videos'); ?></div>
+                <div class="sp-table-wrap"><table class="sp-table mp-table">
+                    <thead><tr><th>#</th><th><?php echo t('media_player_th_video'); ?></th><th class="mp-num"><?php echo t('spotifylink_th_requests'); ?></th></tr></thead>
                     <tbody>
-                        <?php foreach ($ytTopVideos as $i => $row): ?>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo $i + 1; ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['title']); ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['uploader'] ?? ''); ?></td>
-                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--green); font-weight: 600;"><?php echo $row['request_count']; ?></td>
-                        </tr>
-                        <?php endforeach; ?>
+                    <?php foreach ($ytTopVideos as $i => $row): ?>
+                        <tr><td class="mp-muted"><?php echo $i + 1; ?></td><td><div class="mp-cell-main"><?php echo htmlspecialchars($row['title']); ?></div><div class="mp-cell-sub"><?php echo htmlspecialchars($row['uploader'] ?? ''); ?></div></td><td class="mp-num mp-strong"><?php echo (int)$row['request_count']; ?></td></tr>
+                    <?php endforeach; ?>
                     </tbody>
-                </table>
+                </table></div>
             </div>
-        </div>
-        <?php endif; ?>
-        <?php if (!empty($ytRecentRequests)): ?>
-        <div class="sp-card">
-            <div class="sp-card-header">
-                <div class="sp-card-title" style="font-size: 0.95rem;">
-                    <i class="fas fa-history" style="color: var(--text-secondary);"></i>
-                    <?php echo t('spotifylink_recent_requests'); ?>
-                </div>
-            </div>
-            <div class="sp-card-body" style="padding: 0;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_video'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_uploader'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requested_by'); ?></th>
-                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_time'); ?></th>
-                        </tr>
-                    </thead>
+            <div class="mp-stats-panel">
+                <div class="mp-stats-title"><i class="fas fa-history"></i> <?php echo t('spotifylink_recent_requests'); ?></div>
+                <div class="sp-table-wrap"><table class="sp-table mp-table">
+                    <thead><tr><th><?php echo t('media_player_th_video'); ?></th><th><?php echo t('spotifylink_th_requested_by'); ?></th><th class="mp-num"><?php echo t('spotifylink_th_time'); ?></th></tr></thead>
                     <tbody>
-                        <?php foreach ($ytRecentRequests as $row): ?>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['title']); ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['uploader'] ?? ''); ?></td>
-                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['requested_by']); ?></td>
-                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); white-space: nowrap;"><?php echo htmlspecialchars($row['requested_at']); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
+                    <?php foreach ($ytRecentRequests as $row): ?>
+                        <tr><td><div class="mp-cell-main"><?php echo htmlspecialchars($row['title']); ?></div><div class="mp-cell-sub"><?php echo htmlspecialchars($row['uploader'] ?? ''); ?></div></td><td class="mp-muted"><?php echo htmlspecialchars($row['requested_by']); ?></td><td class="mp-num mp-muted"><?php echo mp_time_cell($row['requested_at'], $row['age_seconds'] ?? 0); ?></td></tr>
+                    <?php endforeach; ?>
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </div>
         <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
+</div>
 <?php
 $content = ob_get_clean();
 
@@ -591,6 +539,43 @@ ob_start();
             + '<li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;"><span class="sp-skeleton-line w-70"></span><span class="sp-skeleton-line w-20"></span></li>'
             + '<li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-line w-20"></span></li>';
     }
+    const mpQueueLang = {
+        remove: <?php echo json_encode(t('mp_queue_remove')); ?>,
+        playing: <?php echo json_encode(t('mp_now_playing')); ?>,
+    };
+    function mpFmtLength(sec) {
+        const s = Math.max(0, parseInt(sec, 10) || 0);
+        if (!s) return '';
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+        return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0');
+    }
+    // One queue row: title, requester and length (length only when the server sends it)
+    function mpTrackRow(row, playing) {
+        const li = document.createElement(playing ? 'div' : 'li');
+        li.className = 'mp-track' + (playing ? ' mp-track-playing' : '');
+        const main = document.createElement('div');
+        main.className = 'mp-track-main';
+        const title = document.createElement('div');
+        title.className = 'mp-track-title';
+        title.textContent = (playing ? '▶ ' : '') + (row.title || '');
+        main.appendChild(title);
+        if (row.requested_by) {
+            const req = document.createElement('div');
+            req.className = 'mp-requester';
+            req.innerHTML = '<i class="fas fa-user"></i> ';
+            req.appendChild(document.createTextNode(row.requested_by));
+            main.appendChild(req);
+        }
+        li.appendChild(main);
+        const len = mpFmtLength(row.duration_seconds);
+        if (len) {
+            const l = document.createElement('span');
+            l.className = 'mp-track-len';
+            l.textContent = len;
+            li.appendChild(l);
+        }
+        return li;
+    }
     const socket = io('wss://websocket.botofthespecter.com', { reconnection: true });
     socket.on('connect', () => socket.emit('REGISTER', { code: code, channel: 'Dashboard', name: 'Media Controller' }));
     socket.on('SUCCESS', () => socket.emit('MEDIA_COMMAND', { command: 'request_state', code: code }));
@@ -598,22 +583,29 @@ ob_start();
         const region = document.getElementById('media-queue-region');
         const np = document.getElementById('now-playing');
         const ol = document.getElementById('queue-list');
-        np.textContent = d.now_playing
-            ? ('▶ ' + d.now_playing.title + ' (req by ' + d.now_playing.requested_by + ')')
-            : idleLabel;
-        ol.style.listStyle = '';
-        ol.innerHTML = '';
-        (d.queue || []).forEach((row) => {
-            const li = document.createElement('li');
-            li.textContent = row.title + ' (req by ' + row.requested_by + ') ';
+        np.replaceChildren();
+        if (d.now_playing) {
+            np.appendChild(mpTrackRow(d.now_playing, true));
+        } else {
+            np.textContent = idleLabel;
+            np.classList.add('mp-muted');
+        }
+        if (d.now_playing) np.classList.remove('mp-muted');
+        ol.replaceChildren();
+        const rows = d.queue || [];
+        rows.forEach((row) => {
+            const li = mpTrackRow(row, false);
             const btn = document.createElement('button');
-            btn.className = 'sp-btn sp-btn-ghost sp-btn-sm';
+            btn.className = 'sp-btn sp-btn-ghost sp-btn-sm mp-track-remove';
             btn.type = 'button';
-            btn.textContent = '✕';
+            btn.setAttribute('aria-label', mpQueueLang.remove);
+            btn.innerHTML = '<i class="fas fa-xmark"></i>';
             btn.onclick = () => socket.emit('MEDIA_COMMAND', { command: 'remove', code: code, id: row.id });
             li.appendChild(btn);
             ol.appendChild(li);
         });
+        document.getElementById('queue-empty').style.display = rows.length ? 'none' : '';
+        ol.style.display = rows.length ? '' : 'none';
         setBusy(region, false);
     });
     document.getElementById('btn-skip').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'skip', code: code });
@@ -656,6 +648,37 @@ ob_start();
             }).catch(() => {});
         });
     }
+    // Artist list: filter box and autosave each limit (debounced) instead of per-row Save
+    const mpArtistFilter = document.getElementById('mp-artist-filter');
+    if (mpArtistFilter) {
+        mpArtistFilter.addEventListener('input', () => {
+            const q = mpArtistFilter.value.trim().toLowerCase();
+            document.querySelectorAll('#mp-artist-list .mp-artist-row').forEach((row) => {
+                row.style.display = !q || (row.dataset.name || '').indexOf(q) !== -1 ? '' : 'none';
+            });
+        });
+    }
+    document.querySelectorAll('.mp-artist-limit[data-artist-id]').forEach((input) => {
+        let timer = null, last = input.value;
+        const tick = input.parentElement.querySelector('.mp-saved-tick');
+        const save = () => {
+            clearTimeout(timer);
+            if (input.value === last) return;
+            const value = input.value;
+            const body = new URLSearchParams({ save_artist_limit: input.dataset.artistId, artist_limit_override: value });
+            fetch(window.location.pathname, { method: 'POST', body: body, credentials: 'same-origin' }).then((res) => {
+                if (!res.ok) return;
+                last = value;
+                if (tick) { tick.classList.add('show'); setTimeout(() => tick.classList.remove('show'), 1500); }
+            }).catch(() => {});
+        };
+        input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(save, 700); });
+        input.addEventListener('change', save);
+        input.addEventListener('blur', save);
+        // Enter would submit the row's delete button, so it saves instead
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        input.closest('form').addEventListener('submit', (e) => { if (e.submitter && e.submitter.name === 'del_artist_limit') return; e.preventDefault(); save(); });
+    });
 </script>
 <script>
 (function () {
@@ -736,11 +759,16 @@ ob_start();
         $('sp-track').textContent = d.track.name || '';
         $('sp-artist').textContent = d.track.artists || '';
         $('sp-device').textContent = (d.device && d.device.name) ? ('🔊 ' + d.device.name) : '';
+        const reqEl = $('sp-requester');
+        if (reqEl) {
+            reqEl.querySelector('span').textContent = d.track.requested_by || '';
+            reqEl.style.display = d.track.requested_by ? '' : 'none';
+        }
         progMs = d.progress_ms || 0;
         durMs = (d.track && d.track.duration_ms) || 0;
         isPlaying = !!d.is_playing;
         renderProgress();
-        $('sp-playpause').innerHTML = d.is_playing ? '&#9208;' : '&#9654;';
+        renderPlayState(!!d.is_playing);
         const dis = d.disallows || {};
         $('sp-playpause').disabled = d.is_playing ? !!dis.pausing : !!dis.resuming;
         $('sp-next').disabled = !!dis.skipping_next;
@@ -751,13 +779,28 @@ ob_start();
             vol.style.display = '';
             if (volLabel) volLabel.style.display = '';
             if (Date.now() > suppressVolUntil) vol.value = d.device.volume_percent;
+            $('sp-volume-val').style.display = '';
+            $('sp-volume-val').textContent = vol.value + '%';
         } else {
             vol.style.display = 'none';
+            $('sp-volume-val').style.display = 'none';
             if (volLabel) volLabel.style.display = 'none';
         }
         renderUpcoming(d.upcoming);
     }
 
+    const PLAY_LANG = { play: <?php echo json_encode(t('mp_play')); ?>, pause: <?php echo json_encode(t('mp_pause')); ?> };
+    // Icon + label + aria state so playing vs paused is obvious
+    function renderPlayState(playing) {
+        const btn = $('sp-playpause');
+        btn.dataset.playing = playing ? '1' : '0';
+        btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+        btn.setAttribute('aria-label', playing ? PLAY_LANG.pause : PLAY_LANG.play);
+        btn.querySelector('i').className = playing ? 'fas fa-pause' : 'fas fa-play';
+        btn.querySelector('.mp-playpause-label').textContent = playing ? PLAY_LANG.pause : PLAY_LANG.play;
+        const badge = $('sp-paused-badge');
+        if (badge) badge.style.display = playing ? 'none' : '';
+    }
     function renderUpcoming(tracks) {
         const box = $('sp-upcoming');
         const list = $('sp-upcoming-list');
@@ -772,7 +815,22 @@ ob_start();
             const li = document.createElement('li');
             const name = track && track.name ? String(track.name) : '';
             const artists = track && track.artists ? String(track.artists) : '';
-            li.textContent = artists ? (name + ' — ' + artists) : name;
+            li.className = 'mp-track';
+            const main = document.createElement('div');
+            main.className = 'mp-track-main';
+            const title = document.createElement('div');
+            title.className = 'mp-track-title';
+            title.textContent = artists ? (name + ' — ' + artists) : name;
+            main.appendChild(title);
+            // Requester only on viewer requests; unrequested songs show no name
+            if (track && track.requested_by) {
+                const req = document.createElement('div');
+                req.className = 'mp-requester';
+                req.innerHTML = '<i class="fas fa-user"></i> ';
+                req.appendChild(document.createTextNode(String(track.requested_by)));
+                main.appendChild(req);
+            }
+            li.appendChild(main);
             list.appendChild(li);
         });
         box.style.display = 'block';
@@ -796,13 +854,13 @@ ob_start();
     }
 
     $('sp-playpause').addEventListener('click', async () => {
-        const playing = $('sp-playpause').textContent.charCodeAt(0) === 0x23F8; // pause glyph means currently playing
+        const playing = $('sp-playpause').dataset.playing === '1';
         handleActionResult(await call(playing ? 'pause' : 'play'));
         setTimeout(poll, 300);
     });
     $('sp-next').addEventListener('click', async () => { handleActionResult(await call('next')); setTimeout(poll, 400); });
     $('sp-prev').addEventListener('click', async () => { handleActionResult(await call('previous')); setTimeout(poll, 400); });
-    $('sp-volume').addEventListener('input', () => { suppressVolUntil = Date.now() + 3000; });
+    $('sp-volume').addEventListener('input', () => { suppressVolUntil = Date.now() + 3000; $('sp-volume-val').textContent = $('sp-volume').value + '%'; });
     $('sp-volume').addEventListener('change', () => {
         clearTimeout(volDebounce);
         const v = Number($('sp-volume').value);

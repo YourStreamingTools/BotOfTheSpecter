@@ -1305,7 +1305,15 @@ try {
                 artist_limit_count INT NOT NULL DEFAULT 0,
                 artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream',
                 artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all',
-                same_song_minutes INT NOT NULL DEFAULT 720
+                same_song_minutes INT NOT NULL DEFAULT 720,
+                per_viewer_stream_limit INT NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'song_request_stream_counts' => "
+            CREATE TABLE IF NOT EXISTS song_request_stream_counts (
+                user_id VARCHAR(64) NOT NULL PRIMARY KEY,
+                user_name VARCHAR(255) NOT NULL,
+                request_count INT NOT NULL DEFAULT 0,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_artist_limits' => "
             CREATE TABLE IF NOT EXISTS media_artist_limits (
