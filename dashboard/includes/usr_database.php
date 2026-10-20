@@ -638,6 +638,7 @@ try {
                 text_vertical_alignment VARCHAR(20) DEFAULT 'center',
                 text_color VARCHAR(20) DEFAULT '#FFFFFF',
                 accent_color VARCHAR(20) DEFAULT '#A1C53A',
+                ad_color VARCHAR(7) DEFAULT '#F5C518',
                 text_drop_shadow TINYINT(1) DEFAULT 1,
                 tts_enabled TINYINT(1) DEFAULT 0,
                 alert_image VARCHAR(255) DEFAULT NULL,

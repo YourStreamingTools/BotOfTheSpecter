@@ -1385,6 +1385,7 @@ return [
     'alerts_ad_display_frame' => 'Vollbildrahmen mit Timer',
     'alerts_ad_display_pill' => 'Nur Timer',
     'alerts_ad_pill_position' => 'Timer-Position',
+    'alerts_ad_color' => 'Farbe der Werbepause',
     'alerts_simple_note' => 'Diese Benachrichtigung behält ihr eigenes Overlay-Design. Wähle, wo sie auf dem Bildschirm erscheint, und schalte sie ein oder aus.',
     'alerts_walkon_note' => 'Walk-ons werden so angezeigt, wie du jeden Zuschauer auf der Medienseite einstellst (Sound, Sound + Bild & Name oder Video). Wähle unten, wo das Visual auf dem Bildschirm erscheint.',
     'alerts_screen_position' => 'Bildschirmposition',

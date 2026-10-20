@@ -1441,6 +1441,7 @@ return [
     'alerts_ad_display_frame' => 'Full screen frame with timer',
     'alerts_ad_display_pill' => 'Timer only',
     'alerts_ad_pill_position' => 'Timer position',
+    'alerts_ad_color' => 'Ad break colour',
     'alerts_simple_note' => 'This alert keeps its own overlay theme. Choose where it appears on screen, then switch it on or off.',
     'alerts_walkon_note' => 'Walk-ons show however you set each viewer on the Media page (sound, sound + picture & name, or video). Choose where the visual appears on screen below.',
     'alerts_screen_position' => 'Screen position',

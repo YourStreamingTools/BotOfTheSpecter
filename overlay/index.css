@@ -392,7 +392,7 @@ html, body {
 .ad-break-frame {
     position: absolute;
     inset: 0;
-    border: var(--ad-frame) solid rgba(245, 197, 24, var(--ad-alpha, 1));
+    border: var(--ad-frame) solid rgba(var(--ad-rgb, 245, 197, 24), var(--ad-alpha, 1));
     background: transparent;
     box-sizing: border-box;
     pointer-events: none;
@@ -401,7 +401,7 @@ html, body {
     position: absolute;
     top: calc(var(--ad-frame) + 16px);
     right: calc(var(--ad-frame) + 16px);
-    background: #F5C518;
+    background: rgb(var(--ad-rgb, 245, 197, 24));
     color: #1a1400;
     font-family: 'Roboto', sans-serif;
     font-weight: 800;

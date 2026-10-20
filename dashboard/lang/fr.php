@@ -1385,6 +1385,7 @@ return [
     'alerts_ad_display_frame' => 'Cadre plein écran avec minuteur',
     'alerts_ad_display_pill' => 'Minuteur seul',
     'alerts_ad_pill_position' => 'Position du minuteur',
+    'alerts_ad_color' => 'Couleur de la pause publicitaire',
     'alerts_simple_note' => 'Cette alerte conserve son propre thème d\'overlay. Choisissez où elle apparaît à l\'écran, puis activez-la ou désactivez-la.',
     'alerts_walkon_note' => 'Les walk-ons s\'affichent selon ce que vous définissez pour chaque spectateur sur la page Médias (son, son + image & nom, ou vidéo). Choisissez ci-dessous où le visuel apparaît à l\'écran.',
     'alerts_screen_position' => 'Position à l\'écran',
