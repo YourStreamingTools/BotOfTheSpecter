@@ -9,6 +9,7 @@ python-dotenv
 aioping
 jokeapi
 python-multipart
-passlib[bcrypt]
+bcrypt
+argon2-cffi
 aioping
 psutil

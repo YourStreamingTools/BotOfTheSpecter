@@ -470,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = t('profile_app_password_too_short');
             $alertClass = 'is-danger';
         } else {
-            $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
+            $hashed = password_hash($newPassword, PASSWORD_ARGON2ID);
             $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = ? WHERE id = ?");
             if ($stmt === false) {
                 error_log('profile.php set_app_password prepare failed: ' . mysqli_error($conn));
