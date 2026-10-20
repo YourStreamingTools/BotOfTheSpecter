@@ -4,10 +4,10 @@ session_start();
 require_once '/var/www/config/db_connect.php';
 require_once '/var/www/config/twitch.php';
 
-// Enforce canonical host: redirect to mybot.specterbot.systems if accessed via other host
-if (isset($_SERVER['HTTP_HOST']) && strtolower($_SERVER['HTTP_HOST']) !== 'mybot.specterbot.systems') {
+// Enforce canonical host: redirect to mybot.specterbotsystems.com if accessed via other host
+if (isset($_SERVER['HTTP_HOST']) && strtolower($_SERVER['HTTP_HOST']) !== 'mybot.specterbotsystems.com') {
     $qs = !empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '';
-    $target = 'https://mybot.specterbot.systems' . $_SERVER['REQUEST_URI'] . $qs;
+    $target = 'https://mybot.specterbotsystems.com' . $_SERVER['REQUEST_URI'] . $qs;
     header('Location: ' . $target, true, 302);
     exit();
 }
@@ -96,7 +96,7 @@ $error = '';
 // Twitch OAuth settings - expect $clientID, $clientSecret, $redirectURI (or similar) from twitch.php
 $client_id = $clientID ?? ($clientID ?? '');
 $client_secret = $clientSecret ?? ($clientSecret ?? '');
-$redirect_uri = 'https://mybot.specterbot.systems/custombot.php';
+$redirect_uri = 'https://mybot.specterbotsystems.com/custombot.php';
 
 // Handle StreamersConnect auth_data callback
 if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {

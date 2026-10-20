@@ -24,7 +24,7 @@ Caddy (`/etc/caddy/Caddyfile`, repo copy `./web/Caddyfile`) runs PHP 8.5 FPM ove
 | `support.botofthespecter.com` | `./support/` | Tickets + docs CMS |
 | `roadmap.botofthespecter.com` | `./roadmap/` | Roadmap |
 | `specterbot.app` + `*.specterbot.app` | `./specterbotapp/` | Landing + **per-user untrusted PHP modules** |
-| `specterbot.systems` / `mybot.specterbot.systems` | `./specterbotsystems/` | Status + custom-bot verification |
+| `specterbotsystems.com` / `mybot.specterbotsystems.com` | `./specterbotsystems/` | Status + custom-bot verification |
 | `yourchat.botofthespecter.com` | `./yourchat/` | Chat window (PHP shell, mostly JS) |
 | `yourlinks.click` + `*.yourlinks.click` | `./yourlinks.click/` | Link dashboard + Host-based short-link engine (`redirect.php`) |
 | `streamersconnect.com` | `./StreamersConnect/` | **Twitch OAuth broker** that dashboard login redirects through |

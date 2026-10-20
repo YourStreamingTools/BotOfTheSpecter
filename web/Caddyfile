@@ -291,14 +291,14 @@ specterbot.app {
     }
 }
 
-specterbot.systems, www.specterbot.systems {
+specterbotsystems.com, www.specterbotsystems.com {
     root * /var/www/specterbotsystems
 
-    # Redirect /mybot/* to mybot.specterbot.systems subdomain
+    # Redirect /mybot/* to mybot.specterbotsystems.com subdomain
     @mybot path /mybot /mybot/*
     handle @mybot {
         uri strip_prefix /mybot
-        redir https://mybot.specterbot.systems{uri} 301
+        redir https://mybot.specterbotsystems.com{uri} 301
     }
 
     import php_app
@@ -308,7 +308,7 @@ specterbot.systems, www.specterbot.systems {
     }
 }
 
-mybot.specterbot.systems {
+mybot.specterbotsystems.com {
     root * /var/www/specterbotsystems/mybot
     import php_app
     log {

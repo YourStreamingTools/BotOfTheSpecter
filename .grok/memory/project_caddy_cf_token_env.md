@@ -38,7 +38,7 @@ button (runs `systemctl reload`) likewise won't pick up a token change.
 - Wildcards REQUIRE DNS-01 (can't use HTTP-01). The emergency fallback if the CF
   token is dead: drop the wildcard block + the global `acme_dns` line so named
   subdomains fall back to HTTP-01 (port 80, no token).
-- `specterbot.systems` / `www.` / `mybot.specterbot.systems` are NOT on this
+- `specterbotsystems.com` / `www.` / `mybot.specterbotsystems.com` are NOT on this
   Cloudflare account/token → DNS-01 `SERVFAIL "could not determine zone"`; their
   certs fail independently. Unresolved as of 2026-06-26 — needs that zone added
   to Cloudflare (or a different challenge/provider for it).
