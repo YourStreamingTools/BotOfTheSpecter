@@ -3036,6 +3036,8 @@ return [
     'mp_time_minutes_ago' => 'hace %d min',
     'mp_time_hours_ago' => 'hace %d h',
     'mp_time_days_ago' => 'hace %d d',
+    'mp_save_hint' => 'Los cambios se aplican a la próxima petición.',
+    'mp_requests_today' => 'Peticiones hoy',
     'media_player_artist_limit' => 'Límite global de peticiones por artista',
     'media_player_artist_limit_help' => 'Tope predeterminado para un artista en el periodo de abajo. Un límite propio en la lista sustituye este número. 0 desactiva el tope global; los artistas con su propio número siguen limitados.',
     'media_player_artist_period' => 'Periodo del límite por artista',

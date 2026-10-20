@@ -2978,6 +2978,8 @@ return [
     'mp_time_minutes_ago' => '%d 分钟前',
     'mp_time_hours_ago' => '%d 小时前',
     'mp_time_days_ago' => '%d 天前',
+    'mp_save_hint' => '更改将在下一次点歌时生效。',
+    'mp_requests_today' => '今日点歌',
     'media_player_artist_limit' => '全局艺人点歌上限',
     'media_player_artist_limit_help' => '下方时间段内每位艺人的默认上限。名单里的单独上限会替换这个数字。填 0 关闭全局上限；设了单独数字的艺人仍然受限。',
     'media_player_artist_period' => '艺人上限周期',

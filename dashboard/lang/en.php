@@ -3038,6 +3038,8 @@ return [
     'mp_time_minutes_ago' => '%d min ago',
     'mp_time_hours_ago' => '%d h ago',
     'mp_time_days_ago' => '%d d ago',
+    'mp_save_hint' => 'Changes apply to the next song request.',
+    'mp_requests_today' => 'Requests today',
     'media_player_same_song' => 'Same song gap (minutes)',
     'media_player_same_song_help' => 'How long before the same song can be requested again. 720 is 12 hours. 0 turns this off.',
     'media_player_artist_limit' => 'Global artist request limit',
