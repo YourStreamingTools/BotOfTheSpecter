@@ -1767,10 +1767,22 @@ try {
         if ($usrDBconn->query("SHOW TABLES LIKE '$idx_table'")->num_rows === 0) continue;
         $check_idx = $usrDBconn->query("SHOW INDEX FROM `$idx_table` WHERE Key_name = '$idx_name'");
         if ($check_idx !== false && $check_idx->num_rows == 0) {
-            if ($usrDBconn->query("ALTER TABLE `$idx_table` ADD INDEX `$idx_name` (`$idx_column`)") === TRUE) {
-                async_log("$idx_table: added $idx_name index.");
-            } else {
-                async_log("Error adding $idx_name index to $idx_table: " . $usrDBconn->error);
+            // Older databases still have some of these columns as TEXT, which MySQL can only index with a prefix length
+            $idx_part = "`$idx_column`";
+            $col_info = $usrDBconn->query("SHOW COLUMNS FROM `$idx_table` LIKE '$idx_column'");
+            $col_row = $col_info ? $col_info->fetch_assoc() : null;
+            if ($col_row && preg_match('/text|blob/i', (string) $col_row['Type'])) {
+                $idx_part = "`$idx_column`(191)";
+            }
+            try {
+                if ($usrDBconn->query("ALTER TABLE `$idx_table` ADD INDEX `$idx_name` ($idx_part)") === TRUE) {
+                    async_log("$idx_table: added $idx_name index.");
+                } else {
+                    usr_schema_log("Error adding $idx_name index to $idx_table: " . $usrDBconn->error, 'error');
+                }
+            } catch (mysqli_sql_exception $e) {
+                // One index failing must not stop the rest of the schema check
+                usr_schema_log("Error adding $idx_name index to $idx_table: " . $e->getMessage(), 'error');
             }
         }
     }
