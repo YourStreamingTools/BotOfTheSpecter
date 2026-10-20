@@ -1168,7 +1168,7 @@ return [
     'profile_custom_bot_intro' => 'Configure un bot personalizado para su canal ingresando el nombre de usuario Twitch del bot. Resolveremos el ID de usuario de Twitch por usted.',
     'profile_custom_bot_not_verified' => 'NO VERIFICADO',
     'profile_custom_bot_verify_heading' => '<strong>Para verificar este bot:</strong>',
-    'profile_custom_bot_verify_step1' => 'Abra este enlace en una ventana <strong>incógnito/privada</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a>',
+    'profile_custom_bot_verify_step1' => 'Abra este enlace en una ventana <strong>incógnito/privada</strong>: <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener">mybot.specterbotsystems.com/custombot.php</a>',
     'profile_custom_bot_verify_step2' => 'Inicie sesión con la cuenta <strong>botCredenciales </strong>',
     'profile_custom_bot_verify_step3' => 'Completa el proceso de verificación',
     'profile_custom_bot_verify_note' => '<em>Nota: El uso de una ventana privada/de incógnito garantiza que no inicies sesión accidentalmente con tu cuenta principal.</em>',
@@ -2219,7 +2219,7 @@ return [
     'modules_bot_id_help' => 'Resuelto automáticamente desde el nombre de usuario anterior.',
     'modules_add_bot_btn' => 'Agregar robot',
     'modules_verification_required_note' => '<strong>Verificación requerida:</strong> Después de agregar un bot, se debe verificar antes de que pueda enviar mensajes.
-                            Abierto <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbot.systems/custombot.php</strong></a>
+                            Abierto <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbotsystems.com/custombot.php</strong></a>
                             en un <strong>incógnito/ventana privada</strong> e inicie sesión con la cuenta del bot para completar la verificación.',
     'modules_linked_bots' => 'Bots vinculados',
     'modules_no_module_bots_linked' => 'Aún no se han vinculado robots de módulos personalizados. Utilice el formulario de arriba para agregar uno.',

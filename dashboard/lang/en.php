@@ -1168,7 +1168,7 @@ return [
     'profile_custom_bot_intro' => 'Set a custom bot for your channel by entering the bot\'s Twitch username. We\'ll resolve the Twitch user ID for you.',
     'profile_custom_bot_not_verified' => 'NOT VERIFIED',
     'profile_custom_bot_verify_heading' => '<strong>To verify this bot:</strong>',
-    'profile_custom_bot_verify_step1' => 'Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a>',
+    'profile_custom_bot_verify_step1' => 'Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener">mybot.specterbotsystems.com/custombot.php</a>',
     'profile_custom_bot_verify_step2' => 'Sign in using the <strong>bot account</strong> credentials',
     'profile_custom_bot_verify_step3' => 'Complete the verification process',
     'profile_custom_bot_verify_note' => '<em>Note: Using an incognito/private window ensures you don\'t accidentally sign in with your main account.</em>',
@@ -2219,7 +2219,7 @@ return [
     'modules_bot_id_help' => 'Resolved automatically from the username above.',
     'modules_add_bot_btn' => 'Add Bot',
     'modules_verification_required_note' => '<strong>Verification required:</strong> After adding a bot, it must be verified before it can send messages.
-                            Open <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbot.systems/custombot.php</strong></a>
+                            Open <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbotsystems.com/custombot.php</strong></a>
                             in an <strong>incognito/private window</strong> and sign in with the bot account to complete verification.',
     'modules_linked_bots' => 'Linked Bots',
     'modules_no_module_bots_linked' => 'No custom module bots linked yet. Use the form above to add one.',
@@ -5716,8 +5716,8 @@ This action cannot be undone.',
     'admin_logs_opt_caddy_streamersconnect' => 'streamersconnect.com',
     'admin_logs_opt_caddy_specterbotapp' => 'specterbot.app',
     'admin_logs_opt_caddy_specterbotapp_users' => '*.specterbot.app',
-    'admin_logs_opt_caddy_specterbot_systems' => 'specterbot.systems',
-    'admin_logs_opt_caddy_mybot_systems' => 'mybot.specterbot.systems',
+    'admin_logs_opt_caddy_specterbot_systems' => 'specterbotsystems.com',
+    'admin_logs_opt_caddy_mybot_systems' => 'mybot.specterbotsystems.com',
     'admin_logs_opt_caddy_cdn' => 'cdn.botofthespecter.com',
     'admin_logs_opt_caddy_walkons' => 'walkons.botofthespecter.com',
     'admin_logs_opt_caddy_media' => 'media.botofthespecter.com',

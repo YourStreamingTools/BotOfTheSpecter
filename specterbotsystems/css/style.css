@@ -3697,7 +3697,7 @@ label.checkbox input[type="checkbox"] {
 
 
 
-/* Status page layout (sbs-status on specterbot.systems) */
+/* Status page layout (sbs-status on specterbotsystems.com) */
 html.sbs-status body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: var(--bg-base);

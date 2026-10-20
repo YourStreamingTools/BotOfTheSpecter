@@ -1112,7 +1112,7 @@ return [
     'profile_custom_bot_intro' => 'Definissez un bot personnalise pour votre chaine en saisissant le nom d\'utilisateur Twitch du bot. Nous resoudrons l\'ID utilisateur Twitch pour vous.',
     'profile_custom_bot_not_verified' => 'NON VERIFIE',
     'profile_custom_bot_verify_heading' => '<strong>Pour verifier ce bot :</strong>',
-    'profile_custom_bot_verify_step1' => 'Ouvrez ce lien dans une <strong>fenetre de navigation privee</strong> : <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a>',
+    'profile_custom_bot_verify_step1' => 'Ouvrez ce lien dans une <strong>fenetre de navigation privee</strong> : <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener">mybot.specterbotsystems.com/custombot.php</a>',
     'profile_custom_bot_verify_step2' => 'Connectez-vous avec les identifiants du <strong>compte du bot</strong>',
     'profile_custom_bot_verify_step3' => 'Terminez le processus de verification',
     'profile_custom_bot_verify_note' => '<em>Remarque : l\'utilisation d\'une fenetre de navigation privee garantit que vous ne vous connectez pas accidentellement avec votre compte principal.</em>',
@@ -2159,7 +2159,7 @@ return [
     'modules_bot_id_help' => 'Résolu automatiquement à partir du nom d\'utilisateur ci-dessus.',
     'modules_add_bot_btn' => 'Ajouter un bot',
     'modules_verification_required_note' => '<strong>Vérification requise :</strong> Après avoir ajouté un bot, il doit être vérifié avant de pouvoir envoyer des messages.
-                            Ouvrez <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbot.systems/custombot.php</strong></a>
+                            Ouvrez <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbotsystems.com/custombot.php</strong></a>
                             dans une <strong>fenêtre de navigation privée</strong> et connectez-vous avec le compte du bot pour terminer la vérification.',
     'modules_linked_bots' => 'Bots liés',
     'modules_no_module_bots_linked' => 'Aucun bot de module personnalisé n\'est encore lié. Utilisez le formulaire ci-dessus pour en ajouter un.',
@@ -5616,8 +5616,8 @@ Cette action est irréversible.',
     'admin_logs_opt_caddy_streamersconnect' => 'streamersconnect.com',
     'admin_logs_opt_caddy_specterbotapp' => 'specterbot.app',
     'admin_logs_opt_caddy_specterbotapp_users' => '*.specterbot.app',
-    'admin_logs_opt_caddy_specterbot_systems' => 'specterbot.systems',
-    'admin_logs_opt_caddy_mybot_systems' => 'mybot.specterbot.systems',
+    'admin_logs_opt_caddy_specterbot_systems' => 'specterbotsystems.com',
+    'admin_logs_opt_caddy_mybot_systems' => 'mybot.specterbotsystems.com',
     'admin_logs_opt_caddy_cdn' => 'cdn.botofthespecter.com',
     'admin_logs_opt_caddy_walkons' => 'walkons.botofthespecter.com',
     'admin_logs_opt_caddy_media' => 'media.botofthespecter.com',

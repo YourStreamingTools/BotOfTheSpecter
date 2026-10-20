@@ -1112,7 +1112,7 @@ return [
     'profile_custom_bot_intro' => 'Legen Sie einen benutzerdefinierten Bot fur Ihren Kanal fest, indem Sie den Twitch-Benutzernamen des Bots eingeben. Wir ermitteln die Twitch-Benutzer-ID fur Sie.',
     'profile_custom_bot_not_verified' => 'NICHT VERIFIZIERT',
     'profile_custom_bot_verify_heading' => '<strong>So verifizieren Sie diesen Bot:</strong>',
-    'profile_custom_bot_verify_step1' => 'Offnen Sie diesen Link in einem <strong>Inkognito-/privaten Fenster</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a>',
+    'profile_custom_bot_verify_step1' => 'Offnen Sie diesen Link in einem <strong>Inkognito-/privaten Fenster</strong>: <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener">mybot.specterbotsystems.com/custombot.php</a>',
     'profile_custom_bot_verify_step2' => 'Melden Sie sich mit den Anmeldedaten des <strong>Bot-Kontos</strong> an',
     'profile_custom_bot_verify_step3' => 'Schliessen Sie den Verifizierungsvorgang ab',
     'profile_custom_bot_verify_note' => '<em>Hinweis: Die Verwendung eines Inkognito-/privaten Fensters stellt sicher, dass Sie sich nicht versehentlich mit Ihrem Hauptkonto anmelden.</em>',
@@ -2159,7 +2159,7 @@ return [
     'modules_bot_id_help' => 'Wird automatisch aus dem obigen Benutzernamen ermittelt.',
     'modules_add_bot_btn' => 'Bot hinzufügen',
     'modules_verification_required_note' => '<strong>Verifizierung erforderlich:</strong> Nach dem Hinzufügen eines Bots muss dieser verifiziert werden, bevor er Nachrichten senden kann.
-                            Öffne <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbot.systems/custombot.php</strong></a>
+                            Öffne <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbotsystems.com/custombot.php</strong></a>
                             in einem <strong>Inkognito-/privaten Fenster</strong> und melde dich mit dem Bot-Konto an, um die Verifizierung abzuschließen.',
     'modules_linked_bots' => 'Verknüpfte Bots',
     'modules_no_module_bots_linked' => 'Noch keine benutzerdefinierten Modul-Bots verknüpft. Verwende das obige Formular, um einen hinzuzufügen.',
@@ -5616,8 +5616,8 @@ Diese Aktion kann nicht rückgängig gemacht werden.',
     'admin_logs_opt_caddy_streamersconnect' => 'streamersconnect.com',
     'admin_logs_opt_caddy_specterbotapp' => 'specterbot.app',
     'admin_logs_opt_caddy_specterbotapp_users' => '*.specterbot.app',
-    'admin_logs_opt_caddy_specterbot_systems' => 'specterbot.systems',
-    'admin_logs_opt_caddy_mybot_systems' => 'mybot.specterbot.systems',
+    'admin_logs_opt_caddy_specterbot_systems' => 'specterbotsystems.com',
+    'admin_logs_opt_caddy_mybot_systems' => 'mybot.specterbotsystems.com',
     'admin_logs_opt_caddy_cdn' => 'cdn.botofthespecter.com',
     'admin_logs_opt_caddy_walkons' => 'walkons.botofthespecter.com',
     'admin_logs_opt_caddy_media' => 'media.botofthespecter.com',
