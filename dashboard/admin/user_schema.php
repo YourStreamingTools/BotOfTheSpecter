@@ -368,9 +368,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const pendingCount = (data && data.pending && data.pending.length) || 0;
         const ok = !!data && data.ok !== false && data.success !== false;
         const label = ok ? statusLabel(data) : I18N.failed;
-        tr.innerHTML = '<td><code>' + escapeHtml(username) + '</code></td>'
+        const errs = (data && Array.isArray(data.apply_errors)) ? data.apply_errors : [];
+        const errHtml = errs.length ? '<div class="usr-schema-row-errors" style="color:var(--danger,#f14668);font-size:0.8rem;margin-top:4px;">' + errs.map(escapeHtml).join('<br>') + '</div>' : '';
+        tr.innerHTML = '<td><code>' + escapeHtml(username) + '</code>' + errHtml + '</td>'
             + '<td><span class="mig-pill ' + (ok && data.current ? 'mig-applied' : 'mig-pending') + '">' + escapeHtml(label) + '</span></td>'
-            + '<td>' + (ok ? pendingCount : '—') + '</td>'
+            + '<td>' + (ok ? pendingCount : '-') + '</td>'
             + '<td><button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" data-open-user="' + escapeHtml(username) + '">' + escapeHtml(I18N.open) + '</button></td>';
     }
 
@@ -460,7 +462,7 @@ document.addEventListener('DOMContentLoaded', function () {
             tr.setAttribute('data-user-id', String(user.id));
             tr.innerHTML = '<td><code>' + escapeHtml(user.username) + '</code></td>'
                 + '<td><span class="mig-pill mig-pending">…</span></td>'
-                + '<td>—</td>'
+                + '<td>-</td>'
                 + '<td></td>';
             fleetBody.appendChild(tr);
         });
@@ -502,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function () {
             tr.setAttribute('data-user-id', String(user.id));
             tr.innerHTML = '<td><code>' + escapeHtml(user.username) + '</code></td>'
                 + '<td><span class="mig-pill mig-pending">…</span></td>'
-                + '<td>—</td>'
+                + '<td>-</td>'
                 + '<td></td>';
             fleetBody.appendChild(tr);
         });
@@ -542,9 +544,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     const data = await post({ action: 'apply', username: user.username });
                     if (!data.success) {
                         failed += 1;
-                        paintFleetRow(user.username, { success: false, ok: false });
+                        paintFleetRow(user.username, { success: false, ok: false, apply_errors: [data.message || I18N.failed] });
                     } else {
-                        const inspect = Object.assign({ success: true }, data.inspect || {});
+                        const applyErrors = (data.logs || []).filter(function (l) { return l.level === 'error'; }).map(function (l) { return l.message; });
+                        const inspect = Object.assign({ success: true, apply_errors: applyErrors }, data.inspect || {});
+                        if (applyErrors.length || !inspect.current) failed += 1;
                         paintFleetRow(user.username, inspect);
                         if (selectedUser === user.username) {
                             renderInspect(user.username, inspect, data.logs || []);
@@ -552,7 +556,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 } catch (e) {
                     failed += 1;
-                    paintFleetRow(user.username, { success: false, ok: false });
+                    paintFleetRow(user.username, { success: false, ok: false, apply_errors: [String(e && e.message ? e.message : e)] });
                 }
                 done += 1;
                 scanProgress.textContent = I18N.fixProgress.replace('%d', String(done)).replace('%t', String(targets.length));

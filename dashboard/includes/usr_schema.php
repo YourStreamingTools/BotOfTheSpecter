@@ -241,10 +241,16 @@ function usr_schema_collect_diff(mysqli $conn, $dbname, array $tables, array $co
         }
         $idxCheck = $conn->query("SHOW INDEX FROM `$idxTable` WHERE Key_name = '$idxName'");
         if ($idxCheck !== false && $idxCheck->num_rows === 0) {
+            $idxPart = "`$idxColumn`";
+            $colInfo = $conn->query("SHOW COLUMNS FROM `$idxTable` LIKE '$idxColumn'");
+            $colRow = $colInfo ? $colInfo->fetch_assoc() : null;
+            if ($colRow && preg_match('/text|blob/i', (string) $colRow['Type'])) {
+                $idxPart = "`$idxColumn`(191)";
+            }
             $pending[] = usr_schema_change(
                 'add_index',
                 "Index $idxName is missing on $idxTable",
-                "ALTER TABLE `$idxTable` ADD INDEX `$idxName` (`$idxColumn`)",
+                "ALTER TABLE `$idxTable` ADD INDEX `$idxName` ($idxPart)",
                 $idxTable
             );
         }
