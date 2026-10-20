@@ -2971,6 +2971,8 @@ return [
     'mp_time_minutes_ago' => 'vor %d Min.',
     'mp_time_hours_ago' => 'vor %d Std.',
     'mp_time_days_ago' => 'vor %d T.',
+    'mp_save_hint' => 'Änderungen gelten ab dem nächsten Songwunsch.',
+    'mp_requests_today' => 'Wünsche heute',
     'media_player_same_song' => 'Gleicher Song (Minuten)',
     'media_player_same_song_help' => 'Wie lange derselbe Song nicht erneut angefragt werden kann. 720 sind 12 Stunden. 0 schaltet das aus.',
     'media_player_artist_limit' => 'Globales Anfragenlimit pro Künstler',

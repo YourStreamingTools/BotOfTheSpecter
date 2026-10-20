@@ -2971,6 +2971,8 @@ return [
     'mp_time_minutes_ago' => 'il y a %d min',
     'mp_time_hours_ago' => 'il y a %d h',
     'mp_time_days_ago' => 'il y a %d j',
+    'mp_save_hint' => 'Les changements s’appliquent à la prochaine demande.',
+    'mp_requests_today' => 'Demandes aujourd’hui',
     'media_player_same_song' => 'Même chanson (minutes)',
     'media_player_same_song_help' => 'Délai avant qu\'une même chanson puisse être redemandée. 720 correspond à 12 heures. 0 désactive ce délai.',
     'media_player_artist_limit' => 'Limite globale de demandes par artiste',

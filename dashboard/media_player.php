@@ -194,6 +194,8 @@ if ($analyticsTableExists):
     $srTotal = $srTotalResult ? (int)$srTotalResult->fetch_assoc()['total'] : 0;
     $srUniqueRes = $db->query("SELECT COUNT(DISTINCT song_name, artist_name) AS c FROM song_request_analytics");
     $srUnique = $srUniqueRes ? (int)$srUniqueRes->fetch_assoc()['c'] : 0;
+    $srTodayRes = $db->query("SELECT COUNT(*) AS c FROM song_request_analytics WHERE requested_at >= CURDATE()");
+    $srToday = $srTodayRes ? (int)$srTodayRes->fetch_assoc()['c'] : 0;
     $srTopSongs = $db->query("SELECT song_name, artist_name, COUNT(*) AS request_count FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY request_count DESC LIMIT 10");
     $srTopSongs = $srTopSongs ? $srTopSongs->fetch_all(MYSQLI_ASSOC) : [];
     $srRecentRequests = $db->query("SELECT song_name, artist_name, requested_by, requested_at, TIMESTAMPDIFF(SECOND, requested_at, NOW()) AS age_seconds FROM song_request_analytics ORDER BY requested_at DESC LIMIT 10");
@@ -204,13 +206,15 @@ endif;
 // YouTube Song Request Analytics - from media_queue (created by usr_database.php).
 // Shown only when the user is actually using YouTube song requests (queue has rows).
 $ytTableExists = $db->query("SHOW TABLES LIKE 'media_queue'")->num_rows > 0;
-$ytTotal = 0; $ytUnique = 0; $ytTopVideos = []; $ytRecentRequests = [];
+$ytTotal = 0; $ytUnique = 0; $ytToday = 0; $ytTopVideos = []; $ytRecentRequests = [];
 if ($ytTableExists) {
     $ytTotalResult = $db->query("SELECT COUNT(*) AS total FROM media_queue");
     $ytTotal = $ytTotalResult ? (int)$ytTotalResult->fetch_assoc()['total'] : 0;
     if ($ytTotal > 0) {
         $ytUniqueRes = $db->query("SELECT COUNT(DISTINCT video_id) AS c FROM media_queue");
         $ytUnique = $ytUniqueRes ? (int)$ytUniqueRes->fetch_assoc()['c'] : 0;
+        $ytTodayRes = $db->query("SELECT COUNT(*) AS c FROM media_queue WHERE requested_at >= CURDATE()");
+        $ytToday = $ytTodayRes ? (int)$ytTodayRes->fetch_assoc()['c'] : 0;
         $ytTopVideos = $db->query("SELECT title, uploader, COUNT(*) AS request_count FROM media_queue GROUP BY title, uploader ORDER BY request_count DESC LIMIT 10");
         $ytTopVideos = $ytTopVideos ? $ytTopVideos->fetch_all(MYSQLI_ASSOC) : [];
         $ytRecentRequests = $db->query("SELECT title, uploader, requested_by, requested_at, TIMESTAMPDIFF(SECOND, requested_at, NOW()) AS age_seconds FROM media_queue ORDER BY requested_at DESC LIMIT 10");
@@ -294,7 +298,7 @@ if ($ytTableExists) {
 </div>
 <?php endif; ?>
 </div>
-<div class="sp-card mb-4">
+<div class="sp-card mb-4 mp-settings-card">
     <header class="sp-card-header">
         <span class="sp-card-title"><i class="fas fa-sliders"></i> <?php echo t('mp_settings_title'); ?></span>
     </header>
@@ -303,6 +307,10 @@ if ($ytTableExists) {
         <form method="post" class="sr-settings-form">
           <div class="mp-settings-top">
               <label class="sp-label mp-switch-label"><input type="checkbox" name="enabled" <?php echo $mediaSettings['enabled'] ? 'checked' : ''; ?>>&nbsp;<?php echo t('media_player_enabled'); ?></label>
+              <div class="mp-top-volume">
+                  <label class="sp-label" for="vol-range"><?php echo t('media_player_volume'); ?> <span class="mp-volume-val" id="vol-range-val"><?php echo (int)$mediaSettings['volume']; ?>%</span></label>
+                  <input id="vol-range" name="volume" class="modern-volume" type="range" min="0" max="100" value="<?php echo (int)$mediaSettings['volume']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_volume')); ?>">
+              </div>
               <div class="mp-url-block">
                     <label class="sp-label"><?php echo t('media_player_overlay_url'); ?></label>
                     <div class="cc-url-row">
@@ -312,14 +320,8 @@ if ($ytTableExists) {
                     </div>
               </div>
           </div>
-          <div class="sr-settings-grid">
-            <section class="sr-settings-section">
-                <h3 class="sr-settings-title"><i class="fas fa-sliders"></i> <?php echo t('sr_section_general'); ?></h3>
-                    <div>
-                        <label class="sp-label" for="vol-range"><?php echo t('media_player_volume'); ?></label>
-                        <input id="vol-range" name="volume" class="modern-volume" type="range" min="0" max="100" value="<?php echo (int)$mediaSettings['volume']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_volume')); ?>">
-                    </div>
-            </section>
+          <div class="sr-settings-grid mp-settings-cols">
+            <div class="mp-settings-col">
             <section class="sr-settings-section">
                 <h3 class="sr-settings-title"><i class="fas fa-list-ol"></i> <?php echo t('sr_section_queue'); ?></h3>
                     <label class="sp-label"><?php echo t('media_player_max_len'); ?>
@@ -327,6 +329,14 @@ if ($ytTableExists) {
                     <label class="sp-label"><?php echo t('media_player_max_queue'); ?>
                         <input class="sp-input" type="number" name="max_queue_length" min="1" value="<?php echo (int)$mediaSettings['max_queue_length']; ?>"></label>
             </section>
+            <section class="sr-settings-section">
+                <h3 class="sr-settings-title"><i class="fas fa-repeat"></i> <?php echo t('sr_section_repeats'); ?></h3>
+                    <label class="sp-label"><?php echo t('media_player_same_song'); ?>
+                        <input class="sp-input" type="number" name="same_song_minutes" min="0" value="<?php echo (int)($mediaSettings['same_song_minutes'] ?? 720); ?>">
+                        <span class="sp-help"><?php echo t('media_player_same_song_help'); ?></span></label>
+            </section>
+            </div>
+            <div class="mp-settings-col">
             <section class="sr-settings-section">
                 <h3 class="sr-settings-title"><i class="fas fa-user-clock"></i> <?php echo t('sr_section_per_viewer'); ?></h3>
                     <label class="sp-label"><?php echo t('media_player_per_viewer'); ?>
@@ -358,23 +368,23 @@ if ($ytTableExists) {
                             <option value="month" <?php echo $artistPeriod === 'month' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_month'); ?></option>
                         </select></label>
             </section>
-            <section class="sr-settings-section">
-                <h3 class="sr-settings-title"><i class="fas fa-repeat"></i> <?php echo t('sr_section_repeats'); ?></h3>
-                    <label class="sp-label"><?php echo t('media_player_same_song'); ?>
-                        <input class="sp-input" type="number" name="same_song_minutes" min="0" value="<?php echo (int)($mediaSettings['same_song_minutes'] ?? 720); ?>">
-                        <span class="sp-help"><?php echo t('media_player_same_song_help'); ?></span></label>
-            </section>
+            </div>
           </div>
-            <button class="sp-btn sp-btn-primary" type="submit" name="save_settings" value="1"><?php echo t('media_player_save'); ?></button>
+            <div class="mp-save-bar">
+                <span class="sp-help"><?php echo t('mp_save_hint'); ?></span>
+                <button class="sp-btn sp-btn-primary" type="submit" name="save_settings" value="1"><i class="fas fa-save"></i> <?php echo t('media_player_save'); ?></button>
+            </div>
         </form>
     </div>
 </div>
-<div class="mp-lists-grid">
-<div class="sp-card">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-user-lock"></i> <?php echo t('media_player_artist_list'); ?></span>
+<div class="sp-card mb-4" id="mp-lists-card">
+    <header class="sp-card-header mp-tabs-header">
+        <ul class="sp-tabs-nav mp-tabs" role="tablist">
+            <li class="is-active"><a role="tab" data-mp-tab="artists" aria-selected="true"><i class="fas fa-user-lock"></i> <?php echo t('media_player_artist_list'); ?> <span class="sp-badge sp-badge-grey"><?php echo count($artistLimits); ?></span></a></li>
+            <li><a role="tab" data-mp-tab="bans" aria-selected="false"><i class="fas fa-ban"></i> <?php echo t('media_player_banlist'); ?> <span class="sp-badge sp-badge-grey"><?php echo count($banlist); ?></span></a></li>
+        </ul>
     </header>
-    <div class="sp-card-body">
+    <div class="sp-card-body mp-tab-panel" data-mp-panel="artists">
         <p class="sp-help mp-artist-intro"><?php echo t('media_player_artist_list_help'); ?></p>
         <form method="post" class="mp-artist-form">
             <label class="sp-label mp-artist-field mp-artist-field-name"><?php echo t('media_player_artist_list_placeholder'); ?>
@@ -407,12 +417,7 @@ if ($ytTableExists) {
             </ul>
         <?php endif; ?>
     </div>
-</div>
-<div class="sp-card">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-ban"></i> <?php echo t('media_player_banlist'); ?></span>
-    </header>
-    <div class="sp-card-body">
+    <div class="sp-card-body mp-tab-panel" data-mp-panel="bans" hidden>
         <form method="post" class="mp-ban-form">
             <select class="sp-select" name="ban_type" aria-label="<?php echo htmlspecialchars(t('mp_ban_type')); ?>">
                 <option value="keyword"><?php echo t('media_player_ban_keyword'); ?></option>
@@ -436,7 +441,6 @@ if ($ytTableExists) {
         <?php endif; ?>
     </div>
 </div>
-</div>
 <?php if ($analyticsTableExists): ?>
 <div class="sp-card mb-4">
     <div class="sp-card-header">
@@ -444,8 +448,9 @@ if ($ytTableExists) {
     </div>
     <div class="sp-card-body">
         <div class="sp-stat-row mp-stat-row">
-            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('spotifylink_stat_total_requests'); ?></div><div class="sp-stat-value"><?php echo number_format($srTotal); ?></div></div>
-            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('spotifylink_stat_unique_songs'); ?></div><div class="sp-stat-value"><?php echo number_format($srUnique); ?></div></div>
+            <div class="sp-stat mp-stat-accent"><div class="sp-stat-label"><i class="fas fa-music"></i> <?php echo t('spotifylink_stat_total_requests'); ?></div><div class="sp-stat-value"><?php echo number_format($srTotal); ?></div></div>
+            <div class="sp-stat mp-stat-blue"><div class="sp-stat-label"><i class="fas fa-fingerprint"></i> <?php echo t('spotifylink_stat_unique_songs'); ?></div><div class="sp-stat-value"><?php echo number_format($srUnique); ?></div></div>
+            <div class="sp-stat mp-stat-green"><div class="sp-stat-label"><i class="fas fa-calendar-day"></i> <?php echo t('mp_requests_today'); ?></div><div class="sp-stat-value"><?php echo number_format($srToday); ?></div></div>
         </div>
         <?php if (empty($srTopSongs) && empty($srRecentRequests)): ?>
         <div class="sp-alert sp-alert-info"><i class="fas fa-info-circle"></i> <?php echo t('spotifylink_analytics_empty'); ?></div>
@@ -485,8 +490,9 @@ if ($ytTableExists) {
     </div>
     <div class="sp-card-body">
         <div class="sp-stat-row mp-stat-row">
-            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('spotifylink_stat_total_requests'); ?></div><div class="sp-stat-value"><?php echo number_format($ytTotal); ?></div></div>
-            <div class="sp-stat"><div class="sp-stat-label"><?php echo t('media_player_sr_unique_videos'); ?></div><div class="sp-stat-value"><?php echo number_format($ytUnique); ?></div></div>
+            <div class="sp-stat mp-stat-accent"><div class="sp-stat-label"><i class="fas fa-music"></i> <?php echo t('spotifylink_stat_total_requests'); ?></div><div class="sp-stat-value"><?php echo number_format($ytTotal); ?></div></div>
+            <div class="sp-stat mp-stat-blue"><div class="sp-stat-label"><i class="fas fa-fingerprint"></i> <?php echo t('media_player_sr_unique_videos'); ?></div><div class="sp-stat-value"><?php echo number_format($ytUnique); ?></div></div>
+            <div class="sp-stat mp-stat-green"><div class="sp-stat-label"><i class="fas fa-calendar-day"></i> <?php echo t('mp_requests_today'); ?></div><div class="sp-stat-value"><?php echo number_format($ytToday); ?></div></div>
         </div>
         <?php if (!empty($ytTopVideos) || !empty($ytRecentRequests)): ?>
         <div class="mp-stats-grid">
@@ -584,13 +590,9 @@ ob_start();
         const np = document.getElementById('now-playing');
         const ol = document.getElementById('queue-list');
         np.replaceChildren();
-        if (d.now_playing) {
-            np.appendChild(mpTrackRow(d.now_playing, true));
-        } else {
-            np.textContent = idleLabel;
-            np.classList.add('mp-muted');
-        }
-        if (d.now_playing) np.classList.remove('mp-muted');
+        // Empty state already says the queue is empty, so no separate idle line
+        if (d.now_playing) np.appendChild(mpTrackRow(d.now_playing, true));
+        np.style.display = d.now_playing ? '' : 'none';
         ol.replaceChildren();
         const rows = d.queue || [];
         rows.forEach((row) => {
@@ -605,12 +607,17 @@ ob_start();
             ol.appendChild(li);
         });
         document.getElementById('queue-empty').style.display = rows.length ? 'none' : '';
+        // Nothing in the media queue and Spotify is shown, so the queue folds to a slim strip
+        const live = document.querySelector('.mp-live-grid');
+        if (live) live.classList.toggle('mp-queue-collapsed', !rows.length && !d.now_playing && !!document.getElementById('spotify-player-card'));
         ol.style.display = rows.length ? '' : 'none';
         setBusy(region, false);
     });
     document.getElementById('btn-skip').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'skip', code: code });
     document.getElementById('btn-clear').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'clear', code: code });
     const volRange = document.getElementById('vol-range');
+    const volRangeVal = document.getElementById('vol-range-val');
+    if (volRange && volRangeVal) volRange.addEventListener('input', () => { volRangeVal.textContent = volRange.value + '%'; });
     if (volRange) volRange.addEventListener('change', (e) => socket.emit('MEDIA_COMMAND', { command: 'volume', code: code, value: Number(e.target.value) }));
 
     // Overlay URL: masked by default, reveal toggle, copy the real URL. The real key only
@@ -647,6 +654,22 @@ ob_start();
                 setTimeout(() => { lbl.textContent = orig; }, 1500);
             }).catch(() => {});
         });
+    }
+    // Artist limits / Ban list tabs
+    document.querySelectorAll('#mp-lists-card [data-mp-tab]').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            const name = tab.dataset.mpTab;
+            document.querySelectorAll('#mp-lists-card [data-mp-tab]').forEach((t) => {
+                t.parentElement.classList.toggle('is-active', t === tab);
+                t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+            });
+            document.querySelectorAll('#mp-lists-card [data-mp-panel]').forEach((panel) => { panel.hidden = panel.dataset.mpPanel !== name; });
+        });
+    });
+    // Open the ban tab after adding or removing a ban
+    if (<?php echo json_encode(isset($_POST['add_ban']) || isset($_POST['del_ban'])); ?>) {
+        const banTab = document.querySelector('#mp-lists-card [data-mp-tab="bans"]');
+        if (banTab) banTab.click();
     }
     // Artist list: filter box and autosave each limit (debounced) instead of per-row Save
     const mpArtistFilter = document.getElementById('mp-artist-filter');
