@@ -43,7 +43,7 @@ from geopy.geocoders import Nominatim
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message, add_stream_request, get_stream_request_count, is_song_limit_exempt, reset_stream_requests, stream_cap_message
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, has_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message, add_stream_request, get_stream_request_count, is_song_limit_exempt, reset_stream_requests, stream_cap_message
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from openai import AsyncOpenAI
 
@@ -6155,7 +6155,7 @@ class TwitchBot(commands.AutoBot):
                             grant = 1
                         song_request_permits[lookup] = int(song_request_permits.get(lookup) or 0) + grant
                         chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} {grant} extra song request(s)")
-                        await send_chat_message(f"@{lookup} can request {grant} more song{'s' if grant != 1 else ''} past the stream limit or the same-song gap.")
+                        await send_chat_message(f"@{lookup} can request {grant} more song{'s' if grant != 1 else ''}, skipping the song request limits.")
                     else:
                         chat_logger.info(f"[PERMIT SONG] {ctx.author.name} tried to use permitsong but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -6777,27 +6777,24 @@ class TwitchBot(commands.AutoBot):
                             await send_chat_message(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
             settings = await get_media_settings(connection)
+            # A song permit lets one request skip every song request limit
+            permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
             author_name = (ctx.author.name or "").lower()
-            if author_name not in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()):
+            if author_name not in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) and not permit_bypass:
                 artist_block = await artist_request_block_message(connection, artist_name, settings)
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
-            # Per-stream request cap; broadcaster, owner and mods skip it, a permit lets one more through
-            used_permit = False
+            # Per-stream request cap; broadcaster, owner, mods and permit holders skip it
             stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
-            if stream_cap > 0 and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+            if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
                 stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
                 if stream_count >= stream_cap:
-                    if consume_song_permit(song_request_permits, ctx.author.name):
-                        used_permit = True
-                        chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit past the stream cap")
-                    else:
-                        await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
-                        return
+                    await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
+                    return
             song_block = await same_song_block_message(connection, song_id, song_name, artist_name, settings.get("same_song_minutes"))
             if song_block:
-                if used_permit or consume_song_permit(song_request_permits, ctx.author.name):
+                if permit_bypass:
                     chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {song_name}")
                 else:
                     await send_chat_message(song_block)
@@ -6810,6 +6807,9 @@ class TwitchBot(commands.AutoBot):
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
+                        # The request landed, so a permit (if one let it through) is used now
+                        if permit_bypass and consume_song_permit(song_request_permits, ctx.author.name):
+                            chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit")
                         try:
                             await add_stream_request(connection, str(ctx.author.id), ctx.author.name)
                         except Exception as count_err:
@@ -16543,8 +16543,9 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
             except Exception:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
             viewer_count = (await cursor.fetchone())["c"]
-        # Broadcaster, bot owner and mods skip the per-viewer limit
-        if (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False)):
+        # Broadcaster, bot owner, mods and permit holders skip the per-viewer limit
+        permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
+        if permit_bypass or (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False)):
             viewer_count = 0
         ok, reason = evaluate_guardrails(
             duration=resolved["duration"], queue_count=queue_count, viewer_count=viewer_count,
@@ -16560,26 +16561,21 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
             return
         request_artist = clean_request_artist(resolved.get("uploader") or "") or (resolved.get("uploader") or "YouTube")
         author_name = (ctx.author.name or "").lower()
-        if author_name not in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()):
+        if author_name not in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) and not permit_bypass:
             artist_block = await artist_request_block_message(connection, request_artist, settings)
             if artist_block:
                 await send_chat_message(artist_block)
                 return
-        # Per-stream request cap; broadcaster, owner and mods skip it, a permit lets one more through
-        used_permit = False
+        # Per-stream request cap; broadcaster, owner, mods and permit holders skip it
         stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
-        if stream_cap > 0 and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+        if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
             stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
             if stream_count >= stream_cap:
-                if consume_song_permit(song_request_permits, ctx.author.name):
-                    used_permit = True
-                    chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit past the stream cap")
-                else:
-                    await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
-                    return
+                await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
+                return
         song_block = await same_song_block_message(connection, resolved["video_id"], resolved["title"], request_artist, settings.get("same_song_minutes"))
         if song_block:
-            if used_permit or consume_song_permit(song_request_permits, ctx.author.name):
+            if permit_bypass:
                 chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {resolved['title']}")
             else:
                 await send_chat_message(song_block)
@@ -16595,6 +16591,9 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
                     "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
                     (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
         await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
+        # The request landed, so a permit (if one let it through) is used now
+        if permit_bypass and consume_song_permit(song_request_permits, ctx.author.name):
+            chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit")
         try:
             await add_stream_request(connection, str(ctx.author.id), ctx.author.name)
         except Exception as count_err:
