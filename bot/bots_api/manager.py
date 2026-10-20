@@ -1000,8 +1000,8 @@ async def start_bot(
         return {"success": False, "state": "error", "message": "custom and self are mutually exclusive"}
     if self_mode and bot_type not in ("beta", "stable"):
         return {"success": False, "state": "error", "message": "self is only valid for bot_type=stable or beta"}
-    if custom and bot_type not in ("beta", "stable"):
-        return {"success": False, "state": "error", "message": "custom is only valid for bot_type=stable or beta"}
+    if custom and bot_type not in ("beta", "stable", "v6"):
+        return {"success": False, "state": "error", "message": "custom is only valid for bot_type=stable, beta or v6"}
 
     missing = [n for n, v in (
         ("channel", channel),
@@ -1053,7 +1053,7 @@ async def start_bot(
         ver = read_version(bot_type, channel)
         snapshot_mark_started(
             channel,
-            "custom" if custom else bot_type,
+            "custom" if custom and bot_type != "v6" else bot_type,
             pid=existing[0],
             version=ver,
             custom=custom,
