@@ -474,7 +474,7 @@ function renderSpotifyStatus(data) {
                 '<i class="fas fa-exclamation-circle"></i> ' + escapeHtml(SP_I18N.actasDisabled) +
                 '</div>';
         } else if (!data.auth_url && status === 'not-connected' && Number(data.own_client) === 0) {
-            html += '<div class="sp-alert sp-alert-danger" style="max-width: 700px; margin: 0 auto;">' +
+            html += '<div class="sp-alert sp-alert-danger" data-no-support-note="1" style="max-width: 700px; margin: 0 auto;">' +
                 '<i class="fas fa-exclamation-triangle"></i> ' + replaceCountMax(SP_I18N.capacityFull, count, max) +
                 '</div>';
         }

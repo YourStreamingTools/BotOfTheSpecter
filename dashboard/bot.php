@@ -396,8 +396,9 @@ ob_start();
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
               <?php echo t('bot_v6_description'); ?>
             </p>
-            <div class="sp-alert sp-alert-danger" style="text-align:center;">
-              <?php echo t('bot_v6_danger_notice'); ?>
+            <div class="sp-alert sp-alert-info" data-no-support-note="1" style="text-align:center;">
+              <p style="margin:0 0 0.75rem;"><i class="fas fa-circle-info"></i> <?php echo t('bot_v6_moved_notice'); ?></p>
+              <a href="https://beta.dashboard.botofthespecter.com/bot" class="sp-btn sp-btn-primary"><i class="fas fa-arrow-right"></i> <?php echo t('bot_v6_open_beta_dashboard'); ?></a>
             </div>
             <div id="custom-module-warning-v6" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
@@ -463,12 +464,14 @@ ob_start();
           <div id="beta-access-warning" class="sp-alert sp-alert-warning" style="text-align:center; display:none;">
             <?php echo t('bot_beta_subscription_warning', ['premium_url' => 'premium.php']); ?>
           </div>
+          <?php if ($selectedBot !== 'v6'): // V6 is started and stopped from the beta dashboard only ?>
           <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;" aria-busy="true">
             <button class="sp-btn sp-btn-primary" disabled>
               <i class="fas fa-spinner fa-spin"></i>
               <span><?php echo t('bot_checking_status'); ?></span>
             </button>
           </div>
+          <?php endif; ?>
           <?php endif; ?>
         </div>
       </div>

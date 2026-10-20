@@ -1311,6 +1311,8 @@ return [
     'bot_v6_controls' => 'Version 6 Steuerung',
     'bot_v6_description' => 'Version 6 ist eine komplette Neuentwicklung und befindet sich derzeit in einer fruhen Entwicklungsphase.',
     'bot_v6_danger_notice' => 'Fur Version 6 wurde eine komplette Neuentwicklung begonnen, deren Betrieb in diesem Stadium nicht empfohlen wird. Auf Discord wird eine Mitteilung veroffentlicht, sobald Version 6 zum Testen bereit ist.',
+    'bot_v6_moved_notice' => 'Version 6 läuft jetzt über das neue Version 6 Dashboard. Dort kannst du den Version 6 Bot starten, stoppen und verwalten. Weitere Funktionen kommen dort nach und nach hinzu.',
+    'bot_v6_open_beta_dashboard' => 'Version 6 Dashboard öffnen',
     'bot_fetching_status' => 'Status wird abgerufen...',
     'bot_checking_status' => 'Status wird gepruft...',
     'bot_network_status' => 'Netzwerkstatus',

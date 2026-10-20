@@ -1328,6 +1328,8 @@ return [
     'bot_v6_controls' => '版本 6 控件',
     'bot_v6_description' => '版本 6 是完全重写的，目前正处于早期开发阶段。',
     'bot_v6_danger_notice' => '版本 6 的完整重写已开始，不建议在此阶段运行。当版本 6 准备好测试时，将会在 Discord 上发布通知。',
+    'bot_v6_moved_notice' => '第 6 版现在通过新的第 6 版控制面板运行。请在那里启动、停止和管理第 6 版机器人。新控制面板会陆续加入更多功能。',
+    'bot_v6_open_beta_dashboard' => '打开第 6 版控制面板',
     'bot_fetching_status' => '正在获取状态...',
     'bot_checking_status' => '正在检查状态...',
     'bot_network_status' => '网络状态',

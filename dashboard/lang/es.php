@@ -1367,6 +1367,8 @@ return [
     'bot_v6_controls' => 'Controles de la versión 6',
     'bot_v6_description' => 'La versión 6 es una reescritura completa y actualmente se encuentra en desarrollo inicial.',
     'bot_v6_danger_notice' => 'Se ha iniciado una reescritura completa para la versión 6 y no se recomienda ejecutarla en esta etapa. Se publicará un aviso en Discord cuando la versión 6 esté lista para ser probada.',
+    'bot_v6_moved_notice' => 'La versión 6 ahora se ejecuta desde el nuevo panel de la versión 6. Inicia, detén y administra allí el bot de la versión 6. Se irán añadiendo más funciones al nuevo panel con el tiempo.',
+    'bot_v6_open_beta_dashboard' => 'Abrir el panel de la versión 6',
     'bot_fetching_status' => 'Obteniendo estado...',
     'bot_checking_status' => 'Comprobando estado...',
     'bot_network_status' => 'Estado de la red',

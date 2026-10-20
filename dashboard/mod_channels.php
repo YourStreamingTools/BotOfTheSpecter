@@ -78,7 +78,7 @@ ob_start();
         <?= t('mod_channels_act_as_stopped') ?>
     </div>
 <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'denied'): ?>
-    <div class="sp-alert sp-alert-danger" style="margin-bottom:1rem;">
+    <div class="sp-alert sp-alert-danger" data-no-support-note="1" style="margin-bottom:1rem;">
         <?= t('mod_channels_act_as_denied') ?>
     </div>
 <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'not_found'): ?>
