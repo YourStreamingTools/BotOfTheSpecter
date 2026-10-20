@@ -7771,10 +7771,10 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         # Get user's profile image for thumbnail
         profile_image_url = await self.bot.get_user_profile_image(user_login)
         embed = discord.Embed(
-            description=f"""
-                ### **[{user_login}]({stream_url}) is now live on Twitch!**
-                {title}{os.linesep}Playing: {game_name}
-            """,
+            description=(
+                f"### **[{user_login}]({stream_url}) is now live on Twitch!**\n"
+                f"{(title or '').strip()}\nPlaying: {game_name}"
+            ),
             color=discord.Color.purple()
         )
         # Set thumbnail using user's profile image
