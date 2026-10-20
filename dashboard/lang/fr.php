@@ -2944,6 +2944,7 @@ return [
     'media_player_max_len' => 'Durée max. d’une chanson (secondes)',
     'media_player_max_queue' => 'Longueur max. de la file',
     'media_player_per_viewer' => 'Chansons max. par spectateur',
+    'per_viewer_limit_unlimited_help' => '0 = illimité',
     'media_player_same_song' => 'Même chanson (minutes)',
     'media_player_same_song_help' => 'Délai avant qu\'une même chanson puisse être redemandée. 720 correspond à 12 heures. 0 désactive ce délai.',
     'media_player_artist_limit' => 'Limite globale de demandes par artiste',

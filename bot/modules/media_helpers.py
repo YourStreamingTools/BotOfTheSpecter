@@ -23,7 +23,8 @@ def evaluate_guardrails(*, duration, queue_count, viewer_count, settings, video_
         return False, "too_long"
     if queue_count >= int(settings["max_queue_length"]):
         return False, "queue_full"
-    if viewer_count >= int(settings["per_viewer_limit"]):
+    # A per-viewer limit of 0 means unlimited
+    if int(settings["per_viewer_limit"]) > 0 and viewer_count >= int(settings["per_viewer_limit"]):
         return False, "viewer_limit"
     title_l = (title or "").lower()
     for entry in banlist:
@@ -32,6 +33,9 @@ def evaluate_guardrails(*, duration, queue_count, viewer_count, settings, video_
         if entry["type"] == "keyword" and entry["value"].lower() in title_l:
             return False, "banned"
     return True, None
+
+def viewer_limit_message(user: str, count: int, limit: int) -> str:
+    return f"@{user} you already have {count} songs in the queue (max {limit}). Wait for one to play, then request again."
 
 def format_queue_line(position: int, title: str, requested_by: str) -> str:
     return f"{position}. {title} (requested by {requested_by})"

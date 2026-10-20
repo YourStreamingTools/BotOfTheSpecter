@@ -43,7 +43,7 @@ from geopy.geocoders import Nominatim
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from openai import AsyncOpenAI
 
@@ -16472,8 +16472,15 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
             queue_count = (await cursor.fetchone())["c"]
-            await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
+            # Count by user ID when the column exists, falling back to display name
+            try:
+                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND (requested_by_id=%s OR (requested_by_id IS NULL AND requested_by=%s))", (str(ctx.author.id), ctx.author.name))
+            except Exception:
+                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
             viewer_count = (await cursor.fetchone())["c"]
+        # Broadcaster, bot owner and mods skip the per-viewer limit
+        if (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False)):
+            viewer_count = 0
         ok, reason = evaluate_guardrails(
             duration=resolved["duration"], queue_count=queue_count, viewer_count=viewer_count,
             settings=settings, video_id=resolved["video_id"], title=resolved["title"], banlist=banlist)
@@ -16481,7 +16488,7 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
             msgs = {
                 "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
                 "queue_full": "The song queue is full, please try again later.",
-                "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                "viewer_limit": viewer_limit_message(ctx.author.name, viewer_count, settings['per_viewer_limit']),
                 "banned": "Sorry, that song isn't allowed here.",
             }
             await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
@@ -16501,9 +16508,15 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
                 await send_chat_message(song_block)
                 return
         async with connection.cursor() as cursor:
-            await cursor.execute(
-                "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
-                (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
+            # Store the user ID too; fall back if the column hasn't been migrated yet
+            try:
+                await cursor.execute(
+                    "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, requested_by_id, status) VALUES (%s,%s,%s,%s,%s,%s,'queued')",
+                    (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name, str(ctx.author.id)))
+            except Exception:
+                await cursor.execute(
+                    "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
+                    (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
         await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
