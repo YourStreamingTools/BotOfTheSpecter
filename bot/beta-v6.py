@@ -41,6 +41,24 @@ import pytz as set_timezone
 from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from pint import UnitRegistry as ureg
+
+# Friendly unit labels for !convert (pint's raw names look like degree_Celsius)
+_CONVERT_UNIT_NAMES = {"degree_Celsius": "°C", "degree_Fahrenheit": "°F", "kelvin": "K", "degree_Rankine": "°R"}
+_CONVERT_SYMBOL_FIXES = {"l": "L", "ml": "mL", "cl": "cL", "dl": "dL", "cp": "cup", "floz": "fl oz"}
+
+def format_convert_unit(units):
+    name = str(units)
+    if name in _CONVERT_UNIT_NAMES:
+        return _CONVERT_UNIT_NAMES[name]
+    text = f"{units:~P}" or name
+    return _CONVERT_SYMBOL_FIXES.get(text, text).replace("_", " ")
+
+def format_convert_quantity(magnitude, units):
+    symbol = format_convert_unit(units)
+    number = f"{magnitude:,.2f}".rstrip("0").rstrip(".")
+    if symbol.startswith("°"):
+        return f"{number}{symbol}"
+    return f"{number} {symbol}"
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
 from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, has_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message, add_stream_request, get_stream_request_count, is_song_limit_exempt, reset_stream_requests, stream_cap_message
@@ -11358,8 +11376,7 @@ class TwitchBot(commands.AutoBot):
                             return
                         quantity = amount * ureg(from_unit)
                         converted_quantity = quantity.to(to_unit)
-                        formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
-                        await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
+                        await send_chat_message(f"{format_convert_quantity(quantity.magnitude, quantity.units)} is {format_convert_quantity(converted_quantity.magnitude, converted_quantity.units)}")
                     else:
                         await send_chat_message("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except GeneratorExit:

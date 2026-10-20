@@ -41,6 +41,24 @@ from streamlink import Streamlink
 from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from pint import UnitRegistry as ureg
+
+# Friendly unit labels for !convert (pint's raw names look like degree_Celsius)
+_CONVERT_UNIT_NAMES = {"degree_Celsius": "°C", "degree_Fahrenheit": "°F", "kelvin": "K", "degree_Rankine": "°R"}
+_CONVERT_SYMBOL_FIXES = {"l": "L", "ml": "mL", "cl": "cL", "dl": "dL", "cp": "cup", "floz": "fl oz"}
+
+def format_convert_unit(units):
+    name = str(units)
+    if name in _CONVERT_UNIT_NAMES:
+        return _CONVERT_UNIT_NAMES[name]
+    text = f"{units:~P}" or name
+    return _CONVERT_SYMBOL_FIXES.get(text, text).replace("_", " ")
+
+def format_convert_quantity(magnitude, units):
+    symbol = format_convert_unit(units)
+    number = f"{magnitude:,.2f}".rstrip("0").rstrip(".")
+    if symbol.startswith("°"):
+        return f"{number}{symbol}"
+    return f"{number} {symbol}"
 import asyncio
 import asyncssh
 from openai import AsyncOpenAI
@@ -11709,8 +11727,7 @@ class TwitchBot(commands.Bot):
                             return
                         quantity = ureg.Quantity(amount, from_unit)
                         converted_quantity = quantity.to(to_unit)
-                        formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
-                        await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
+                        await send_chat_message(f"{format_convert_quantity(quantity.magnitude, quantity.units)} is {format_convert_quantity(converted_quantity.magnitude, converted_quantity.units)}")
                     else:
                         await send_chat_message("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except GeneratorExit:
