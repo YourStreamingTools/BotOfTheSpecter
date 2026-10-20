@@ -162,6 +162,11 @@ def artist_limit_reply(artist: str, limit: int, period: str) -> str:
     shown = clean_request_artist(artist) or "That artist"
     return f"{shown} has already been requested {int(limit)} times {window}. Try another artist."
 
+def has_song_permit(permits, username) -> bool:
+    """True when this login has a song permit waiting (keys are lowercase logins)."""
+    key = (username or "").lstrip("@").strip().lower()
+    return bool(key) and int(permits.get(key) or 0) > 0
+
 def consume_song_permit(permits, username) -> bool:
     """Use one same-song permit for this login. False when they have none."""
     key = (username or "").lstrip("@").strip().lower()
