@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message, add_stream_request, get_stream_request_count, is_song_limit_exempt, reset_stream_requests, stream_cap_message
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
@@ -273,7 +273,7 @@ mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
-    "puzzledone", "warn", "addbirthday", "permitsong"
+    "puzzledone", "warn", "addbirthday", "permitsong", "srreset"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -6122,8 +6122,44 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='srreset')
+    async def srreset_command(self, ctx, target_user: str = None):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("srreset",))
+                result = await cursor.fetchone()
+            status = result.get("status") if result else "Enabled"
+            permissions = result.get("permission") if result else "mod"
+            cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result) if result else (1, 0, "default")
+            if status == 'Disabled' and ctx.author.name != bot_owner:
+                return
+            if not await command_permissions(permissions, ctx.author):
+                chat_logger.info(f"[SR RESET] {ctx.author.name} tried to use srreset but lacked permissions.")
+                await send_chat_message("You do not have the required permissions to use this command.")
+                return
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+            if not await check_cooldown('srreset', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            add_usage('srreset', bucket_key, cooldown_bucket)
+            target = (target_user or '').lstrip('@').strip().lower()
+            await reset_stream_requests(connection, target or None)
+            chat_logger.info(f"[SR RESET] {ctx.author.name} reset this stream's song request counts for {target or 'everyone'}")
+            if target:
+                await send_chat_message(f"@{target} can request songs again this stream.")
+            else:
+                await send_chat_message("Song request counts for this stream have been reset for everyone.")
+        except Exception as e:
+            chat_logger.error(f"[SR RESET] An error occurred during the execution of the srreset command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='permitsong')
-    async def permitsong_command(self, ctx, permit_user: str = None):
+    async def permitsong_command(self, ctx, permit_user: str = None, permit_count: str = None):
         global bot_owner, song_request_permits
         connection = None
         connection = await mysql_connection()
@@ -6144,7 +6180,7 @@ class TwitchBot(commands.Bot):
                         add_usage('permitsong', bucket_key, cooldown_bucket)
                         permit_user = (permit_user or '').lstrip('@').strip()
                         if not permit_user:
-                            await send_chat_message("Usage: !permitsong @username")
+                            await send_chat_message("Usage: !permitsong @username [count]")
                             return
                         lookup = permit_user.lower()
                         try:
@@ -6156,9 +6192,14 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f"User {lookup} not found.")
                             return
                         lookup = user_info[0].name.lower()
-                        song_request_permits[lookup] = 1
-                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} one blocked song request")
-                        await send_chat_message(f"@{lookup} can request one song that was played too soon.")
+                        # Optional count grants several permits, each covers one request past the stream cap or same-song gap
+                        try:
+                            grant = max(1, min(50, int(permit_count))) if permit_count else 1
+                        except ValueError:
+                            grant = 1
+                        song_request_permits[lookup] = int(song_request_permits.get(lookup) or 0) + grant
+                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} {grant} extra song request(s)")
+                        await send_chat_message(f"@{lookup} can request {grant} more song{'s' if grant != 1 else ''} past the stream limit or the same-song gap.")
                     else:
                         chat_logger.info(f"[PERMIT SONG] {ctx.author.name} tried to use permitsong but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -6857,9 +6898,21 @@ class TwitchBot(commands.Bot):
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
+            # Per-stream request cap; broadcaster, owner and mods skip it, a permit lets one more through
+            used_permit = False
+            stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
+            if stream_cap > 0 and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+                stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
+                if stream_count >= stream_cap:
+                    if consume_song_permit(song_request_permits, ctx.author.name):
+                        used_permit = True
+                        chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit past the stream cap")
+                    else:
+                        await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
+                        return
             song_block = await same_song_block_message(connection, song_id, song_name, artist_name, settings.get("same_song_minutes"))
             if song_block:
-                if consume_song_permit(song_request_permits, ctx.author.name):
+                if used_permit or consume_song_permit(song_request_permits, ctx.author.name):
                     chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {song_name}")
                 else:
                     await send_chat_message(song_block)
@@ -6873,6 +6926,10 @@ class TwitchBot(commands.Bot):
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
+                        try:
+                            await add_stream_request(connection, str(ctx.author.id), ctx.author.name)
+                        except Exception as count_err:
+                            api_logger.error(f"[SONG REQUEST] Failed to record stream request count: {count_err}")
                         try:
                             await record_open_song_request(connection, song_id, song_name, artist_name, ctx.message.author.name)
                         except Exception as analytics_err:
@@ -6935,9 +6992,21 @@ class TwitchBot(commands.Bot):
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
+            # Per-stream request cap; broadcaster, owner and mods skip it, a permit lets one more through
+            used_permit = False
+            stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
+            if stream_cap > 0 and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+                stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
+                if stream_count >= stream_cap:
+                    if consume_song_permit(song_request_permits, ctx.author.name):
+                        used_permit = True
+                        chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit past the stream cap")
+                    else:
+                        await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
+                        return
             song_block = await same_song_block_message(connection, resolved["video_id"], resolved["title"], request_artist, settings.get("same_song_minutes"))
             if song_block:
-                if consume_song_permit(song_request_permits, ctx.author.name):
+                if used_permit or consume_song_permit(song_request_permits, ctx.author.name):
                     chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {resolved['title']}")
                 else:
                     await send_chat_message(song_block)
@@ -6953,6 +7022,10 @@ class TwitchBot(commands.Bot):
                         "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
                         (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
             await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
+            try:
+                await add_stream_request(connection, str(ctx.author.id), ctx.author.name)
+            except Exception as count_err:
+                api_logger.error(f"[SONG REQUEST] Failed to record stream request count: {count_err}")
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
                 position = (await cursor.fetchone())["c"]
@@ -16134,6 +16207,12 @@ async def process_stream_online_websocket():
     stream_online = True
     if was_offline:
         stream_session_started_at = datetime.now(timezone.utc).timestamp()
+        # New stream, so per-stream song request counts start again
+        try:
+            async with await mysql_connection() as reset_conn:
+                await reset_stream_requests(reset_conn)
+        except Exception as reset_err:
+            bot_logger.error(f"[SONG REQUEST] Failed to reset stream request counts: {reset_err}")
     await generate_winning_lotto_numbers()
     # Reach out to the Twitch API to get stream data
     async with httpClientSession() as session:
@@ -16750,8 +16829,8 @@ async def send_timed_message(message_id, message, delay):
     return False
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
-_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1"
-_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all", "same_song_minutes": 720}
+_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes, per_viewer_stream_limit FROM media_request_settings WHERE id=1"
+_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all", "same_song_minutes": 720, "per_viewer_stream_limit": 0}
 
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
@@ -16763,6 +16842,7 @@ async def get_media_settings(connection):
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
                 "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
+                "ALTER TABLE media_request_settings ADD COLUMN per_viewer_stream_limit INT NOT NULL DEFAULT 0",
             ):
                 try:
                     await cursor.execute(alter)
@@ -16776,6 +16856,7 @@ async def get_media_settings(connection):
     row.setdefault("artist_limit_period", "stream")
     row.setdefault("artist_limit_scope", "all")
     row.setdefault("same_song_minutes", 720)
+    row.setdefault("per_viewer_stream_limit", 0)
     return row
 
 async def artist_request_block_message(connection, artist_name, settings):

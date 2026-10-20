@@ -37,6 +37,51 @@ def evaluate_guardrails(*, duration, queue_count, viewer_count, settings, video_
 def viewer_limit_message(user: str, count: int, limit: int) -> str:
     return f"@{user} you already have {count} songs in the queue (max {limit}). Wait for one to play, then request again."
 
+def is_song_limit_exempt(author, channel_name, bot_owner) -> bool:
+    name = (getattr(author, "name", "") or "").lower()
+    return name in ((channel_name or "").lower(), (bot_owner or "").lower()) or bool(getattr(author, "is_mod", False))
+
+def stream_cap_message(user: str, limit: int) -> str:
+    return f"@{user} you've reached the limit of {limit} song requests this stream. Ask a mod for a !permitsong if you'd like another."
+
+_STREAM_COUNTS_SQL = """CREATE TABLE IF NOT EXISTS song_request_stream_counts (
+    user_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    user_name VARCHAR(255) NOT NULL,
+    request_count INT NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"""
+
+async def get_stream_request_count(connection, user_id: str, user_name: str) -> int:
+    """This stream's successful requests for the viewer, 0 if the table can't be read."""
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(_STREAM_COUNTS_SQL)
+            await cursor.execute("SELECT request_count FROM song_request_stream_counts WHERE user_id=%s", (str(user_id),))
+            row = await cursor.fetchone()
+        return int(row["request_count"]) if row else 0
+    except Exception:
+        return 0
+
+async def add_stream_request(connection, user_id: str, user_name: str) -> None:
+    async with connection.cursor() as cursor:
+        await cursor.execute(_STREAM_COUNTS_SQL)
+        await cursor.execute(
+            "INSERT INTO song_request_stream_counts (user_id, user_name, request_count) VALUES (%s,%s,1) ON DUPLICATE KEY UPDATE request_count=request_count+1, user_name=VALUES(user_name)",
+            (str(user_id), user_name or ""))
+    await connection.commit()
+
+async def reset_stream_requests(connection, user_name: str = None) -> int:
+    """Clear this stream's counts for one login, or everyone when no name is given."""
+    async with connection.cursor() as cursor:
+        await cursor.execute(_STREAM_COUNTS_SQL)
+        if user_name:
+            await cursor.execute("DELETE FROM song_request_stream_counts WHERE LOWER(user_name)=%s", (user_name.lstrip("@").strip().lower(),))
+        else:
+            await cursor.execute("DELETE FROM song_request_stream_counts")
+        removed = cursor.rowcount
+    await connection.commit()
+    return removed
+
 def format_queue_line(position: int, title: str, requested_by: str) -> str:
     return f"{position}. {title} (requested by {requested_by})"
 

@@ -48,7 +48,7 @@ function spotify_player_track_summary($item): ?array
         }
         $artists = implode(', ', $names);
     }
-    return ['name' => (string) $item['name'], 'artists' => $artists];
+    return ['name' => (string) $item['name'], 'artists' => $artists, 'uri' => (string) ($item['uri'] ?? '')];
 }
 
 function spotify_player_upcoming(string $accessToken): array
@@ -71,6 +71,53 @@ function spotify_player_upcoming(string $accessToken): array
         }
     }
     return $queue;
+}
+
+// Tag tracks with the viewer who requested them, from the bot's open request log (no extra Spotify calls)
+function spotify_player_tag_requesters(array $tracks): array
+{
+    $uris = [];
+    foreach ($tracks as $t) {
+        if (!empty($t['uri'])) {
+            $uris[$t['uri']] = true;
+        }
+    }
+    $dbname = (string) ($_SESSION['username'] ?? '');
+    if (!$uris || $dbname === '') {
+        return $tracks;
+    }
+    try {
+        include '/var/www/config/database.php';
+        $udb = new mysqli($db_servername, $db_username, $db_password, $dbname);
+        if ($udb->connect_error) {
+            return $tracks;
+        }
+        $keys = array_keys($uris);
+        $marks = implode(',', array_fill(0, count($keys), '?'));
+        $stmt = $udb->prepare("SELECT song_id, requested_by FROM song_request_analytics WHERE in_queue = 1 AND song_id IN ($marks) ORDER BY id ASC");
+        if (!$stmt) {
+            $udb->close();
+            return $tracks;
+        }
+        $stmt->bind_param(str_repeat('s', count($keys)), ...$keys);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $pool = [];
+        while ($row = $res->fetch_assoc()) {
+            $pool[$row['song_id']][] = $row['requested_by'];
+        }
+        $stmt->close();
+        $udb->close();
+        // Each queued instance takes the next open request for that track, in order
+        foreach ($tracks as $i => $t) {
+            $uri = $t['uri'] ?? '';
+            if ($uri !== '' && !empty($pool[$uri])) {
+                $tracks[$i]['requested_by'] = array_shift($pool[$uri]);
+            }
+        }
+    } catch (Throwable $e) {
+    }
+    return $tracks;
 }
 
 // Resolve the requested action.
@@ -120,6 +167,13 @@ if ($action === 'state') {
         if ($item && !empty($item['artists'])) {
             $artists = implode(', ', array_map(static function ($a) { return $a['name'] ?? ''; }, $item['artists']));
         }
+        // Current track first so it takes the oldest open request, then Up Next in order
+        $tagged = spotify_player_tag_requesters(array_merge(
+            [['uri' => (string) ($item['uri'] ?? '')]],
+            spotify_player_upcoming($accessToken)
+        ));
+        $currentRequester = $tagged[0]['requested_by'] ?? null;
+        $upcoming = array_slice($tagged, 1);
         echo json_encode([
             'success'       => true,
             'active'        => true,
@@ -140,8 +194,9 @@ if ($action === 'state') {
                 'duration_ms' => (int)($item['duration_ms'] ?? 0),
                 'album_art'   => $item['album']['images'][0]['url'] ?? '',
                 'url'         => $item['external_urls']['spotify'] ?? '',
+                'requested_by' => $currentRequester,
             ] : null,
-            'upcoming'      => spotify_player_upcoming($accessToken),
+            'upcoming'      => $upcoming,
         ]);
         exit;
     }

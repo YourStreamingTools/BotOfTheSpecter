@@ -47,11 +47,11 @@ class MediaHandler:
             await self.sio.emit(event, payload, to=client['sid'])
 
     async def _now_playing(self, username):
-        rows = await self.execute_query("SELECT id, video_id, title, requested_by FROM media_queue WHERE status='playing' ORDER BY id LIMIT 1", (), username)
+        rows = await self.execute_query("SELECT id, video_id, title, requested_by, duration_seconds FROM media_queue WHERE status='playing' ORDER BY id LIMIT 1", (), username)
         return rows[0] if rows else None
 
     async def _queue(self, username):
-        return await self.execute_query("SELECT id, video_id, title, requested_by FROM media_queue WHERE status='queued' ORDER BY id", (), username) or []
+        return await self.execute_query("SELECT id, video_id, title, requested_by, duration_seconds FROM media_queue WHERE status='queued' ORDER BY id", (), username) or []
 
     async def _broadcast_state(self, code, username):
         now = await self._now_playing(username)

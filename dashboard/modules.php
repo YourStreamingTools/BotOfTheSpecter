@@ -425,6 +425,7 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
     $spotify_max_song_seconds = 600;
     $spotify_max_queue_length = 20;
     $spotify_per_viewer_limit = 2;
+    $spotify_per_viewer_stream_limit = 0;
     $stmt = $db->prepare("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit FROM media_request_settings WHERE id = 1");
     if ($stmt) {
         $stmt->execute();
@@ -436,6 +437,14 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
             $spotify_per_viewer_limit = (int) $spotify_pvl;
         }
         $stmt->close();
+    }
+    // Separate read so channels without the per-stream column still load
+    try {
+        $pvsRes = $db->query("SELECT per_viewer_stream_limit FROM media_request_settings WHERE id = 1");
+        if ($pvsRes && ($pvsRow = $pvsRes->fetch_assoc())) {
+            $spotify_per_viewer_stream_limit = (int) $pvsRow['per_viewer_stream_limit'];
+        }
+    } catch (Throwable $ignored) {
     }
 
     $moduleBots = [];
@@ -510,6 +519,7 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
             'max_song_seconds' => $spotify_max_song_seconds,
             'max_queue_length' => $spotify_max_queue_length,
             'per_viewer_limit' => $spotify_per_viewer_limit,
+            'per_viewer_stream_limit' => $spotify_per_viewer_stream_limit,
         ],
     ];
 }
@@ -661,9 +671,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['save_spotify_settings'
     $mss = max(30, intval($_POST['max_song_seconds'] ?? 600));
     $mql = max(1, intval($_POST['max_queue_length'] ?? 20));
     $pvl = max(0, intval($_POST['per_viewer_limit'] ?? 2));
-    $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit) VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), max_song_seconds = VALUES(max_song_seconds), max_queue_length = VALUES(max_queue_length), per_viewer_limit = VALUES(per_viewer_limit)");
+    $pvs = max(0, intval($_POST['per_viewer_stream_limit'] ?? 0));
+    // Add the per-stream column if this channel hasn't been migrated yet
+    try {
+        $db->query("ALTER TABLE media_request_settings ADD COLUMN per_viewer_stream_limit INT NOT NULL DEFAULT 0");
+    } catch (Throwable $ignored) {
+    }
+    $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, per_viewer_stream_limit) VALUES (1, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), max_song_seconds = VALUES(max_song_seconds), max_queue_length = VALUES(max_queue_length), per_viewer_limit = VALUES(per_viewer_limit), per_viewer_stream_limit = VALUES(per_viewer_stream_limit)");
     if ($stmt) {
-        $stmt->bind_param('iiii', $en, $mss, $mql, $pvl);
+        $stmt->bind_param('iiiii', $en, $mss, $mql, $pvl, $pvs);
         $stmt->execute();
         $stmt->close();
     }
@@ -2223,24 +2239,41 @@ ob_start();
                                 <span class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('modules_spotify_song_requests_title'); ?></span>
                             </header>
                             <div class="sp-card-body">
-                                <form method="post" style="max-width: 440px; display: flex; flex-direction: column; gap: 0.75rem;">
-                                    <label class="sp-label">
-                                        <input type="checkbox" name="enabled" id="spotify_enabled">
-                                        <span><?php echo t('modules_spotify_song_requests_enabled'); ?></span>
-                                    </label>
-                                    <div class="sp-form-group">
-                                        <label class="sp-label"><?php echo t('modules_spotify_song_requests_max_len'); ?></label>
-                                        <input class="sp-input" type="number" name="max_song_seconds" min="30" value="600" required>
-                                    </div>
-                                    <div class="sp-form-group">
-                                        <label class="sp-label"><?php echo t('modules_spotify_song_requests_max_queue'); ?></label>
-                                        <input class="sp-input" type="number" name="max_queue_length" min="1" value="20" required>
-                                    </div>
-                                    <div class="sp-form-group">
-                                        <label class="sp-label"><?php echo t('modules_spotify_song_requests_per_viewer_limit'); ?></label>
-                                        <input class="sp-input" type="number" name="per_viewer_limit" min="0" value="2" required>
-                                        <span class="sp-help"><?php echo t('per_viewer_limit_unlimited_help'); ?></span>
-                                    </div>
+                                <form method="post" class="sr-settings-form">
+                                  <div class="sr-settings-grid">
+                                    <section class="sr-settings-section">
+                                        <h3 class="sr-settings-title"><?php echo t('sr_section_general'); ?></h3>
+                                        <label class="sp-label">
+                                            <input type="checkbox" name="enabled" id="spotify_enabled">
+                                            <span><?php echo t('modules_spotify_song_requests_enabled'); ?></span>
+                                        </label>
+                                    </section>
+                                    <section class="sr-settings-section">
+                                        <h3 class="sr-settings-title"><?php echo t('sr_section_queue'); ?></h3>
+                                        <div class="sp-form-group">
+                                            <label class="sp-label"><?php echo t('modules_spotify_song_requests_max_len'); ?></label>
+                                            <input class="sp-input" type="number" name="max_song_seconds" min="30" value="600" required>
+                                        </div>
+                                        <div class="sp-form-group">
+                                            <label class="sp-label"><?php echo t('modules_spotify_song_requests_max_queue'); ?></label>
+                                            <input class="sp-input" type="number" name="max_queue_length" min="1" value="20" required>
+                                        </div>
+                                    </section>
+                                    <section class="sr-settings-section">
+                                        <h3 class="sr-settings-title"><?php echo t('sr_section_per_viewer'); ?></h3>
+                                        <div class="sp-form-group">
+                                            <label class="sp-label"><?php echo t('modules_spotify_song_requests_per_viewer_limit'); ?></label>
+                                            <input class="sp-input" type="number" name="per_viewer_limit" min="0" value="2" required>
+                                            <span class="sp-help"><?php echo t('per_viewer_limit_unlimited_help'); ?></span>
+                                        </div>
+                                        <div class="sp-form-group">
+                                            <label class="sp-label"><?php echo t('sr_per_viewer_stream'); ?></label>
+                                            <input class="sp-input" type="number" name="per_viewer_stream_limit" min="0" value="0" required>
+                                            <span class="sp-help"><?php echo t('sr_per_viewer_stream_help'); ?></span>
+                                        </div>
+                                        <span class="sp-help"><?php echo t('sr_per_viewer_commands_help'); ?></span>
+                                    </section>
+                                  </div>
                                     <button class="sp-btn sp-btn-primary" type="submit" name="save_spotify_settings" value="1">
                                         <i class="fas fa-save"></i> <?php echo t('modules_spotify_song_requests_save'); ?>
                                     </button>
@@ -2608,6 +2641,7 @@ ob_start();
         modulesSetInputValue('input[name="max_song_seconds"]', spotify.max_song_seconds);
         modulesSetInputValue('input[name="max_queue_length"]', spotify.max_queue_length);
         modulesSetInputValue('input[name="per_viewer_limit"]', spotify.per_viewer_limit);
+            modulesSetInputValue('input[name="per_viewer_stream_limit"]', spotify.per_viewer_stream_limit);
 
         document.querySelectorAll('.chat-alert-input, .ad-notice-input, .welcome-message-input').forEach(function(input) {
             var counter = document.querySelector('.char-count[data-field="' + input.getAttribute('name') + '"]');
