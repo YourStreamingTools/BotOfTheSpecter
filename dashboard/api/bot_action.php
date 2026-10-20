@@ -123,10 +123,10 @@ if ($banResponse !== false && $banHttpCode === 200) {
     exit();
   }
 }
-// Check if custom bot mode is enabled (only for stable/beta and only when starting the bot)
+// Check if custom bot mode is enabled (only for stable/beta/v6 and only when starting the bot)
 $useCustomBot = false;
 $customBotUsername = null;
-if ($action === 'run' && isset($_POST['use_custom_bot']) && ($_POST['use_custom_bot'] === 'true' || $_POST['use_custom_bot'] === '1') && in_array($bot, ['stable', 'beta'], true)) {
+if ($action === 'run' && isset($_POST['use_custom_bot']) && ($_POST['use_custom_bot'] === 'true' || $_POST['use_custom_bot'] === '1') && in_array($bot, ['stable', 'beta', 'v6'], true)) {
   // Query custom_bots table for this channel
   $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
   if ($stmt) {
