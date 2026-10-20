@@ -1288,6 +1288,7 @@ try {
                 uploader VARCHAR(255) DEFAULT NULL,
                 duration_seconds INT NOT NULL DEFAULT 0,
                 requested_by VARCHAR(255) NOT NULL,
+                requested_by_id VARCHAR(64) NULL,
                 requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 status ENUM('queued','playing','played') NOT NULL DEFAULT 'queued',
                 INDEX idx_status (status)

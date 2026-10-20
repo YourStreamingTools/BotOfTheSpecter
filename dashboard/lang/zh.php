@@ -2951,6 +2951,7 @@ return [
     'media_player_max_len' => '最大歌曲长度 (seconds)',
     'media_player_max_queue' => '最大队列长度',
     'media_player_per_viewer' => '每个观看者最多播放多少首歌曲',
+    'per_viewer_limit_unlimited_help' => '0 = 不限制',
     'media_player_artist_limit' => '全局艺人点歌上限',
     'media_player_artist_limit_help' => '下方时间段内每位艺人的默认上限。名单里的单独上限会替换这个数字。填 0 关闭全局上限；设了单独数字的艺人仍然受限。',
     'media_player_artist_period' => '艺人上限周期',

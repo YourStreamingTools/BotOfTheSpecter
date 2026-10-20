@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
@@ -6645,6 +6645,8 @@ class TwitchBot(commands.Bot):
                 return
             headers = {"Authorization": f"Bearer {access_token}"}
             is_broadcaster = (ctx.message.author.name.lower() == CHANNEL_NAME.lower()) or (ctx.message.author.name.lower() == bot_owner.lower())
+            # Mods also skip the per-viewer limit
+            skip_viewer_limit = is_broadcaster or bool(getattr(ctx.message.author, "is_mod", False))
             # Fetch settings to check enabled state and per-viewer limits
             try:
                 settings = await get_media_settings(connection)
@@ -6676,10 +6678,10 @@ class TwitchBot(commands.Bot):
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to prune song requests before limit check: {e}")
             # Enforce song limit check (broadcaster/streamer is exempt)
-            if not is_broadcaster:
+            if not skip_viewer_limit:
                 user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == ctx.message.author.name.lower())
-                if user_requests_count >= per_viewer_limit:
-                    await send_chat_message(f"You already have {per_viewer_limit} song(s) in the queue.")
+                if int(per_viewer_limit) > 0 and user_requests_count >= int(per_viewer_limit):
+                    await send_chat_message(viewer_limit_message(ctx.message.author.name, user_requests_count, per_viewer_limit))
                     return
             message = ctx.message.content
             parts = message.split(" ", 1)
@@ -6827,7 +6829,7 @@ class TwitchBot(commands.Bot):
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to get media banlist: {e}")
                 banlist = []
-            if not is_broadcaster:
+            if not skip_viewer_limit:
                 user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == ctx.message.author.name.lower())
             else:
                 user_requests_count = 0
@@ -6845,7 +6847,7 @@ class TwitchBot(commands.Bot):
                 msgs = {
                     "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
                     "queue_full": "The song queue is full, please try again later.",
-                    "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                    "viewer_limit": viewer_limit_message(ctx.author.name, user_requests_count, settings['per_viewer_limit']),
                     "banned": "Sorry, that song isn't allowed here.",
                 }
                 await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
@@ -6905,8 +6907,15 @@ class TwitchBot(commands.Bot):
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
                 queue_count = (await cursor.fetchone())["c"]
-                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
+                # Count by user ID when the column exists, falling back to display name
+                try:
+                    await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND (requested_by_id=%s OR (requested_by_id IS NULL AND requested_by=%s))", (str(ctx.author.id), ctx.author.name))
+                except Exception:
+                    await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
                 viewer_count = (await cursor.fetchone())["c"]
+            # Broadcaster, bot owner and mods skip the per-viewer limit
+            if (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False)):
+                viewer_count = 0
             ok, reason = evaluate_guardrails(
                 duration=resolved["duration"], queue_count=queue_count, viewer_count=viewer_count,
                 settings=settings, video_id=resolved["video_id"], title=resolved["title"], banlist=banlist)
@@ -6914,7 +6923,7 @@ class TwitchBot(commands.Bot):
                 msgs = {
                     "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
                     "queue_full": "The song queue is full, please try again later.",
-                    "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                    "viewer_limit": viewer_limit_message(ctx.author.name, viewer_count, settings['per_viewer_limit']),
                     "banned": "Sorry, that song isn't allowed here.",
                 }
                 await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
@@ -6934,9 +6943,15 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(song_block)
                     return
             async with connection.cursor() as cursor:
-                await cursor.execute(
-                    "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
-                    (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
+                # Store the user ID too; fall back if the column hasn't been migrated yet
+                try:
+                    await cursor.execute(
+                        "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, requested_by_id, status) VALUES (%s,%s,%s,%s,%s,%s,'queued')",
+                        (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name, str(ctx.author.id)))
+                except Exception:
+                    await cursor.execute(
+                        "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
+                        (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
             await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")

@@ -660,7 +660,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['save_spotify_settings'
     $en = isset($_POST['enabled']) ? 1 : 0;
     $mss = max(30, intval($_POST['max_song_seconds'] ?? 600));
     $mql = max(1, intval($_POST['max_queue_length'] ?? 20));
-    $pvl = max(1, intval($_POST['per_viewer_limit'] ?? 2));
+    $pvl = max(0, intval($_POST['per_viewer_limit'] ?? 2));
     $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit) VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), max_song_seconds = VALUES(max_song_seconds), max_queue_length = VALUES(max_queue_length), per_viewer_limit = VALUES(per_viewer_limit)");
     if ($stmt) {
         $stmt->bind_param('iiii', $en, $mss, $mql, $pvl);
@@ -2238,7 +2238,8 @@ ob_start();
                                     </div>
                                     <div class="sp-form-group">
                                         <label class="sp-label"><?php echo t('modules_spotify_song_requests_per_viewer_limit'); ?></label>
-                                        <input class="sp-input" type="number" name="per_viewer_limit" min="1" value="2" required>
+                                        <input class="sp-input" type="number" name="per_viewer_limit" min="0" value="2" required>
+                                        <span class="sp-help"><?php echo t('per_viewer_limit_unlimited_help'); ?></span>
                                     </div>
                                     <button class="sp-btn sp-btn-primary" type="submit" name="save_spotify_settings" value="1">
                                         <i class="fas fa-save"></i> <?php echo t('modules_spotify_song_requests_save'); ?>

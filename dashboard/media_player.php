@@ -42,6 +42,7 @@ try {
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
         "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
+        "ALTER TABLE media_queue ADD COLUMN requested_by_id VARCHAR(64) NULL AFTER requested_by",
     ] as $artistLimitSql) {
         try {
             $db->query($artistLimitSql);
@@ -52,7 +53,7 @@ try {
         $en = isset($_POST['enabled']) ? 1 : 0;
         $mss = max(30, (int)($_POST['max_song_seconds'] ?? 600));
         $mql = max(1, (int)($_POST['max_queue_length'] ?? 20));
-        $pvl = max(1, (int)($_POST['per_viewer_limit'] ?? 2));
+        $pvl = max(0, (int)($_POST['per_viewer_limit'] ?? 2));
         $vol = max(0, min(100, (int)($_POST['volume'] ?? 30)));
         $alc = max(0, (int)($_POST['artist_limit_count'] ?? 0));
         $alp = (string) ($_POST['artist_limit_period'] ?? 'stream');
@@ -176,7 +177,8 @@ ob_start();
             <label class="sp-label"><?php echo t('media_player_max_queue'); ?>
                 <input class="sp-input" type="number" name="max_queue_length" min="1" value="<?php echo (int)$mediaSettings['max_queue_length']; ?>"></label>
             <label class="sp-label"><?php echo t('media_player_per_viewer'); ?>
-                <input class="sp-input" type="number" name="per_viewer_limit" min="1" value="<?php echo (int)$mediaSettings['per_viewer_limit']; ?>"></label>
+                <input class="sp-input" type="number" name="per_viewer_limit" min="0" value="<?php echo (int)$mediaSettings['per_viewer_limit']; ?>">
+                <span class="sp-help"><?php echo t('per_viewer_limit_unlimited_help'); ?></span></label>
             <label class="sp-label"><?php echo t('media_player_artist_limit'); ?>
                 <input class="sp-input" type="number" name="artist_limit_count" min="0" value="<?php echo (int)($mediaSettings['artist_limit_count'] ?? 0); ?>">
                 <span class="sp-help"><?php echo t('media_player_artist_limit_help'); ?></span></label>

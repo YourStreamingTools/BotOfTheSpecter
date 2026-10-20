@@ -2944,6 +2944,7 @@ return [
     'media_player_max_len' => 'Maximale Songlänge (Sekunden)',
     'media_player_max_queue' => 'Maximale Warteschlangenlänge',
     'media_player_per_viewer' => 'Max. Songs pro Zuschauer',
+    'per_viewer_limit_unlimited_help' => '0 = unbegrenzt',
     'media_player_same_song' => 'Gleicher Song (Minuten)',
     'media_player_same_song_help' => 'Wie lange derselbe Song nicht erneut angefragt werden kann. 720 sind 12 Stunden. 0 schaltet das aus.',
     'media_player_artist_limit' => 'Globales Anfragenlimit pro Künstler',

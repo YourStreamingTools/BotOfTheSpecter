@@ -3009,6 +3009,7 @@ return [
     'media_player_max_len' => 'Duración máxima de la canción (segundos)',
     'media_player_max_queue' => 'Longitud máxima de la cola',
     'media_player_per_viewer' => 'Máximo de canciones por espectador',
+    'per_viewer_limit_unlimited_help' => '0 = ilimitado',
     'media_player_artist_limit' => 'Límite global de peticiones por artista',
     'media_player_artist_limit_help' => 'Tope predeterminado para un artista en el periodo de abajo. Un límite propio en la lista sustituye este número. 0 desactiva el tope global; los artistas con su propio número siguen limitados.',
     'media_player_artist_period' => 'Periodo del límite por artista',

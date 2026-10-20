@@ -3011,6 +3011,7 @@ return [
     'media_player_max_len' => 'Max song length (seconds)',
     'media_player_max_queue' => 'Max queue length',
     'media_player_per_viewer' => 'Max songs per viewer',
+    'per_viewer_limit_unlimited_help' => '0 = unlimited',
     'media_player_same_song' => 'Same song gap (minutes)',
     'media_player_same_song_help' => 'How long before the same song can be requested again. 720 is 12 hours. 0 turns this off.',
     'media_player_artist_limit' => 'Global artist request limit',
