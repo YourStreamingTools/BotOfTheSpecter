@@ -1311,6 +1311,8 @@ return [
     'bot_v6_controls' => 'Controles de la Version 6',
     'bot_v6_description' => 'La Version 6 est une reecriture complete et est actuellement en phase de developpement precoce.',
     'bot_v6_danger_notice' => 'Une reecriture complete a ete lancee pour la version 6 et son utilisation n\'est pas recommandee a ce stade. Un avis sera publie sur Discord lorsque la version 6 sera prete pour les tests.',
+    'bot_v6_moved_notice' => 'La version 6 fonctionne désormais depuis le nouveau tableau de bord Version 6. Démarrez, arrêtez et gérez le bot Version 6 depuis celui-ci. D\'autres fonctionnalités y arriveront au fil du temps.',
+    'bot_v6_open_beta_dashboard' => 'Ouvrir le tableau de bord Version 6',
     'bot_fetching_status' => 'Recuperation du statut...',
     'bot_checking_status' => 'Verification du statut...',
     'bot_network_status' => 'Etat du reseau',

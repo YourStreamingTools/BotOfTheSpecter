@@ -74,6 +74,8 @@ document.addEventListener('DOMContentLoaded', function() {
             for (var i = 0; i < nodes.length; i++) {
                 var el = nodes[i];
                 if (el.getAttribute('data-specter-support')) continue;
+                // Informational danger/notice boxes opt out of the support note.
+                if (el.hasAttribute('data-no-support-note') || (el.closest && el.closest('[data-no-support-note]'))) continue;
                 var existing = el.textContent || '';
                 if (existing.indexOf('tickets.php') !== -1 || el.querySelector('.specter-error-support')) {
                     el.setAttribute('data-specter-support', '1');

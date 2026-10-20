@@ -1206,7 +1206,7 @@ function profileRenderStorage(storage) {
     var minWidth = (percent > 0 && percent < 1) ? 'min-width:4px;' : '';
     var alertHtml = '';
     if (percent >= 100) {
-        alertHtml = '<div class="sp-alert sp-alert-danger" style="margin-top:1rem;margin-bottom:0;"><strong>' + PROFILE_I18N.storageLimit + '</strong></div>';
+        alertHtml = '<div class="sp-alert sp-alert-danger" data-no-support-note="1" style="margin-top:1rem;margin-bottom:0;"><strong>' + PROFILE_I18N.storageLimit + '</strong></div>';
     } else if (percent >= 90) {
         alertHtml = '<div class="sp-alert sp-alert-warning" style="margin-top:1rem;margin-bottom:0;"><strong>' + PROFILE_I18N.storageAlmostFull + '</strong></div>';
     }

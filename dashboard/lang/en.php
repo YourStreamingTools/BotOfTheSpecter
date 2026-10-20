@@ -1367,6 +1367,8 @@ return [
     'bot_v6_controls' => 'Version 6 Controls',
     'bot_v6_description' => 'Version 6 is a complete rewrite and is currently in early development.',
     'bot_v6_danger_notice' => 'A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.',
+    'bot_v6_moved_notice' => 'Version 6 now runs from the new Version 6 dashboard. Start, stop and manage the Version 6 bot there. More features are arriving on the new dashboard over time.',
+    'bot_v6_open_beta_dashboard' => 'Open the Version 6 dashboard',
     'bot_fetching_status' => 'Fetching status...',
     'bot_checking_status' => 'Checking status...',
     'bot_network_status' => 'Network Status',
