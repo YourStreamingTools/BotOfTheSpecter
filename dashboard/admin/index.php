@@ -1260,6 +1260,57 @@ return null;
     return null;
 }
 
+// Count non-beta users who subscribe to the broadcaster. Helix accepts up to 100
+// user_id values per request, so this is one or two calls instead of one per user.
+// Cached in the session for 10 minutes so reloading the admin page stays fast.
+function admin_index_premium_subscriber_count($conn) {
+    global $clientID;
+    $accessToken = $_SESSION['access_token'] ?? '';
+    if ($accessToken === '') {
+        return 0;
+    }
+    $cache = $_SESSION['admin_premium_count_cache'] ?? null;
+    if (is_array($cache) && isset($cache['at'], $cache['count']) && (time() - (int)$cache['at']) < 600) {
+        return (int)$cache['count'];
+    }
+    $ids = [];
+    $result = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != '' AND beta_access = 0");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $ids[] = (string)$row['twitch_user_id'];
+        }
+    }
+    $count = 0;
+    $ok = true;
+    foreach (array_chunk($ids, 100) as $chunk) {
+        $query = 'broadcaster_id=140296994&first=100';
+        foreach ($chunk as $id) {
+            $query .= '&user_id=' . urlencode($id);
+        }
+        $ch = curl_init('https://api.twitch.tv/helix/subscriptions?' . $query);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Client-ID: $clientID", "Authorization: Bearer $accessToken"]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        $response = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($response === false || $httpCode !== 200) {
+            $ok = false;
+            continue;
+        }
+        $data = json_decode($response, true);
+        foreach (($data['data'] ?? []) as $sub) {
+            if (in_array((string)($sub['tier'] ?? ''), ['1000', '2000', '3000'], true)) {
+                $count++;
+            }
+        }
+    }
+    if ($ok) {
+        $_SESSION['admin_premium_count_cache'] = ['at' => time(), 'count' => $count];
+    }
+    return $count;
+}
+
 // Service statuses will be loaded asynchronously via JavaScript
 $discord_status = ['status' => 'Loading...', 'pid' => '...'];
 $api_status = ['status' => 'Loading...', 'pid' => '...'];
@@ -1290,15 +1341,7 @@ if ($conn) {
     // Count premium users (actual Twitch subscribers who are NOT beta users)
     $premium_count = 0;
     if (!$return_ai_stats_json && isset($_SESSION['access_token'])) {
-        $result = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != '' AND beta_access = 0");
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                $tier = getTwitchSubTier($row['twitch_user_id']);
-                if ($tier && in_array($tier, ["1000", "2000", "3000"])) {
-                    $premium_count++;
-                }
-            }
-        }
+        $premium_count = admin_index_premium_subscriber_count($conn);
     }
     $regular_count = $total_users - $admin_count - $beta_count - $premium_count;
     // Ensure regular count doesn't go negative if users have multiple roles
