@@ -985,8 +985,12 @@ if ($username) {
                 // bg_opacity holds the ad opacity. Under 10 was never set, so it shows at full colour.
                 const adOpacity = parseInt(config.bg_opacity, 10);
                 const adAlpha = (isNaN(adOpacity) || adOpacity < 10) ? 1 : Math.min(100, adOpacity) / 100;
+                // ad_color is the channel's ad break colour, yellow if unset or invalid
+                const adHex = /^#[0-9A-Fa-f]{6}$/.test(config.ad_color || '') ? config.ad_color : '#F5C518';
+                const adNum = parseInt(adHex.slice(1), 16);
+                const adRgb = ((adNum >> 16) & 255) + ', ' + ((adNum >> 8) & 255) + ', ' + (adNum & 255);
                 container.innerHTML = `
-                    <div class="ad-break-frame" data-display="${adDisplay}" data-pill-h="${pillH}" data-pill-v="${pillV}" style="--ad-alpha: ${adAlpha};">
+                    <div class="ad-break-frame" data-display="${adDisplay}" data-pill-h="${pillH}" data-pill-v="${pillV}" style="--ad-alpha: ${adAlpha}; --ad-rgb: ${adRgb};">
                         <div class="ad-break-pill"><span class="ad-break-clock" data-ad="duration">0:00</span></div>
                     </div>
                 `;

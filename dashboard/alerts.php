@@ -563,6 +563,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $text_vertical_alignment = $_POST['text_vertical_alignment'] ?? 'center';
         $text_color = $_POST['text_color'] ?? '#FFFFFF';
         $accent_color = $_POST['accent_color'] ?? '#7C5CBF';
+        // Ad break colour must be #RRGGBB, otherwise keep the yellow default
+        $ad_color = (string) ($_POST['ad_color'] ?? '#F5C518');
+        if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $ad_color)) {
+            $ad_color = '#F5C518';
+        }
         $text_drop_shadow = intval($_POST['text_drop_shadow'] ?? 1);
         $tts_enabled = intval($_POST['tts_enabled'] ?? 0);
         $alert_image = $_POST['alert_image'] ?? null;
@@ -599,6 +604,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $id
         );
         if ($stmt->execute()) {
+        if ($existingAlertCategory === 'ad_break') {
+            // Saved separately so a channel whose ad_color column isn't migrated yet still saves
+            try {
+                $adColorStmt = $db->prepare("UPDATE twitch_alerts SET ad_color = ? WHERE id = ?");
+                if ($adColorStmt) {
+                    $adColorStmt->bind_param('si', $ad_color, $id);
+                    $adColorStmt->execute();
+                    $adColorStmt->close();
+                }
+            } catch (Throwable $ignored) {
+            }
+        }
             echo json_encode(['success' => true, 'message' => 'Variant saved.']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Failed to save: ' . $stmt->error]);
@@ -1212,6 +1229,10 @@ ob_start();
                                     <input type="range" id="set-ad-opacity" min="10" max="100" step="5" value="100">
                                     <span class="alerts-range-value" id="ad-opacity-val">100%</span>
                                 </div>
+                            </div>
+                            <div class="alerts-form-group">
+                                <label for="set-ad-color"><?= t('alerts_ad_color') ?></label>
+                                <input type="color" id="set-ad-color" value="#F5C518">
                             </div>
                             <small class="alerts-help-text"><?= t('alerts_ad_break_note') ?></small>
                         </div>
@@ -2245,6 +2266,7 @@ $(document).ready(function() {
         $('#set-ad-display').val(a.layout_preset === 'pill' ? 'pill' : 'frame');
         $('#set-ad-pill-position').val(adPillPosition(a.screen_position));
         $('#set-ad-opacity').val(adOpacity(a.bg_opacity));
+        $('#set-ad-color').val(adColor(a.ad_color));
         updateAdFramePreview();
         $('#set-animation-in').val(a.animation_in);
         $('#set-animation-out').val(a.animation_out);
@@ -2675,14 +2697,22 @@ $(document).ready(function() {
         var v = parseInt(value, 10);
         return (isNaN(v) || v < 10) ? 100 : Math.min(100, v);
     }
+    function adColor(value) {
+        return /^#[0-9A-Fa-f]{6}$/.test(value || '') ? value : '#F5C518';
+    }
+    function adRgb(hex) {
+        var n = parseInt(adColor(hex).slice(1), 16);
+        return ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255);
+    }
     function updateAdFramePreview() {
         var parts = String($('#set-ad-pill-position').val() || 'right-top').split('-');
         var opacity = adOpacity($('#set-ad-opacity').val());
         $('#ad-opacity-val').text(opacity + '%');
         $('#preview-ad-frame').attr({ 'data-display': $('#set-ad-display').val() || 'frame', 'data-pill-h': parts[0], 'data-pill-v': parts[1] });
         $('#preview-ad-frame')[0].style.setProperty('--ad-alpha', String(opacity / 100));
+        $('#preview-ad-frame')[0].style.setProperty('--ad-rgb', adRgb($('#set-ad-color').val()));
     }
-    $('#set-ad-opacity').on('input', function() {
+    $('#set-ad-opacity, #set-ad-color').on('input', function() {
         updateAdFramePreview();
         markDirty();
     });
@@ -2718,6 +2748,7 @@ $(document).ready(function() {
             text_vertical_alignment: $('.valign-btn.active').data('valign'),
             text_color: $('#set-text-color').val(),
             accent_color: $('#set-accent-color').val(),
+            ad_color: isAdVariant ? adColor($('#set-ad-color').val()) : undefined,
             text_drop_shadow: $('#set-text-drop-shadow').is(':checked') ? 1 : 0,
             tts_enabled: $('#set-tts-enabled').is(':checked') ? 1 : 0,
             alert_image: alertsData[currentAlertId].alert_image,

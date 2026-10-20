@@ -866,7 +866,7 @@
     inset: 0;
     z-index: 3;
     box-sizing: border-box;
-    border: 10px solid rgba(245, 197, 24, var(--ad-alpha, 1));
+    border: 10px solid rgba(var(--ad-rgb, 245, 197, 24), var(--ad-alpha, 1));
     background: transparent;
     pointer-events: none;
 }
@@ -874,7 +874,7 @@
     position: absolute;
     top: 18px;
     right: 18px;
-    background: #F5C518;
+    background: rgb(var(--ad-rgb, 245, 197, 24));
     color: #1a1400;
     font-weight: 800;
     font-size: 18px;

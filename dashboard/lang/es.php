@@ -1441,6 +1441,7 @@ return [
     'alerts_ad_display_frame' => 'Marco a pantalla completa con temporizador',
     'alerts_ad_display_pill' => 'Solo temporizador',
     'alerts_ad_pill_position' => 'Posición del temporizador',
+    'alerts_ad_color' => 'Color de la pausa publicitaria',
     'alerts_simple_note' => 'Esta alerta mantiene su propio tema superpuesto. Elija dónde aparece en la pantalla y luego actívelo o desactívelo.',
     'alerts_walkon_note' => 'Los walk-ons muestran cómo configuraste a cada espectador en la página de Medios (sonido, sonido + imagen y nombre, o video). Elija dónde aparece la imagen en la pantalla a continuación.',
     'alerts_screen_position' => 'Posición de la pantalla',
