@@ -158,15 +158,98 @@ if ($username) {
             // Set by a live test from the Alerts page so the selected variant plays.
             let testVariant = null;
             const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
-            // One queue for every one-shot alert: cards, sounds, TTS, videos, walk-ons,
-            // deaths and weather. The next job starts when the current one has finished.
+            // One queue for one-shot alerts: cards, TTS, walk-ons, deaths and weather.
+            // The next job starts when the current one has finished.
             // Ad breaks stay outside this queue — they last the whole Twitch break.
+            // Sound and video alerts use mediaQueue below, so they never wait behind a card.
+            // Jobs that make sound also take the shared audio slot, so two sounds never overlap.
             const jobQueue = [];
             let jobActive = false;
             let currentJob = null;
             let currentAudio = null;
             let fxAudio = null;
             let currentVideo = null;
+            // Sound and video alerts: FIFO, one at a time, running alongside jobQueue
+            const mediaQueue = [];
+            let mediaActive = false;
+            let mediaAudio = null;
+            // Extra seconds past a clip's length before a stalled item is skipped
+            const MEDIA_SAFETY_PAD_MS = 5000;
+            // Max wait for a clip to load before it is skipped
+            const MEDIA_LOAD_STALL_MS = 20000;
+            // Longest any job may hold the audio slot before it is forced free
+            const AUDIO_SLOT_MAX_MS = 120000;
+            // Audio slot: one sound at a time across both queues, granted FIFO in request order
+            const audioWaiters = [];
+            let audioBusy = false;
+            function acquireAudioSlot(start) {
+                if (!audioBusy) { audioBusy = true; start(); return; }
+                audioWaiters.push(start);
+            }
+            function releaseAudioSlot() {
+                const next = audioWaiters.shift();
+                if (next) next();
+                else audioBusy = false;
+            }
+            // Runs a job, holding the audio slot first when job.isAudio() says it makes sound
+            function startQueuedJob(job, label, onDone) {
+                let audio = false;
+                try { audio = typeof job.isAudio === 'function' ? !!job.isAudio() : !!job.isAudio; } catch (e) { audio = false; }
+                const run = () => {
+                    let settled = false;
+                    let released = false;
+                    let slotTimer = null;
+                    // Frees the audio slot once; a card calls it when its sound ends but keeps showing
+                    const releaseAudio = () => {
+                        if (!audio || released) return;
+                        released = true;
+                        if (slotTimer) clearTimeout(slotTimer);
+                        releaseAudioSlot();
+                    };
+                    const done = () => {
+                        if (settled) return;
+                        settled = true;
+                        releaseAudio();
+                        onDone();
+                    };
+                    if (audio) slotTimer = setTimeout(() => { if (released) return; console.warn(label + ' held the audio slot too long, skipping:', job.kind); if (typeof job.cancel === 'function') job.cancel(); done(); }, AUDIO_SLOT_MAX_MS);
+                    try {
+                        job.cancel = job.start(done, releaseAudio) || function () {};
+                    } catch (e) {
+                        console.error(label + ' failed:', e);
+                        done();
+                    }
+                };
+                if (audio) acquireAudioSlot(run);
+                else run();
+            }
+            function enqueueMediaJob(job) {
+                mediaQueue.push(job);
+                if (!mediaActive) runNextMediaJob();
+            }
+            function runNextMediaJob() {
+                const job = mediaQueue.shift();
+                if (!job) {
+                    mediaActive = false;
+                    return;
+                }
+                mediaActive = true;
+                startQueuedJob(job, 'Media job', () => {
+                    mediaActive = false;
+                    runNextMediaJob();
+                });
+            }
+            // Skips a stalled clip: armed at load, re-armed to its length once metadata arrives
+            function mediaSafetyTimer(el, finish) {
+                let timer = setTimeout(() => { console.warn('Media item stalled, skipping:', el.src); finish(); }, MEDIA_LOAD_STALL_MS);
+                el.addEventListener('loadedmetadata', () => {
+                    const secs = Number(el.duration);
+                    if (!Number.isFinite(secs) || secs <= 0) return;
+                    clearTimeout(timer);
+                    timer = setTimeout(() => { console.warn('Media item overran its length, skipping:', el.src); finish(); }, secs * 1000 + MEDIA_LOAD_STALL_MS + MEDIA_SAFETY_PAD_MS);
+                }, { once: true });
+                return () => clearTimeout(timer);
+            }
             function enqueueJob(job, front) {
                 if (front) jobQueue.unshift(job);
                 else jobQueue.push(job);
@@ -181,20 +264,18 @@ if ($username) {
                 }
                 jobActive = true;
                 currentJob = job;
-                let settled = false;
-                const done = () => {
-                    if (settled) return;
-                    settled = true;
+                startQueuedJob(job, 'Alert job', () => {
                     if (currentJob === job) currentJob = null;
                     jobActive = false;
                     runNextJob();
-                };
-                try {
-                    job.cancel = job.start(done) || function () {};
-                } catch (e) {
-                    console.error('Alert job failed:', e);
-                    done();
-                }
+                });
+            }
+            // A card makes sound when it has an alert sound or a webm image with volume; TTS read-aloud queues its own job
+            function cardHasAudio(config) {
+                if (!config) return false;
+                if (config.alert_sound) return true;
+                const ext = String(config.alert_image || '').split('.').pop().toLowerCase();
+                return ext === 'webm' && (parseInt(config.image_volume, 10) || 0) > 0;
             }
             // A new sub and a resub for the same person often arrive together.
             // Hold briefly, then keep the one with the higher month count.
@@ -215,10 +296,11 @@ if ($username) {
                     months: subMonths(eventData),
                     eventData: eventData,
                     cancel: function () {},
-                    start(done) {
+                    isAudio() { return cardHasAudio(getMatchingVariant('subscription', this.eventData)); },
+                    start(done, releaseAudio) {
                         const config = getMatchingVariant('subscription', this.eventData);
                         if (!config) { done(); return; }
-                        return renderAlert(config, this.eventData, done);
+                        return renderAlert(config, this.eventData, done, releaseAudio);
                     }
                 };
                 enqueueJob(job, front);
@@ -276,17 +358,21 @@ if ($username) {
                 const vol = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.3;
                 enqueueJob({
                     kind: 'audio',
+                    isAudio: true,
                     start(done) {
                         const audio = new Audio(SpecterOverlayWS.playbackUrl(url));
                         fxAudio = audio;
                         audio.volume = vol;
                         let settled = false;
+                        let clearSafety = () => {};
                         const finish = () => {
                             if (settled) return;
                             settled = true;
+                            clearSafety();
                             if (fxAudio === audio) fxAudio = null;
                             done();
                         };
+                        clearSafety = mediaSafetyTimer(audio, finish);
                         audio.addEventListener('ended', finish);
                         audio.addEventListener('error', (e) => {
                             console.error('FX audio error:', e, 'src=', audio.src);
@@ -297,6 +383,42 @@ if ($username) {
                             finish();
                         });
                         return () => { audio.pause(); finish(); };
+                    }
+                });
+            }
+            // Sound alerts play on mediaQueue; TTS stays on jobQueue via enqueueFxAudio
+            function enqueueSoundAlert(url, volume) {
+                if (!url) return;
+                const n = Number(volume);
+                const vol = Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.3;
+                enqueueMediaJob({
+                    kind: 'sound',
+                    isAudio: true,
+                    start(done) {
+                        const audio = new Audio(SpecterOverlayWS.playbackUrl(url));
+                        mediaAudio = audio;
+                        audio.volume = vol;
+                        let settled = false;
+                        let clearSafety = () => {};
+                        const finish = () => {
+                            if (settled) return;
+                            settled = true;
+                            clearSafety();
+                            try { audio.pause(); } catch (e) {}
+                            if (mediaAudio === audio) mediaAudio = null;
+                            done();
+                        };
+                        clearSafety = mediaSafetyTimer(audio, finish);
+                        audio.addEventListener('ended', finish);
+                        audio.addEventListener('error', (e) => {
+                            console.error('Sound alert error:', e, 'src=', audio.src);
+                            finish();
+                        });
+                        audio.play().catch(err => {
+                            console.warn('Sound alert autoplay blocked:', err && err.name);
+                            finish();
+                        });
+                        return finish;
                     }
                 });
             }
@@ -333,8 +455,9 @@ if ($username) {
             // Same player as the retired video-alert.php browser source.
             function enqueueVideo(url) {
                 if (!url) return;
-                enqueueJob({
+                enqueueMediaJob({
                     kind: 'video',
+                    isAudio: true,
                     start(done) {
                         const vid = document.createElement('video');
                         currentVideo = vid;
@@ -346,14 +469,17 @@ if ($username) {
                         vid.preload = 'auto';
                         document.body.appendChild(vid);
                         let settled = false;
+                        let clearSafety = () => {};
                         const finish = () => {
                             if (settled) return;
                             settled = true;
+                            clearSafety();
                             if (vid.parentNode) vid.parentNode.removeChild(vid);
                             if (currentVideo === vid) currentVideo = null;
                             done();
                         };
-                        const loadStall = setTimeout(finish, 20000);
+                        const loadStall = setTimeout(finish, MEDIA_LOAD_STALL_MS);
+                        clearSafety = mediaSafetyTimer(vid, finish);
                         vid.addEventListener('canplaythrough', () => {
                             clearTimeout(loadStall);
                             if (currentVideo !== vid || settled) return;
@@ -384,6 +510,9 @@ if ($username) {
             document.addEventListener('click', () => {
                 if (fxAudio) {
                     fxAudio.play().catch(() => {});
+                }
+                if (mediaAudio) {
+                    mediaAudio.play().catch(() => {});
                 }
                 if (currentVideo) {
                     currentVideo.play().catch(() => {});
@@ -507,8 +636,9 @@ if ($username) {
                 if (!config) return;
                 enqueueJob({
                     kind: category,
-                    start(done) {
-                        return renderAlert(config, eventData, done);
+                    isAudio: () => cardHasAudio(config),
+                    start(done, releaseAudio) {
+                        return renderAlert(config, eventData, done, releaseAudio);
                     }
                 });
             }
@@ -596,7 +726,7 @@ if ($username) {
                     vid.play().catch(() => {});
                 });
             }
-            function renderAlert(config, eventData, done) {
+            function renderAlert(config, eventData, done, releaseAudio) {
                 const container = document.getElementById('alertContainer');
                 let finished = false;
                 let hideTimer = null;
@@ -676,11 +806,22 @@ if ($username) {
                 armAlertImageAudio(container);
                 if (config.tts_enabled == 1) speakAlertText(messageHtml);
                 // Play alert sound
+                // A looping webm with volume keeps sound for the whole card, so only a plain alert sound frees the slot early
+                const imageHasAudio = cardHasAudio(Object.assign({}, config, { alert_sound: '' }));
                 if (config.alert_sound) {
                     const soundUrl = mediaBase + config.alert_sound;
-                    currentAudio = new Audio(SpecterOverlayWS.playbackUrl(soundUrl));
-                    currentAudio.volume = configNumber(config.sound_volume, 50, 0, 100) / 100;
-                    currentAudio.play().catch(e => console.error('Audio play error:', e));
+                    const cardAudio = new Audio(SpecterOverlayWS.playbackUrl(soundUrl));
+                    currentAudio = cardAudio;
+                    cardAudio.volume = configNumber(config.sound_volume, 50, 0, 100) / 100;
+                    let clearSafety = () => {};
+                    const soundDone = () => {
+                        clearSafety();
+                        if (!imageHasAudio && typeof releaseAudio === 'function') releaseAudio();
+                    };
+                    clearSafety = mediaSafetyTimer(cardAudio, soundDone);
+                    cardAudio.addEventListener('ended', soundDone, { once: true });
+                    cardAudio.addEventListener('error', soundDone, { once: true });
+                    cardAudio.play().catch(e => { console.error('Audio play error:', e); soundDone(); });
                 }
                 // Animate in
                 const animInDur = parseFloat(config.animation_in_duration) || 1;
@@ -1240,7 +1381,9 @@ if ($username) {
                 const audio = new Audio(SpecterOverlayWS.playbackUrl(url));
                 audio.volume = mediaVolume('walkons');
                 let settled = false;
-                const finish = () => { if (!settled) { settled = true; done(); } };
+                let clearSafety = () => {};
+                const finish = () => { if (!settled) { settled = true; clearSafety(); done(); } };
+                clearSafety = mediaSafetyTimer(audio, finish);
                 audio.addEventListener('ended', finish);
                 audio.addEventListener('error', finish);
                 audio.play().catch(e => { console.error('Walk-on audio error:', e); finish(); });
@@ -1261,9 +1404,11 @@ if ($username) {
             function showWalkonVideo(url, done) {
                 const el = document.getElementById('walkonOverlay');
                 let settled = false;
+                let clearSafety = () => {};
                 const finish = () => {
                     if (settled) return;
                     settled = true;
+                    clearSafety();
                     if (el) { el.style.display = 'none'; el.innerHTML = ''; }
                     done();
                 };
@@ -1272,7 +1417,7 @@ if ($username) {
                 el.innerHTML = `<video class="walkon-video" src="${url}" autoplay></video>`;
                 el.style.display = 'block';
                 const vid = el.querySelector('video');
-                if (vid) { vid.volume = mediaVolume('walkons'); vid.addEventListener('ended', finish); vid.addEventListener('error', finish); }
+                if (vid) { vid.volume = mediaVolume('walkons'); clearSafety = mediaSafetyTimer(vid, finish); vid.addEventListener('ended', finish); vid.addEventListener('error', finish); }
                 else finish();
             }
             function showWalkonCard(avatarUrl, name, done) {
@@ -1293,6 +1438,7 @@ if ($username) {
             function handleWalkon(data) {
                 enqueueJob({
                     kind: 'walkon',
+                    isAudio: true,
                     start(done) {
                         const media = walkonMediaUrl(data);
                         const mode = data.mode || (media.ext === 'mp4' ? 'video' : 'sound');
@@ -1574,6 +1720,7 @@ if ($username) {
                         console.log('DEATHS event received:', data);
                         if (isCategoryEnabled('deaths')) enqueueJob({
                             kind: 'deaths',
+                            isAudio: () => !!(getEnabledVariant('deaths') || {}).alert_sound,
                             start(done) {
                                 renderDeaths(data, done);
                             }
@@ -1583,6 +1730,7 @@ if ($username) {
                         console.log('WEATHER_DATA event received:', data);
                         if (isCategoryEnabled('weather')) enqueueJob({
                             kind: 'weather',
+                            isAudio: () => !!(getEnabledVariant('weather') || {}).alert_sound,
                             start(done) {
                                 renderWeather(data.weather_data, done);
                             }
@@ -1653,7 +1801,7 @@ if ($username) {
                             console.warn('SOUND_ALERT event missing sound:', data);
                             return;
                         }
-                        enqueueFxAudio(url, mediaVolume('sound_alerts'));
+                        enqueueSoundAlert(url, mediaVolume('sound_alerts'));
                     });
 
                     // VIDEO_ALERT - full URL already resolved by the bot (media or legacy CDN).
