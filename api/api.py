@@ -22,8 +22,31 @@ import shlex
 # Third-party imports
 import aiohttp
 import aiomysql
-from passlib.context import CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
+try:
+    from argon2 import PasswordHasher
+    from argon2.exceptions import VerificationError, InvalidHashError
+    _argon2_hasher = PasswordHasher()
+except ImportError:
+    _argon2_hasher = None
+
+def verify_app_password(password: str, stored_hash: str) -> bool:
+    # App passwords are hashed by the dashboards with PHP password_hash:
+    # Argon2id ($argon2id$...) now, bcrypt ($2y$...) for older passwords.
+    if stored_hash.startswith("$argon2"):
+        if _argon2_hasher is None:
+            logging.error("App password is Argon2id but argon2-cffi is not installed")
+            return False
+        try:
+            return _argon2_hasher.verify(stored_hash, password)
+        except (VerificationError, InvalidHashError):
+            return False
+    if stored_hash.startswith("$2"):
+        try:
+            return bcrypt.checkpw(password.encode("utf-8")[:72], stored_hash.encode("utf-8"))
+        except ValueError:
+            return False
+    return False
 import uvicorn
 import aioping
 import asyncssh
@@ -2993,7 +3016,7 @@ async def app_login(body: AppLoginBody, api_key: str = Query(...)):
             return JSONResponse(status_code=404, content={"status": "error", "message": "User not found"})
         if not result["app_password"]:
             return JSONResponse(status_code=400, content={"status": "error", "message": "No app password set for this account"})
-        if not pwd_context.verify(body.password, result["app_password"]):
+        if not verify_app_password(body.password, result["app_password"]):
             return JSONResponse(status_code=401, content={"status": "invalid"})
         return JSONResponse(status_code=200, content={"status": "success"})
     except Exception as e:
