@@ -17,7 +17,9 @@ Whenever the **stable** bot (`./bot/bot.py`) is changed (it only gets critical f
 
 Patch increments (5.7.12 → 5.7.13) for fixes. Beta version is tracked separately in versions.json (`beta_version`) and is NOT bumped for a stable fix. After editing, `python -m py_compile bot/bot.py` and validate `versions.json` parses. Leave it all uncommitted ([[feedback_no_commits]]).
 
-**Changelog scope (HARD):** A stable dump/`docs/<ver>.md` is the public note for that fix. Do **not** also append the same item to `docs/5.8.md` (or invent a v6 version note). `5.8.md` is only for beta-only / day-to-day beta-track work that is **not** shipping as a stable patch.
+**Changelog scope (HARD):** A stable dump/`docs/<ver>.md` is the public note for that fix. Do **not** append a new stable patch onto an older release note (`docs/5.8.md`, `docs/5.9.md`, and so on). Each patch gets its own file. Do not mention beta or v6 in that file.
+
+**5.9 shipped as stable on 2026-10-21.** `./bot/bot.py` is the 5.9 codebase (`SYSTEM = "STABLE"`, version checks follow `stable_version`, including custom-name launches of `bot.py`). `api/versions.json` `stable_version` is `5.9`. `beta_version` stays `5.9` because `./bot/beta.py` is the same generation for channels still on beta. New features go in `./bot/beta-v6.py` only. `docs/5.9.md` is the shipped release note, not an upcoming bucket.
 
 **Never name the reporting channel** (or a channel-specific DB like `<channel>.twitch_bot_access`) in public version notes. Describe the failure generically.
 
