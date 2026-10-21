@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, has_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message, add_stream_request, get_stream_request_count, is_song_limit_exempt, reset_stream_requests, stream_cap_message
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
@@ -196,7 +196,7 @@ class TaskCursorWrapper:
             query = query.replace("user_tasks", "streamer_tasks")
         return await self.cursor.execute(query, params)
 
-VERSION = "5.8"
+VERSION = "5.9"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
@@ -291,7 +291,7 @@ mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
-    "puzzledone", "warn", "addbirthday", "permitsong"
+    "puzzledone", "warn", "addbirthday", "permitsong", "srreset"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -427,6 +427,7 @@ song_requests = {}                                                              
 looped_tasks = {}                                                                       # Set for looped tasks
 active_timed_messages = {}                                                              # Dictionary to track active timed message IDs and their details
 message_tasks = {}                                                                      # Dictionary to track individual message tasks by ID
+timed_messages_paused_for_rerun = False                                                 # True while a Specter VOD rerun is live so timed messages stay quiet
 active_timer_routines = {}                                                              # Dictionary to track active personal-timer routines by user_id (key: pomo_{user_id})
 gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
@@ -434,6 +435,14 @@ _tanggle_no_creds_logged = False                                                
 _tanggle_rejected_creds = None                                                          # (token, community uuid) last rejected with HTTP 401/403
 _stream_bingo_no_creds_logged = False                                                   # Tracks whether the "no credentials" message has been logged for Stream Bingo
 _current_bingo_game_id = None                                                           # Tracks the internally generated ID for the currently active bingo game
+BINGO_EVENT_BATCH_WINDOW = 6                                                            # Seconds of quiet after the latest called bingo event before chat is sent
+BINGO_EVENT_BATCH_MAX_WAIT = 20                                                         # Max seconds from the first queued called event, so a steady stream still posts
+BINGO_EVENT_SEND_RETRIES = 2                                                            # Times a failed batch is requeued before its events are logged as dropped
+_bingo_pending_events = []                                                              # Queued called events: dicts of display_number, event_name, attempts
+_bingo_first_event_time = 0.0                                                           # Monotonic time the oldest queued called event arrived
+_bingo_last_event_time = 0.0                                                            # Monotonic time the newest queued called event arrived
+_bingo_flush_task = None                                                                # Timer task that sends the queued called events
+_bingo_flush_lock = asyncio.Lock()                                                      # Keeps batch sends from interleaving with other bingo chat messages
 _streak_schema_ready = False                                                            # Tracks whether highest_streak/total_streams_watched columns have been verified
 
 # Initialize global variables
@@ -3374,11 +3383,93 @@ async def process_tanggle_room_complete(data):
     except Exception as e:
         integrations_logger.error(f"[TANGGLE] Tanggle: Failed to process room.complete payload: {e}")
 
+# Function to group called bingo events into as few chat lines as fit the message limit
+def build_bingo_called_batches(events):
+    batches = []
+    for event in events:
+        item = f"{event['display_number']} \"{event['event_name']}\""
+        if batches and len(batches[-1][0]) + 2 + len(item) <= MAX_CHAT_MESSAGE_LENGTH:
+            batches[-1][0] += f", {item}"
+            batches[-1][1].append(event)
+        else:
+            batches.append([f"Events called: {item}", [event]])
+    # A line with one event keeps the original single-event wording
+    return [(f"Event {group[0]['display_number']} called: \"{group[0]['event_name']}\"" if len(group) == 1 else line, group) for line, group in batches]
+
+# Function to queue a called bingo event and start the batch timer if needed
+def queue_bingo_called_event(display_number, event_name):
+    global _bingo_first_event_time, _bingo_last_event_time, _bingo_flush_task
+    now = time.monotonic()
+    if not _bingo_pending_events:
+        _bingo_first_event_time = now
+    _bingo_last_event_time = now
+    _bingo_pending_events.append({"display_number": display_number, "event_name": event_name, "attempts": 0})
+    if _bingo_flush_task is None or _bingo_flush_task.done():
+        _bingo_flush_task = safe_create_task(bingo_called_events_timer())
+
+# Function to wait for a quiet window (or the max wait) and then send the queued called events
+async def bingo_called_events_timer():
+    try:
+        while _bingo_pending_events:
+            now = time.monotonic()
+            deadline = min(_bingo_last_event_time + BINGO_EVENT_BATCH_WINDOW, _bingo_first_event_time + BINGO_EVENT_BATCH_MAX_WAIT)
+            if now < deadline:
+                await sleep(deadline - now)
+                continue
+            await flush_bingo_called_events()
+    except asyncioCancelledError:
+        raise
+    except Exception as e:
+        integrations_logger.error(f"[STREAM BINGO] Stream Bingo: Batch timer error: {e}")
+
+# Function to send every queued called event now, requeueing any that fail to send
+async def flush_bingo_called_events():
+    global _bingo_first_event_time, _bingo_last_event_time, _bingo_flush_task
+    async with _bingo_flush_lock:
+        if not _bingo_pending_events:
+            return
+        events = list(_bingo_pending_events)
+        _bingo_pending_events.clear()
+        integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Sending {len(events)} called event(s) to chat")
+        unsent = []
+        for index, (line, group) in enumerate(build_bingo_called_batches(events)):
+            if unsent:
+                unsent.extend(group)
+                continue
+            if index:
+                await sleep(0.5)
+            try:
+                sent = await send_chat_message(line)
+            except Exception as e:
+                integrations_logger.error(f"[STREAM BINGO] Stream Bingo: Error sending called events: {e}")
+                sent = False
+            if not sent:
+                unsent.extend(group)
+        if not unsent:
+            return
+        retry = [dict(event, attempts=event["attempts"] + 1) for event in unsent if event["attempts"] < BINGO_EVENT_SEND_RETRIES]
+        dropped = [(event["display_number"], event["event_name"]) for event in unsent if event["attempts"] >= BINGO_EVENT_SEND_RETRIES]
+        if dropped:
+            integrations_logger.error(f"[STREAM BINGO] Stream Bingo: Dropping called event(s) after {BINGO_EVENT_SEND_RETRIES} retries: {dropped}")
+        if retry:
+            integrations_logger.warning(f"[STREAM BINGO] Stream Bingo: Requeueing {len(retry)} called event(s) after a failed send")
+            now = time.monotonic()
+            if not _bingo_pending_events:
+                _bingo_first_event_time = now
+            _bingo_last_event_time = now
+            _bingo_pending_events[:0] = retry
+            # An early flush from another bingo message may have no timer running to retry these
+            if _bingo_flush_task is None or _bingo_flush_task.done():
+                _bingo_flush_task = safe_create_task(bingo_called_events_timer())
+
 async def process_stream_bingo_message(data):
     global _current_bingo_game_id
     try:
         event_type = data.get('type', 'unknown')
         integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Processing event type: {event_type}")
+        # Send queued called events first so chat order matches the bingo feed
+        if event_type not in ['number_called', 'EVENT_CALLED', 'PLAYER_JOINED']:
+            await flush_bingo_called_events()
         # Connect to user database for storing bingo data
         user_db = await mysql_connection()
         try:
@@ -3423,7 +3514,7 @@ async def process_stream_bingo_message(data):
                 event_id = data.get('eventid')
                 event_name = data.get('eventname')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - Event: {event_name} (#{display_number}, ID: {event_id})")
-                await send_chat_message(f"Event {display_number} called: \"{event_name}\"")
+                queue_bingo_called_event(display_number, event_name)
                 safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EVENT_CALLED",
                     additional_data={"display_number": display_number, "event_name": event_name, "event_id": event_id}
@@ -6049,8 +6140,44 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='srreset')
+    async def srreset_command(self, ctx, target_user: str = None):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("srreset",))
+                result = await cursor.fetchone()
+            status = result.get("status") if result else "Enabled"
+            permissions = result.get("permission") if result else "mod"
+            cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result) if result else (1, 0, "default")
+            if status == 'Disabled' and ctx.author.name != bot_owner:
+                return
+            if not await command_permissions(permissions, ctx.author):
+                chat_logger.info(f"[SR RESET] {ctx.author.name} tried to use srreset but lacked permissions.")
+                await send_chat_message("You do not have the required permissions to use this command.")
+                return
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+            if not await check_cooldown('srreset', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                return
+            add_usage('srreset', bucket_key, cooldown_bucket)
+            target = (target_user or '').lstrip('@').strip().lower()
+            await reset_stream_requests(connection, target or None)
+            chat_logger.info(f"[SR RESET] {ctx.author.name} reset this stream's song request counts for {target or 'everyone'}")
+            if target:
+                await send_chat_message(f"@{target} can request songs again this stream.")
+            else:
+                await send_chat_message("Song request counts for this stream have been reset for everyone.")
+        except Exception as e:
+            chat_logger.error(f"[SR RESET] An error occurred during the execution of the srreset command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='permitsong')
-    async def permitsong_command(self, ctx, permit_user: str = None):
+    async def permitsong_command(self, ctx, permit_user: str = None, permit_count: str = None):
         global bot_owner, song_request_permits
         connection = None
         connection = await mysql_connection()
@@ -6071,7 +6198,7 @@ class TwitchBot(commands.Bot):
                         add_usage('permitsong', bucket_key, cooldown_bucket)
                         permit_user = (permit_user or '').lstrip('@').strip()
                         if not permit_user:
-                            await send_chat_message("Usage: !permitsong @username")
+                            await send_chat_message("Usage: !permitsong @username [count]")
                             return
                         lookup = permit_user.lower()
                         try:
@@ -6083,9 +6210,14 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f"User {lookup} not found.")
                             return
                         lookup = user_info[0].name.lower()
-                        song_request_permits[lookup] = 1
-                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} one blocked song request")
-                        await send_chat_message(f"@{lookup} can request one song that was played too soon.")
+                        # Optional count grants several permits, each covers one request past the stream cap or same-song gap
+                        try:
+                            grant = max(1, min(50, int(permit_count))) if permit_count else 1
+                        except ValueError:
+                            grant = 1
+                        song_request_permits[lookup] = int(song_request_permits.get(lookup) or 0) + grant
+                        chat_logger.info(f"[PERMIT SONG] {ctx.author.name} permitted {lookup} {grant} extra song request(s)")
+                        await send_chat_message(f"@{lookup} can request {grant} more song{'s' if grant != 1 else ''}, skipping the song request limits.")
                     else:
                         chat_logger.info(f"[PERMIT SONG] {ctx.author.name} tried to use permitsong but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -6572,6 +6704,10 @@ class TwitchBot(commands.Bot):
                 return
             headers = {"Authorization": f"Bearer {access_token}"}
             is_broadcaster = (ctx.message.author.name.lower() == CHANNEL_NAME.lower()) or (ctx.message.author.name.lower() == bot_owner.lower())
+            # Mods also skip the per-viewer limit
+            # A song permit lets one request skip every song request limit
+            permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
+            skip_viewer_limit = is_broadcaster or permit_bypass or bool(getattr(ctx.message.author, "is_mod", False))
             # Fetch settings to check enabled state and per-viewer limits
             try:
                 settings = await get_media_settings(connection)
@@ -6603,10 +6739,10 @@ class TwitchBot(commands.Bot):
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to prune song requests before limit check: {e}")
             # Enforce song limit check (broadcaster/streamer is exempt)
-            if not is_broadcaster:
+            if not skip_viewer_limit:
                 user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == ctx.message.author.name.lower())
-                if user_requests_count >= per_viewer_limit:
-                    await send_chat_message(f"You already have {per_viewer_limit} song(s) in the queue.")
+                if int(per_viewer_limit) > 0 and user_requests_count >= int(per_viewer_limit):
+                    await send_chat_message(viewer_limit_message(ctx.message.author.name, user_requests_count, per_viewer_limit))
                     return
             message = ctx.message.content
             parts = message.split(" ", 1)
@@ -6754,7 +6890,7 @@ class TwitchBot(commands.Bot):
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to get media banlist: {e}")
                 banlist = []
-            if not is_broadcaster:
+            if not skip_viewer_limit:
                 user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == ctx.message.author.name.lower())
             else:
                 user_requests_count = 0
@@ -6772,19 +6908,26 @@ class TwitchBot(commands.Bot):
                 msgs = {
                     "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
                     "queue_full": "The song queue is full, please try again later.",
-                    "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                    "viewer_limit": viewer_limit_message(ctx.author.name, user_requests_count, settings['per_viewer_limit']),
                     "banned": "Sorry, that song isn't allowed here.",
                 }
                 await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
                 return
-            if not is_broadcaster:
+            if not is_broadcaster and not permit_bypass:
                 artist_block = await artist_request_block_message(connection, artist_name, settings)
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
+            # Per-stream request cap; broadcaster, owner, mods and permit holders skip it
+            stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
+            if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+                stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
+                if stream_count >= stream_cap:
+                    await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
+                    return
             song_block = await same_song_block_message(connection, song_id, song_name, artist_name, settings.get("same_song_minutes"))
             if song_block:
-                if consume_song_permit(song_request_permits, ctx.author.name):
+                if permit_bypass:
                     chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {song_name}")
                 else:
                     await send_chat_message(song_block)
@@ -6798,6 +6941,13 @@ class TwitchBot(commands.Bot):
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
+                        # The request landed, so a permit (if one let it through) is used now
+                        if permit_bypass and consume_song_permit(song_request_permits, ctx.author.name):
+                            chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit")
+                        try:
+                            await add_stream_request(connection, str(ctx.author.id), ctx.author.name)
+                        except Exception as count_err:
+                            api_logger.error(f"[SONG REQUEST] Failed to record stream request count: {count_err}")
                         try:
                             await record_open_song_request(connection, song_id, song_name, artist_name, ctx.message.author.name)
                         except Exception as analytics_err:
@@ -6832,8 +6982,16 @@ class TwitchBot(commands.Bot):
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
                 queue_count = (await cursor.fetchone())["c"]
-                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
+                # Count by user ID when the column exists, falling back to display name
+                try:
+                    await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND (requested_by_id=%s OR (requested_by_id IS NULL AND requested_by=%s))", (str(ctx.author.id), ctx.author.name))
+                except Exception:
+                    await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
                 viewer_count = (await cursor.fetchone())["c"]
+            # Broadcaster, bot owner, mods and permit holders skip the per-viewer limit
+            permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
+            if permit_bypass or (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False)):
+                viewer_count = 0
             ok, reason = evaluate_guardrails(
                 duration=resolved["duration"], queue_count=queue_count, viewer_count=viewer_count,
                 settings=settings, video_id=resolved["video_id"], title=resolved["title"], banlist=banlist)
@@ -6841,30 +6999,50 @@ class TwitchBot(commands.Bot):
                 msgs = {
                     "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
                     "queue_full": "The song queue is full, please try again later.",
-                    "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                    "viewer_limit": viewer_limit_message(ctx.author.name, viewer_count, settings['per_viewer_limit']),
                     "banned": "Sorry, that song isn't allowed here.",
                 }
                 await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
                 return
             request_artist = clean_request_artist(resolved.get("uploader") or "") or (resolved.get("uploader") or "YouTube")
             is_owner = (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower())
-            if not is_owner:
+            if not is_owner and not permit_bypass:
                 artist_block = await artist_request_block_message(connection, request_artist, settings)
                 if artist_block:
                     await send_chat_message(artist_block)
                     return
+            # Per-stream request cap; broadcaster, owner, mods and permit holders skip it
+            stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
+            if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+                stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
+                if stream_count >= stream_cap:
+                    await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
+                    return
             song_block = await same_song_block_message(connection, resolved["video_id"], resolved["title"], request_artist, settings.get("same_song_minutes"))
             if song_block:
-                if consume_song_permit(song_request_permits, ctx.author.name):
+                if permit_bypass:
                     chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit for {resolved['title']}")
                 else:
                     await send_chat_message(song_block)
                     return
             async with connection.cursor() as cursor:
-                await cursor.execute(
-                    "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
-                    (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
+                # Store the user ID too; fall back if the column hasn't been migrated yet
+                try:
+                    await cursor.execute(
+                        "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, requested_by_id, status) VALUES (%s,%s,%s,%s,%s,%s,'queued')",
+                        (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name, str(ctx.author.id)))
+                except Exception:
+                    await cursor.execute(
+                        "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
+                        (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
             await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
+            # The request landed, so a permit (if one let it through) is used now
+            if permit_bypass and consume_song_permit(song_request_permits, ctx.author.name):
+                chat_logger.info(f"[SONG REQUEST] {ctx.author.name} used a song permit")
+            try:
+                await add_stream_request(connection, str(ctx.author.id), ctx.author.name)
+            except Exception as count_err:
+                api_logger.error(f"[SONG REQUEST] Failed to record stream request count: {count_err}")
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
                 position = (await cursor.fetchone())["c"]
@@ -12643,9 +12821,9 @@ class TwitchBot(commands.Bot):
 RERUN_NOTICE_MESSAGE = "@{user} Heads up! This is a rerun of a past stream, so {channel} may be away from keyboard and might not see your messages right away."
 RERUN_NOTICE_CHECK_SECONDS = 60
 
-async def get_live_rerun_id():
+async def get_live_rerun_id(force=False):
     now = time.time()
-    if now - rerun_notice_state["checked_at"] < RERUN_NOTICE_CHECK_SECONDS:
+    if not force and now - rerun_notice_state["checked_at"] < RERUN_NOTICE_CHECK_SECONDS:
         return rerun_notice_state["rerun_id"]
     rerun_notice_state["checked_at"] = now
     rerun_id = None
@@ -16045,6 +16223,12 @@ async def process_stream_online_websocket():
     stream_online = True
     if was_offline:
         stream_session_started_at = datetime.now(timezone.utc).timestamp()
+        # New stream, so per-stream song request counts start again
+        try:
+            async with await mysql_connection() as reset_conn:
+                await reset_stream_requests(reset_conn)
+        except Exception as reset_err:
+            bot_logger.error(f"[SONG REQUEST] Failed to reset stream request counts: {reset_err}")
     await generate_winning_lotto_numbers()
     # Reach out to the Twitch API to get stream data
     async with httpClientSession() as session:
@@ -16314,13 +16498,18 @@ async def clear_lotto_numbers():
 
 # Function for timed messages
 async def timed_message():
-    global stream_online
+    global stream_online, timed_messages_paused_for_rerun
     chat_logger.info(f"[TIMED MESSAGE] Timed message function called. Stream online status: {stream_online}")
     if stream_online:
         chat_logger.info("[TIMED MESSAGE] Starting dynamic timed message system...")
         try:
-            await update_timed_messages()
-            chat_logger.info("[TIMED MESSAGE] Successfully updated timed messages")
+            # A rerun still looks live to Twitch, so keep the checker running and hold the messages
+            if await get_live_rerun_id(force=True):
+                await pause_timed_messages_for_rerun()
+            else:
+                timed_messages_paused_for_rerun = False
+                await update_timed_messages()
+                chat_logger.info("[TIMED MESSAGE] Successfully updated timed messages")
             # Start the periodic checker
             # Recreate the checker when it's missing or finished (it exits while the stream is briefly offline)
             checker = looped_tasks.get("timed_message_checker")
@@ -16334,22 +16523,28 @@ async def timed_message():
         await stop_all_timed_messages()
 
 async def periodic_message_checker():
-    global stream_online
+    global stream_online, timed_messages_paused_for_rerun
     try:
         while stream_online:
             await sleep(60)  # Check every minute
-            if stream_online:
+            if not stream_online:
+                break
+            if await get_live_rerun_id(force=True):
+                await pause_timed_messages_for_rerun()
+            elif timed_messages_paused_for_rerun:
+                chat_logger.info("[TIMED MESSAGE] Rerun finished, resuming timed messages")
+                timed_messages_paused_for_rerun = False
                 await update_timed_messages()
             else:
-                break
+                await update_timed_messages()
     except asyncioCancelledError:
         chat_logger.info("[TIMED MESSAGE] Periodic message checker cancelled")
     except Exception as e:
         bot_logger.error(f"[TIMED MESSAGE] Error in periodic_message_checker: {e}")
 
 async def update_timed_messages():
-    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online
-    if not stream_online:
+    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online, timed_messages_paused_for_rerun
+    if not stream_online or timed_messages_paused_for_rerun:
         return
     connection = None
     try:
@@ -16462,8 +16657,30 @@ async def stop_timed_message(message_id):
     if message_id in chat_trigger_tasks:
         del chat_trigger_tasks[message_id]
 
+# Stop running timed messages while a rerun is live. The periodic checker stays up so they can resume.
+async def pause_timed_messages_for_rerun():
+    global timed_messages_paused_for_rerun, chat_line_count, active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
+    had_running = bool(active_timed_messages or message_tasks or chat_trigger_tasks or scheduled_tasks)
+    already = timed_messages_paused_for_rerun
+    timed_messages_paused_for_rerun = True
+    if not had_running:
+        if not already:
+            chat_logger.info("[TIMED MESSAGE] A rerun is playing, timed messages stay paused")
+        return
+    chat_logger.info("[TIMED MESSAGE] A rerun is playing, pausing timed messages")
+    for message_id in list(active_timed_messages.keys()):
+        await stop_timed_message(message_id)
+    for message_id in list(message_tasks.keys()):
+        await stop_timed_message(message_id)
+    for task in list(scheduled_tasks):
+        task.cancel()
+    scheduled_tasks.clear()
+    chat_trigger_tasks.clear()
+    chat_line_count = 0
+
 async def stop_all_timed_messages():
-    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count
+    global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count, timed_messages_paused_for_rerun
+    timed_messages_paused_for_rerun = False
     chat_logger.info("[TIMED MESSAGE] Stopping all timed messages...")
     # Cancel periodic checker
     if "timed_message_checker" in looped_tasks:
@@ -16483,8 +16700,12 @@ async def stop_all_timed_messages():
     chat_line_count = 0
 
 async def handle_chat_message(messageAuthor, messageContent=""):
-    global chat_trigger_tasks, chat_line_count, stream_online
-    if not stream_online:
+    global chat_trigger_tasks, chat_line_count, stream_online, timed_messages_paused_for_rerun
+    if not stream_online or timed_messages_paused_for_rerun:
+        return
+    # Cache is filled by the rerun notice and the minute checker; a known live rerun stops the count immediately
+    if rerun_notice_state.get("rerun_id"):
+        await pause_timed_messages_for_rerun()
         return
     # Don't count bot messages
     if messageAuthor.lower() == BOT_USERNAME.lower():
@@ -16507,7 +16728,7 @@ async def handle_chat_message(messageAuthor, messageContent=""):
             chat_logger.info(f"[EVENT MESSAGE] Chat count trigger reached for message ID: {message_id}")
 
 async def send_interval_message(message_id, message, interval_seconds):
-    global stream_online, scheduled_tasks, stream_session_started_at
+    global stream_online, scheduled_tasks, stream_session_started_at, timed_messages_paused_for_rerun
     if stream_session_started_at > 0:
         elapsed = time.time() - stream_session_started_at
         if elapsed < 0:
@@ -16517,20 +16738,20 @@ async def send_interval_message(message_id, message, interval_seconds):
     else:
         initial_wait = interval_seconds
     await sleep(initial_wait)
-    if not stream_online:
+    if not stream_online or timed_messages_paused_for_rerun:
         return
     await send_timed_message(message_id, message, 0)
-    while stream_online:
+    while stream_online and not timed_messages_paused_for_rerun:
         await sleep(interval_seconds)
-        if stream_online:
+        if stream_online and not timed_messages_paused_for_rerun:
             await send_timed_message(message_id, message, 0)
         else:
             break
 
 async def send_scheduled_message(message_id, message, scheduled_time_str):
     """Fire a timed message once per day at a specific clock time in the streamer's timezone."""
-    global stream_online
-    while stream_online:
+    global stream_online, timed_messages_paused_for_rerun
+    while stream_online and not timed_messages_paused_for_rerun:
         connection = None
         try:
             connection = await mysql_connection()
@@ -16557,18 +16778,35 @@ async def send_scheduled_message(message_id, message, scheduled_time_str):
         wait_secs = (target - now).total_seconds()
         chat_logger.info(f"[TIMED MESSAGE] Scheduled message ID: {message_id} fires in {wait_secs:.0f}s (at {scheduled_time_str} {tz_str})")
         await sleep(wait_secs)
-        if stream_online:
-            await send_timed_message(message_id, message, 0)
-            chat_logger.info(f"[TIMED MESSAGE] Sent scheduled message ID: {message_id}")
+        if stream_online and not timed_messages_paused_for_rerun:
+            sent = await send_timed_message(message_id, message, 0)
+            if timed_messages_paused_for_rerun or not stream_online:
+                break
+            if sent:
+                chat_logger.info(f"[TIMED MESSAGE] Sent scheduled message ID: {message_id}")
         else:
             break
         # Wait a short buffer before re-computing next day's target to avoid double-firing
         await sleep(60)
 
+# True when a live rerun should swallow this timed message. Sets the pause flag before the caller loops again.
+async def rerun_blocks_timed_message(message_id):
+    global timed_messages_paused_for_rerun
+    if not timed_messages_paused_for_rerun and not await get_live_rerun_id(force=True):
+        return False
+    chat_logger.info(f"[TIMED MESSAGE] Skipped message ID: {message_id} because a rerun is playing")
+    if not timed_messages_paused_for_rerun:
+        timed_messages_paused_for_rerun = True
+        safe_create_task(pause_timed_messages_for_rerun())
+    return True
+
 async def send_timed_message(message_id, message, delay):
-    global stream_online, last_message_time
+    global stream_online, last_message_time, timed_messages_paused_for_rerun
     if delay > 0:
         await sleep(delay)
+    # Fresh check so a message does not land in the minute before the checker notices the rerun
+    if await rerun_blocks_timed_message(message_id):
+        return False
     if stream_online:
         # Ensure a delay between consecutive messages
         current_time = get_event_loop().time()
@@ -16579,6 +16817,12 @@ async def send_timed_message(message_id, message, delay):
                 wait_time = safe_gap - elapsed
                 chat_logger.info(f"[TIMED MESSAGE] Waiting {wait_time} more seconds before sending Timed Message ID: {message_id}")
                 await sleep(wait_time)
+        # The gap sleep can outlast the moment a rerun goes live
+        if not stream_online:
+            chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
+            return False
+        if await rerun_blocks_timed_message(message_id):
+            return False
         chat_logger.info(f"[TIMED MESSAGE] Sending Timed Message ID: {message_id} - {message}")
         try:
             if has_dynamic_variables(message):
@@ -16592,15 +16836,17 @@ async def send_timed_message(message_id, message, delay):
             else:
                 await send_chat_message(message)
             last_message_time = get_event_loop().time()
+            return True
         except Exception as e:
             bot_logger.error(f"[TIMED MESSAGE] Error sending message: {e}")
             bot_logger.error(f"[TIMED MESSAGE] BOTS_TWITCH_BOT state: {BOTS_TWITCH_BOT._connection._status}")
-    else:
-        chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
+            return False
+    chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
+    return False
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
-_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes FROM media_request_settings WHERE id=1"
-_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all", "same_song_minutes": 720}
+_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope, same_song_minutes, per_viewer_stream_limit FROM media_request_settings WHERE id=1"
+_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all", "same_song_minutes": 720, "per_viewer_stream_limit": 0}
 
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
@@ -16612,6 +16858,7 @@ async def get_media_settings(connection):
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
                 "ALTER TABLE media_request_settings ADD COLUMN same_song_minutes INT NOT NULL DEFAULT 720",
+                "ALTER TABLE media_request_settings ADD COLUMN per_viewer_stream_limit INT NOT NULL DEFAULT 0",
             ):
                 try:
                     await cursor.execute(alter)
@@ -16625,6 +16872,7 @@ async def get_media_settings(connection):
     row.setdefault("artist_limit_period", "stream")
     row.setdefault("artist_limit_scope", "all")
     row.setdefault("same_song_minutes", 720)
+    row.setdefault("per_viewer_stream_limit", 0)
     return row
 
 async def artist_request_block_message(connection, artist_name, settings):
@@ -22101,7 +22349,7 @@ BOTS_TWITCH_BOT = TwitchBot(
 # Initialize SSH Connection Manager
 ssh_manager = SSHConnectionManager(system_logger)
 
-# Pet module (modules/pet.py) is shared by beta.py and beta-v6.py, so hand it this bot's own helpers
+# Pet module (modules/pet.py) is shared by bot.py, beta.py, and beta-v6.py, so hand it this bot's own helpers
 async def pet_close_connection(connection):
     await connection.close()
 
@@ -22126,7 +22374,7 @@ def start_bot():
         system_logger.error("[BOT STARTUP] Custom mode requires -botusername argument")
         raise ValueError("Custom mode enabled but no bot username provided. Use -botusername flag.")
     if not BOT_OAUTH_TOKEN:
-        system_logger.error(f"[BOT STARTUP] No OAuth token available for bot mode: {'CUSTOM' if CUSTOM_MODE else 'BETA'}")
+        system_logger.error(f"[BOT STARTUP] No OAuth token available for bot mode: {'CUSTOM' if CUSTOM_MODE else 'STABLE'}")
         raise ValueError("OAuth token is missing. Check configuration.")
     system_logger.info("[BOT STARTUP] ===== Initializing Twitch Bot =====")
     system_logger.info(f"[BOT STARTUP] Starting bot for channel: {CHANNEL_NAME}")
