@@ -462,6 +462,7 @@ TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for sh
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
 websocket_connected = False                             # Whether the websocket is currently connected
+_pending_chat_overlay = []                              # CHAT_MESSAGE payloads sent before the overlay socket registered
 MEDIA_MIGRATED = False                                  # Loaded from website.users.new_media at startup; enables unified /var/www/media/ library
 _pronouns_list_cache = None                             # Cached dict of all pronoun definitions from alejo.io
 _pronouns_list_cache_time = 0                           # Timestamp of last pronouns list fetch
@@ -2547,6 +2548,25 @@ async def _emit_specter_register(force=False):
         websocket_logger.error(f"[SPECTER WEBSOCKET] REGISTER emit failed (epoch={epoch}): {e}")
 
 # Connect and manage reconnection for Internal Socket Server
+async def relay_chat_overlay(payload):
+    if websocket_connected and specterSocket and getattr(specterSocket, "connected", False):
+        await specterSocket.emit("CHAT_MESSAGE", payload)
+        return
+    _pending_chat_overlay.append(payload)
+    if len(_pending_chat_overlay) > 100:
+        del _pending_chat_overlay[:-100]
+
+async def flush_pending_chat_overlay():
+    if not (websocket_connected and specterSocket and getattr(specterSocket, "connected", False)):
+        return
+    pending = list(_pending_chat_overlay)
+    _pending_chat_overlay.clear()
+    for payload in pending:
+        try:
+            await specterSocket.emit("CHAT_MESSAGE", payload)
+        except Exception as err:
+            websocket_logger.error(f"[CHAT OVERLAY] queued CHAT_MESSAGE failed: {err}")
+
 async def specter_websocket():
     global websocket_connected
     specter_websocket_uri = "https://websocket.botofthespecter.com"
@@ -2625,6 +2645,7 @@ async def SUCCESS(data):
     websocket_connected = True
     msg = data.get('message', data) if isinstance(data, dict) else data
     websocket_logger.info(f"[SPECTER WEBSOCKET] Registration confirmed (epoch={_ws_reg_epoch}): {msg}")
+    await flush_pending_chat_overlay()
 
 @specterSocket.event
 async def ERROR(data):
@@ -3864,6 +3885,9 @@ class TwitchBot(commands.AutoBot):
                         ))
         except Exception as _hh_err:
             bot_logger.error(f"[module] Package ready path failed (non-fatal): {_hh_err}")
+        ready_wait_started = time_right_now()
+        while not websocket_connected and (time_right_now() - ready_wait_started).total_seconds() < 8:
+            await sleep(0.25)
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     # Errors
@@ -3914,22 +3938,7 @@ class TwitchBot(commands.AutoBot):
             bannedUser = None
             messageContent = ""
             try:
-                # Ignore messages from the bot itself
-                if message.chatter.id == str(BOT_ID):
-                    return
-                _early_author = message.chatter.name if message.chatter else ""
-                _early_author_id = message.chatter.id if message.chatter else ""
-                _early_content = str(message.text).strip() if message.text else ""
-                _cv_cmd_author_id.set(_early_author_id)
-                _cv_cmd_user_msg.set(_early_content)
-                # Capture chat for AI Ad Breaks
-                record_ad_break_chat(_early_author, str(message.text) if message.text else "")
-                if await self.should_block_first_message_command(_early_author, _early_author_id, _early_content, message.chatter):
-                    return
-                await self.send_first_command_welcome_if_needed(_early_author, _early_author_id, _early_content)
-                # Relay chat message to websocket server for the chat overlay
-                if websocket_connected and specterSocket and specterSocket.connected:
-                    try:
+                try:
                         # Serialize badges to IRC-style "set_id/id,set_id/id"
                         badges_str = ",".join(
                             f"{b.set_id}/{b.id}" for b in (message.badges or []) if getattr(b, 'set_id', None)
@@ -3947,7 +3956,7 @@ class TwitchBot(commands.AutoBot):
                         emotes_str = "/".join(f"{eid}:{','.join(ranges)}" for eid, ranges in emotes_map.items())
                         chat_color = getattr(message.chatter, 'colour', None) or getattr(message.chatter, 'color', None) or ''
                         if chat_color is not None and not isinstance(chat_color, str):
-                            chat_color = str(chat_color)
+                            chat_color = getattr(chat_color, 'html', None) or ''
                         chat_payload = {
                             'user_id': str(message.chatter.id),
                             'username': message.chatter.name or '',
@@ -3958,10 +3967,23 @@ class TwitchBot(commands.AutoBot):
                             'message_id': message.id or '',
                             'emotes': emotes_str,
                         }
-                        await specterSocket.emit('CHAT_MESSAGE', chat_payload)
+                        await relay_chat_overlay(chat_payload)
                         websocket_logger.debug(f"[CHAT OVERLAY] CHAT_MESSAGE relayed for {chat_payload['username']}: {chat_payload['message'][:60]}")
-                    except Exception as chat_relay_err:
-                        websocket_logger.error(f"[CHAT OVERLAY] CHAT_MESSAGE relay error: {chat_relay_err}")
+                except Exception as chat_relay_err:
+                    websocket_logger.error(f"[CHAT OVERLAY] CHAT_MESSAGE relay error: {chat_relay_err}")
+                # Command handling skips the bot. The overlay relay above still runs.
+                if message.chatter.id == str(BOT_ID):
+                    return
+                _early_author = message.chatter.name if message.chatter else ""
+                _early_author_id = message.chatter.id if message.chatter else ""
+                _early_content = str(message.text).strip() if message.text else ""
+                _cv_cmd_author_id.set(_early_author_id)
+                _cv_cmd_user_msg.set(_early_content)
+                # Capture chat for AI Ad Breaks
+                record_ad_break_chat(_early_author, str(message.text) if message.text else "")
+                if await self.should_block_first_message_command(_early_author, _early_author_id, _early_content, message.chatter):
+                    return
+                await self.send_first_command_welcome_if_needed(_early_author, _early_author_id, _early_content)
                 messageContent = str(message.text).strip().lower() if message.text else ""
                 messageAuthor = message.chatter.name if message.chatter else ""
                 messageAuthorID = message.chatter.id if message.chatter else ""
@@ -4303,7 +4325,7 @@ class TwitchBot(commands.AutoBot):
                     url_blocking = result.get("url_blocking") == 'True' if result else False
                     if url_blocking:
                         # Permitted users, mods and the broadcaster can post links
-                        if (messageAuthor.lower() in permitted_users and time.time() < permitted_users[messageAuthor.lower()]) or await command_permissions("mod", message.author):
+                        if (messageAuthor.lower() in permitted_users and time.time() < permitted_users[messageAuthor.lower()]) or await command_permissions("mod", message.chatter):
                             chat_logger.info(f"URL found in message from {messageAuthor}, allowed due to permit or mod/streamer privilege.")
                         else:
                             # Fetch whitelist (regex patterns, same as beta)
@@ -4566,6 +4588,8 @@ class TwitchBot(commands.AutoBot):
         try:
             if message_chatter and (
                 getattr(message_chatter, 'is_mod', False)
+                or getattr(message_chatter, 'moderator', False)
+                or getattr(message_chatter, 'broadcaster', False)
                 or (getattr(message_chatter, 'name', '') or "").lower() == (CHANNEL_NAME or "").lower()
                 or (getattr(message_chatter, 'name', '') or "").lower() == (bot_owner or "").lower()
             ):
@@ -6762,7 +6786,7 @@ class TwitchBot(commands.AutoBot):
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await send_chat_message(f"Sorry, I don't accept karaoke or instrumental versions.")
                                 return
-                            api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+                            api_logger.info(f"Song Request from {ctx.author.name} for {song_name} by {artist_name} song id: {song_id}")
                         else:
                             api_logger.error(f"Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -6788,7 +6812,7 @@ class TwitchBot(commands.AutoBot):
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await send_chat_message(f"No song found: {message_content}")
                                 return
-                            api_logger.info(f"Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+                            api_logger.info(f"Song Request from {ctx.author.name} for {song_name} by {artist_name} song id: {song_id}")
                         else:
                             api_logger.error(f"Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -6805,7 +6829,7 @@ class TwitchBot(commands.AutoBot):
                     return
             # Per-stream request cap; broadcaster, owner, mods and permit holders skip it
             stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
-            if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+            if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner) and not ctx.author.moderator:
                 stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
                 if stream_count >= stream_cap:
                     await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
@@ -6818,7 +6842,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message(song_block)
                     return
             artist_name = clean_request_artist(artist_name) or artist_name
-            song_requests[song_id] = {"user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
+            song_requests[song_id] = {"user": ctx.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
             # Add to Spotify queue
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={quote(str(song_id), safe='')}"
             async with httpClientSession() as queue_session:
@@ -6833,7 +6857,7 @@ class TwitchBot(commands.AutoBot):
                         except Exception as count_err:
                             api_logger.error(f"[SONG REQUEST] Failed to record stream request count: {count_err}")
                         try:
-                            await record_open_song_request(connection, song_id, song_name, artist_name, ctx.message.author.name)
+                            await record_open_song_request(connection, song_id, song_name, artist_name, ctx.author.name)
                         except Exception as analytics_err:
                             api_logger.error(f"[SONG REQUEST] Failed to record analytics: {analytics_err}")
                     else:
@@ -6972,7 +6996,7 @@ class TwitchBot(commands.AutoBot):
                 next_url = f"https://api.spotify.com/v1/me/player/next?device_id={quote(str(device_id), safe='')}"
                 async with session.post(next_url, headers=headers) as response:
                     if response.status in (200, 204):
-                        api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
+                        api_logger.info(f"Song skipped successfully by {ctx.author.name}")
                         await send_chat_message("Song skipped successfully.")
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
@@ -8582,7 +8606,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('tasktimer', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     if len(parts) < 2:
                         await send_chat_message("Usage: !tasktimer <start|stop|pause|resume> | !tasktimer auto <on|off> | !tasktimer set <focus/break/cycles> | !tasktimer <minutes> <focus|break|recharge>")
@@ -8919,7 +8943,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('task', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     title = parts[1].strip() if len(parts) > 1 else ''
                     if not title:
@@ -8995,7 +9019,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('done', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
@@ -9138,7 +9162,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('rename', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     new_title = parts[1].strip() if len(parts) > 1 else ''
                     if not new_title:
@@ -9382,7 +9406,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('now', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
@@ -9539,7 +9563,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('later', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     titles = split_task_titles(arg)
@@ -9608,7 +9632,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('soon', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     titles = split_task_titles(arg)
@@ -9682,11 +9706,11 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('backlog', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     if len(parts) > 1 and parts[1].strip():
-                        # Forward !backlog <title> to !later <title>
-                        ctx.message.content = f"!later {parts[1].strip()}"
+                        # Forward !backlog <title> to !later <title>. ChatMessage has no content field; Context.content reads _raw_content.
+                        ctx._raw_content = f"!later {parts[1].strip()}"
                         await self.later_command(ctx)
                         return
                     user_id = str(ctx.author.id)
@@ -9736,7 +9760,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('project', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
@@ -9884,7 +9908,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('personaltimer', bucket_key, cooldown_bucket)
-                    content = ctx.message.content.strip()
+                    content = ctx.content.strip()
                     parts = content.split(' ', 1)
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
@@ -11214,7 +11238,7 @@ class TwitchBot(commands.AutoBot):
                     user_points = user_data.get("points")
                 starting_points = user_points
                 # Check if user has enough points (broadcaster has unlimited points)
-                is_broadcaster = ctx.author.is_broadcaster
+                is_broadcaster = ctx.author.broadcaster
                 if not is_broadcaster and user_points < bet_amount:
                     await send_chat_message(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
                     return
@@ -12035,7 +12059,7 @@ class TwitchBot(commands.AutoBot):
                 followers_min_unit = (raffle.get('followers_min_unit', 'days') or 'days').lower()
                 username = ctx.author.name
                 user_id = str(ctx.author.id)
-                is_mod = ctx.author.is_mod
+                is_mod = ctx.author.moderator
                 subscription_tier = None
                 if exclude_mods and is_mod:
                     await send_chat_message(f"@{username}, moderators are excluded from this raffle.")
@@ -16562,7 +16586,7 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
             viewer_count = (await cursor.fetchone())["c"]
         # Broadcaster, bot owner, mods and permit holders skip the per-viewer limit
         permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
-        if permit_bypass or (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False)):
+        if permit_bypass or (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) or bool(getattr(ctx.author, "is_mod", False) or getattr(ctx.author, "moderator", False)):
             viewer_count = 0
         ok, reason = evaluate_guardrails(
             duration=resolved["duration"], queue_count=queue_count, viewer_count=viewer_count,
@@ -16585,7 +16609,7 @@ async def media_songrequest(ctx, connection, bucket_key, cooldown_bucket):
                 return
         # Per-stream request cap; broadcaster, owner, mods and permit holders skip it
         stream_cap = int(settings.get("per_viewer_stream_limit") or 0)
-        if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner):
+        if stream_cap > 0 and not permit_bypass and not is_song_limit_exempt(ctx.author, CHANNEL_NAME, bot_owner) and not ctx.author.moderator:
             stream_count = await get_stream_request_count(connection, str(ctx.author.id), ctx.author.name)
             if stream_count >= stream_cap:
                 await send_chat_message(stream_cap_message(ctx.author.name, stream_cap))
