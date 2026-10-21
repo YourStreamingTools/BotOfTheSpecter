@@ -20,6 +20,11 @@
 //                                    background's luminance.
 //   bg       (optional, html only) - body background colour. Defaults to
 //                                    transparent (OBS-friendly).
+//   label    (optional) - display text shown in place of the counter name,
+//                         e.g. &label=Event%20Name shows "Event Name: 5".
+//                         Plain text, trimmed, max 50 characters. Used by
+//                         html, text and name; json adds a "label" key;
+//                         number is unchanged. Omit it for the old output.
 
 include '/var/www/config/database.php';
 
@@ -51,6 +56,18 @@ function validate_color($input) {
     if (in_array($lower, $named, true)) return $lower;
     return null;
 }
+// Optional display text. Plain text only: control characters are removed,
+// whitespace is collapsed and it is capped at 50 characters. It is always
+// escaped on output (htmlspecialchars / textContent), never parsed as HTML.
+function clean_label($input) {
+    if ($input === null || is_array($input)) return null;
+    $s = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', (string)$input);
+    if ($s === null) return null;
+    $s = trim(preg_replace('/\s+/u', ' ', $s));
+    if ($s === '') return null;
+    return mb_substr($s, 0, 50, 'UTF-8');
+}
+$labelParam = clean_label($_GET['label'] ?? null);
 $colorParam = validate_color($_GET['color'] ?? null);
 $bgParam    = validate_color($_GET['bg']    ?? null);
 
@@ -147,21 +164,24 @@ if (isset($builtinCounters[$counter_lower])) {
     }
 }
 $user_db->close();
+$display = $labelParam ?? $counter_safe;
 
 if ($type !== 'html') {
     switch ($type) {
         case 'json':
-            echo json_encode(['counter' => $counter_safe, 'count' => $count]);
+            $out = ['counter' => $counter_safe, 'count' => $count];
+            if ($labelParam !== null) $out['label'] = $labelParam;
+            echo json_encode($out);
             break;
         case 'number':
             echo $count;
             break;
         case 'name':
-            echo $counter_safe;
+            echo $display;
             break;
         case 'text':
         default:
-            echo $counter_safe . ': ' . $count;
+            echo $display . ': ' . $count;
             break;
     }
     exit;
@@ -173,7 +193,7 @@ if ($type !== 'html') {
 $bgCss     = $bgParam ?? 'transparent';
 $colorCss  = $colorParam ?? '#ffffff';
 $autoColor = ($colorParam === null);   // when user didn't pin a colour, JS auto-picks
-$counterLabel = $counter_safe;
+$counterLabel = $display;
 $apiUrl = '?' . http_build_query([
     'code'    => $api_key,
     'counter' => $counter_safe,
@@ -209,13 +229,13 @@ $apiUrl = '?' . http_build_query([
 </style>
 </head>
 <body>
-<div id="counter"><?php echo htmlspecialchars($counter_safe . ': ' . $count); ?></div>
+<div id="counter"><?php echo htmlspecialchars($display . ': ' . $count); ?></div>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script src="js/specter-ws.js"></script>
 <script>
 (function () {
     var endpoint   = <?php echo json_encode($apiUrl); ?>;
-    var label      = <?php echo json_encode($counter_safe); ?>;
+    var label      = <?php echo json_encode($display, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     var autoColor  = <?php echo $autoColor ? 'true' : 'false'; ?>;
     var el = document.getElementById('counter');
 
