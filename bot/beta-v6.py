@@ -1054,38 +1054,10 @@ async def subscribe_to_events(session_id):
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
-    if SELF_MODE:
-        chat_headers = user_headers
-        bot_user_id = CHANNEL_ID
-        twitch_logger.info("Chat subscriptions will use broadcaster token (SELF_MODE)")
-    elif CUSTOM_MODE:
-        custom_creds = await get_current_custom_credentials()
-        website_creds = await get_website_twitch_app_credentials()
-        bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
-        bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
-        if custom_creds and custom_creds.get('bot_channel_id') and bot_app_token:
-            bot_user_id = custom_creds['bot_channel_id']
-            chat_headers = {
-                "Client-Id": bot_app_client_id,
-                "Authorization": f"Bearer {bot_app_token}",
-                "Content-Type": "application/json"
-            }
-            twitch_logger.info(f"Chat subscriptions will use App Access Token with custom bot user ID {bot_user_id} ({BOT_USERNAME})")
-        else:
-            chat_headers = user_headers
-            bot_user_id = CHANNEL_ID
-            twitch_logger.warning(f"App credentials or custom bot ID not available for {BOT_USERNAME}; falling back to broadcaster token for chat subscriptions")
-    else:
-        website_creds = await get_website_twitch_app_credentials()
-        bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
-        bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
-        bot_user_id = "971436498"
-        chat_headers = {
-            "Client-Id": bot_app_client_id,
-            "Authorization": f"Bearer {bot_app_token}",
-            "Content-Type": "application/json"
-        }
-        twitch_logger.info(f"Chat subscriptions will use App Access Token with bot user ID {bot_user_id}")
+    # Same as stable and beta: websocket EventSub uses the broadcaster user token,
+    # and chat notification user_id is the broadcaster. An app token is rejected.
+    bot_user_id = CHANNEL_ID
+    twitch_logger.info("Chat notification subscriptions will use the broadcaster user token")
     broadcaster_topics = [
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "stream.offline", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -1129,7 +1101,7 @@ async def subscribe_to_events(session_id):
                 headers
             ))
         return result
-    all_payloads = build_payloads(broadcaster_topics, user_headers) + build_payloads(chat_topics, chat_headers)
+    all_payloads = build_payloads(broadcaster_topics, user_headers) + build_payloads(chat_topics, user_headers)
     async with httpClientSession() as session:
         twitch_logger.info("===== Subscribing to Twitch EventSub Events =====")
         tasks = [session.post(url, headers=hdrs, json=payload) for payload, hdrs in all_payloads]
@@ -1153,26 +1125,6 @@ async def subscribe_to_events(session_id):
                     twitch_logger.error(f"Failed to subscribe to {payload['type']}: HTTP {result.status} - {error_text}")
                     failed_events += 1
                     events_failed_to_subscribe.append(payload['type'])
-                    if result.status == 403 and payload['type'].startswith("channel.chat"):
-                        twitch_logger.warning(
-                            f"Chat subscription {payload['type']} denied - broadcaster may not have granted "
-                            f"channel:bot scope. Falling back to broadcaster user token for this subscription."
-                        )
-                        fallback_payload = dict(payload)
-                        fallback_payload["condition"] = {k: CHANNEL_ID for k in payload["condition"]}
-                        try:
-                            async with session.post(url, headers=user_headers, json=fallback_payload) as fb_resp:
-                                if fb_resp.status in (200, 202):
-                                    subscribed_events += 1
-                                    failed_events -= 1
-                                    events_subscribed_to.append(f"{payload['type']} (fallback)")
-                                    events_failed_to_subscribe.remove(payload['type'])
-                                    twitch_logger.info(f"Fallback subscription succeeded for {payload['type']}")
-                                else:
-                                    fb_text = await fb_resp.text()
-                                    twitch_logger.error(f"Fallback also failed for {payload['type']}: HTTP {fb_resp.status} - {fb_text}")
-                        except Exception as fb_e:
-                            twitch_logger.error(f"Fallback request error for {payload['type']}: {fb_e}")
         twitch_logger.info(f"Subscribed to {subscribed_events} Twitch EventSub events. Events: {', '.join(events_subscribed_to)}")
         if events_failed_to_subscribe:
             twitch_logger.error(f"Failed to subscribe to {failed_events} events: {', '.join(events_failed_to_subscribe)}")
@@ -1565,6 +1517,95 @@ async def process_tipping_message(data, source):
     except Exception as e:
         event_logger.error(f"Error processing tipping message: {e}")
 
+async def record_watch_streak(display_name, streak_value, source="eventsub"):
+    global _streak_schema_ready
+    display_name = (display_name or "").strip()
+    try:
+        streak_value = int(streak_value or 0)
+    except (TypeError, ValueError):
+        streak_value = 0
+    if not display_name or streak_value <= 0:
+        return
+    try:
+        async with await mysql_handler.get_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                event_logger.info(f"Watch streak: {display_name} has watched {streak_value} consecutive streams ({source})")
+                ws_streak_lost = False
+                ws_old_streak = 0
+                ws_new_total = streak_value
+                if not _streak_schema_ready:
+                    await cursor.execute(
+                        "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analytic_stream_watch_streak' AND COLUMN_NAME = 'highest_streak'"
+                    )
+                    col_check = await cursor.fetchone()
+                    if col_check and col_check['cnt'] == 0:
+                        await cursor.execute(
+                            "ALTER TABLE analytic_stream_watch_streak "
+                            "ADD COLUMN highest_streak INT NOT NULL DEFAULT 0, "
+                            "ADD COLUMN total_streams_watched INT NOT NULL DEFAULT 0"
+                        )
+                        event_logger.info("analytic_stream_watch_streak: added highest_streak and total_streams_watched columns")
+                    _streak_schema_ready = True
+                await cursor.execute(
+                    "SELECT streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak WHERE user_name = %s",
+                    (display_name,)
+                )
+                existing = await cursor.fetchone()
+                if existing:
+                    ws_old_streak = existing['streak_value']
+                    ws_old_highest = existing['highest_streak'] or ws_old_streak
+                    ws_old_total = existing['total_streams_watched'] or ws_old_streak
+                    if streak_value < ws_old_streak:
+                        ws_streak_lost = True
+                        ws_new_total = ws_old_total + streak_value
+                        ws_new_highest = max(ws_old_highest, ws_old_streak)
+                    else:
+                        ws_new_total = ws_old_total + (streak_value - ws_old_streak)
+                        ws_new_highest = max(ws_old_highest, streak_value)
+                    await cursor.execute(
+                        "UPDATE analytic_stream_watch_streak SET streak_value = %s, highest_streak = %s, total_streams_watched = %s, updated_at = NOW() WHERE user_name = %s",
+                        (streak_value, ws_new_highest, ws_new_total, display_name)
+                    )
+                else:
+                    ws_new_total = streak_value
+                    await cursor.execute(
+                        "INSERT INTO analytic_stream_watch_streak (user_name, streak_value, highest_streak, total_streams_watched) VALUES (%s, %s, %s, %s)",
+                        (display_name, streak_value, streak_value, streak_value)
+                    )
+                await cursor.execute(
+                    'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
+                    (display_name, "watch_streak", f"{streak_value} streams")
+                )
+                await cursor.execute(
+                    "SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s",
+                    ("watch_streak",)
+                )
+                ws_streak_result = await cursor.fetchone()
+                if ws_streak_lost:
+                    ws_msg = (
+                        f"We're sorry you lost your {ws_old_streak} stream streak, {display_name}! "
+                        f"You have now watched {streak_value} streams in a row - total streams watched: {ws_new_total}."
+                    )
+                else:
+                    if ws_streak_result and ws_streak_result.get("alert_message"):
+                        ws_msg = ws_streak_result.get("alert_message")
+                    else:
+                        if ws_new_total > streak_value:
+                            ws_msg = "Congrats (user) on watching (value) consecutive streams! They've watched a total of (total) streams."
+                        else:
+                            ws_msg = "Congrats (user) on watching (value) consecutive streams!"
+                    ws_msg = ws_msg.replace("(user)", display_name).replace("(value)", str(streak_value)).replace("(total)", str(ws_new_total))
+                safe_create_task(send_chat_message(ws_msg))
+                if not ws_streak_lost and streak_value > 0:
+                    safe_create_task(websocket_notice(
+                        event="WATCH_STREAK",
+                        user=display_name,
+                        additional_data={"streak": streak_value, "username": display_name},
+                    ))
+    except Exception as streak_err:
+        event_logger.error(f"Watch streak failed for {display_name} ({streak_value}) from {source}: {streak_err}")
+
 async def process_twitch_eventsub_message(message):
     global pending_outgoing_raid, outgoing_raid_task, gift_sub_recipients, _streak_schema_ready, last_poll_progress_update
     connection = None
@@ -1757,80 +1798,7 @@ async def process_twitch_eventsub_message(message):
                         ws_data = event_data.get("watch_streak", {}) or {}
                         ws_value = int(ws_data.get("streak_count", 0) or 0)
                         ws_display = event_data.get("chatter_user_name", "")
-                        event_logger.info(f"Watch streak: {ws_display} has watched {ws_value} consecutive streams")
-                        ws_streak_lost = False
-                        ws_old_streak = 0
-                        ws_new_total = ws_value
-                        if not _streak_schema_ready:
-                            await cursor.execute(
-                                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS "
-                                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analytic_stream_watch_streak' AND COLUMN_NAME = 'highest_streak'"
-                            )
-                            col_check = await cursor.fetchone()
-                            if col_check and col_check['cnt'] == 0:
-                                await cursor.execute(
-                                    "ALTER TABLE analytic_stream_watch_streak "
-                                    "ADD COLUMN highest_streak INT NOT NULL DEFAULT 0, "
-                                    "ADD COLUMN total_streams_watched INT NOT NULL DEFAULT 0"
-                                )
-                                event_logger.info("analytic_stream_watch_streak: added highest_streak and total_streams_watched columns")
-                            _streak_schema_ready = True
-                        await cursor.execute(
-                            "SELECT streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak WHERE user_name = %s",
-                            (ws_display,)
-                        )
-                        existing = await cursor.fetchone()
-                        if existing:
-                            ws_old_streak = existing['streak_value']
-                            ws_old_highest = existing['highest_streak'] or ws_old_streak
-                            ws_old_total = existing['total_streams_watched'] or ws_old_streak
-                            if ws_value < ws_old_streak:
-                                ws_streak_lost = True
-                                ws_new_total = ws_old_total + ws_value
-                                ws_new_highest = max(ws_old_highest, ws_old_streak)
-                            else:
-                                ws_new_total = ws_old_total + (ws_value - ws_old_streak)
-                                ws_new_highest = max(ws_old_highest, ws_value)
-                            await cursor.execute(
-                                "UPDATE analytic_stream_watch_streak SET streak_value = %s, highest_streak = %s, total_streams_watched = %s, updated_at = NOW() WHERE user_name = %s",
-                                (ws_value, ws_new_highest, ws_new_total, ws_display)
-                            )
-                        else:
-                            ws_new_total = ws_value
-                            await cursor.execute(
-                                "INSERT INTO analytic_stream_watch_streak (user_name, streak_value, highest_streak, total_streams_watched) VALUES (%s, %s, %s, %s)",
-                                (ws_display, ws_value, ws_value, ws_value)
-                            )
-                        await cursor.execute(
-                            'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
-                            (ws_display, "watch_streak", f"{ws_value} streams")
-                        )
-                        await cursor.execute(
-                            "SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s",
-                            ("watch_streak",)
-                        )
-                        ws_streak_result = await cursor.fetchone()
-                        if ws_streak_lost:
-                            ws_msg = (
-                                f"We're sorry you lost your {ws_old_streak} stream streak, {ws_display}! "
-                                f"You have now watched {ws_value} streams in a row - total streams watched: {ws_new_total}."
-                            )
-                        else:
-                            if ws_streak_result and ws_streak_result.get("alert_message"):
-                                ws_msg = ws_streak_result.get("alert_message")
-                            else:
-                                if ws_new_total > ws_value:
-                                    ws_msg = "Congrats (user) on watching (value) consecutive streams! They've watched a total of (total) streams."
-                                else:
-                                    ws_msg = "Congrats (user) on watching (value) consecutive streams!"
-                            ws_msg = ws_msg.replace("(user)", ws_display).replace("(value)", str(ws_value)).replace("(total)", str(ws_new_total))
-                        safe_create_task(send_chat_message(ws_msg))
-                        if not ws_streak_lost and ws_value > 0:
-                            safe_create_task(websocket_notice(
-                                event="WATCH_STREAK",
-                                user=ws_display,
-                                additional_data={"streak": ws_value, "username": ws_display},
-                            ))
+                        await record_watch_streak(ws_display, ws_value, source="eventsub")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
@@ -2408,7 +2376,18 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     bot_logger.info("IRC Presence: Server sent RECONNECT, reconnecting immediately...")
                     server_reconnect = True
                     break
-                elif "NOTICE" in line and ("#" + CHANNEL_NAME) in line:
+                elif "USERNOTICE" in line and ("#" + CHANNEL_NAME) in line and irc_nick == "botofthespecter":
+                    un_tags = _parse_irc_tags(line)
+                    un_msg_id = un_tags.get("msg-id", "")
+                    if un_msg_id == "viewermilestone":
+                        un_category = un_tags.get("msg-param-category", "")
+                        if un_category == "watch-streak":
+                            event_logger.info("Ignoring IRC watch-streak notice; using channel.chat.notification EventSub event as source of truth.")
+                        else:
+                            bot_logger.info(f"IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")
+                    else:
+                        bot_logger.info(f"IRC Presence USERNOTICE (msg-id={un_msg_id}): {line}")
+                elif " NOTICE " in line and ("#" + CHANNEL_NAME) in line:
                     tags = _parse_irc_tags(line)
                     msg_id = tags.get("msg-id", "")
                     if msg_id in _BLOCKING_NOTICE_IDS:
