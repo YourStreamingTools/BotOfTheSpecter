@@ -311,7 +311,9 @@ $badgeCacheJson = json_encode(
         // converts absent / black colours to white.
         function adjustColorForReadability(color) {
             if (!color || color === '' || color === '#000000') return '#ffffff';
-            const hex = color.replace('#', '');
+            let hex = String(color).trim();
+            if (hex.toLowerCase().startsWith('0x')) hex = hex.slice(2);
+            hex = hex.replace('#', '');
             let r, g, b;
             if (hex.length === 3) {
                 r = parseInt(hex[0] + hex[0], 16);
