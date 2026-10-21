@@ -159,6 +159,38 @@ dashboard.botofthespecter.com {
     }
 }
 
+beta.dashboard.botofthespecter.com {
+    # Beta ReactJS dashboard (dashboard-ui/ builds into beta-dashboard/).
+    root * /var/www/beta-dashboard
+    encode zstd gzip
+    import security
+    redir /favicon.ico https://cdn.botofthespecter.com/favicon.ico permanent
+    # Session API (StreamersConnect callback, me, logout). Only *.php under /api runs.
+    @api_private path /api/_*
+    handle @api_private {
+        respond 403
+    }
+    handle /api/* {
+        header Cache-Control "no-store"
+        route {
+            php_fastcgi unix//run/php/php8.5-fpm.sock
+            respond 404
+        }
+    }
+    handle {
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+        @html not path /assets/*
+        header @html Cache-Control "no-cache"
+        try_files {path} /index.html
+        file_server
+    }
+    log {
+        output file /var/log/caddy/beta-dashboard.log
+        import log_redact
+    }
+}
+
 admin.botofthespecter.com {
     # Operator panel. PHP files stay on disk under dashboard/admin/ so
     # ../includes and admin_access.php still resolve. Browser /css /js /api
@@ -291,14 +323,14 @@ specterbot.app {
     }
 }
 
-specterbotsystems.com, www.specterbotsystems.com {
+specterbot.systems, www.specterbot.systems, specterbotsystems.com, www.specterbotsystems.com {
     root * /var/www/specterbotsystems
 
-    # Redirect /mybot/* to mybot.specterbotsystems.com subdomain
+    # Redirect /mybot/* to mybot.specterbot.systems subdomain
     @mybot path /mybot /mybot/*
     handle @mybot {
         uri strip_prefix /mybot
-        redir https://mybot.specterbotsystems.com{uri} 301
+        redir https://mybot.specterbot.systems{uri} 301
     }
 
     import php_app
@@ -308,7 +340,7 @@ specterbotsystems.com, www.specterbotsystems.com {
     }
 }
 
-mybot.specterbotsystems.com {
+mybot.specterbot.systems, mybot.specterbotsystems.com {
     root * /var/www/specterbotsystems/mybot
     import php_app
     log {
