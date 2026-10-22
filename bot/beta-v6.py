@@ -477,6 +477,9 @@ ad_settings_cache_time = 0                              # Last time the ad setti
 CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
 ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
 ad_upcoming_last_notified_next_ad_at = None             # Tracks which next_ad_at already triggered a notice
+ad_1min_last_notified_next_ad_at = None                 # Tracks which next_ad_at already triggered a 1-min notice
+ad_1min_last_notified_ts = 0.0                          # UTC timestamp of last 1-minute ad notice sent
+AD_1MIN_NOTIFY_COOLDOWN_SECONDS = 90                    # Minimum seconds between 1-minute ad notices
 AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
 last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
 ad_break_end_routine = None                             # One-shot routine that posts the ad-end chat notice
@@ -1019,7 +1022,7 @@ async def get_or_create_conduit():
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
-    twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
+    twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
     while True:
         try:
             async with WebSocketConnect(twitch_websocket_uri) as twitch_websocket:
@@ -1039,11 +1042,11 @@ async def twitch_eventsub():
             continue
         except WebSocketConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
-            twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
+            twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
             await sleep(10)
         except Exception as e:
             event_logger.error(f"An unexpected error occurred: {e}")
-            twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
+            twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
             await sleep(10)
 
 async def subscribe_to_events(session_id):
@@ -1133,7 +1136,8 @@ async def subscribe_to_events(session_id):
 async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
     while True:
         try:
-            message = await asyncio_wait_for(twitch_websocket.recv(), timeout=keepalive_timeout)
+            # A little grace past the keepalive window so a keepalive that lands right on time is not treated as a drop
+            message = await asyncio_wait_for(twitch_websocket.recv(), timeout=keepalive_timeout + 10)
             message_data = json.loads(message)
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
@@ -2183,15 +2187,13 @@ async def process_twitch_eventsub_message(message):
                             twitch_logger.info(f"Skipping EventSub shoutout message for {user_to_shoutout} - already in the shoutout queue.")
                             return
                         shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "eventsub")
-                        await send_chat_message(shoutout_message)
-                        await add_shoutout(user_to_shoutout, user_id, is_automated=False)
+                        await add_shoutout(user_to_shoutout, user_id, is_automated=False, shoutout_message=shoutout_message, source="eventsub_create", trigger_api=False)
                         twitch_logger.info(f"Queued EventSub manual shoutout for {user_to_shoutout}.")
                     elif event_type == "channel.shoutout.receive":
                         user_to_shoutout = event_data.get('from_broadcaster_user_name')
                         user_id = event_data.get('from_broadcaster_user_id') or user_to_shoutout
                         shoutout_message = f"@{event_data['from_broadcaster_user_name']} has given @{CHANNEL_NAME} a shoutout."
-                        await send_chat_message(shoutout_message)
-                        await add_shoutout(user_to_shoutout, user_id, is_automated=False, skip_if_queued=False)
+                        await add_shoutout(user_to_shoutout, user_id, is_automated=False, skip_if_queued=False, shoutout_message=shoutout_message, source="eventsub_receive", trigger_api=False)
                         twitch_logger.info(f"Queued EventSub received shoutout message for {user_to_shoutout}.")
                     else:
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct information from twitch to process the request."
@@ -3702,6 +3704,100 @@ async def cleanup_idle_db_pools():
             bot_logger.error(f"Error in cleanup_idle_db_pools: {e}")
             await sleep(300)
 
+# Stand-ins used when (call.*) runs from a timed message, where there is no chat message to build a Context from.
+# They act as the broadcaster so permission checks pass, and replies go through the normal send queue.
+class _FakeAuthor:
+    def __init__(self):
+        self.name = CHANNEL_NAME
+        self.display_name = CHANNEL_NAME
+        self.id = CHANNEL_ID
+        self.moderator = True
+        self.vip = True
+        self.subscriber = True
+        self.broadcaster = True
+        self.is_mod = True
+        self.is_vip = True
+        self.is_subscriber = True
+        self.is_broadcaster = True
+        self.badges = []
+
+class _FakeMessage:
+    def __init__(self, text=""):
+        self.author = _FakeAuthor()
+        self.chatter = self.author
+        self.text = text
+        self.content = text
+        self.id = None
+        self.broadcaster = None
+        self.channel = None
+
+class _FakeContext:
+    def __init__(self, bot, text=""):
+        self.author = _FakeAuthor()
+        self.chatter = self.author
+        self.message = _FakeMessage(text)
+        self.bot = bot
+        self.prefix = "!"
+        self.broadcaster = None
+        self.channel = None
+
+    async def send(self, content, *args, **kwargs):
+        await send_chat_message(content)
+
+    async def reply(self, content, *args, **kwargs):
+        await send_chat_message(content)
+
+# Map the (call.command.args) text onto the command callback's parameters
+def _build_command_args(callback, arg_str):
+    if not arg_str:
+        return (), {}
+    sig = inspect.signature(callback)
+    params = [p for p in sig.parameters.values() if p.name not in ('self', 'ctx')]
+    if not params:
+        return (), {}
+    parts = arg_str.split()
+    has_var_positional = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
+    positional_params = [p for p in params if p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD]
+    kw_only_params = [p for p in params if p.kind == inspect.Parameter.KEYWORD_ONLY]
+    call_args = []
+    call_kwargs = {}
+    if has_var_positional:
+        # *args: spread every word individually
+        call_args = parts
+    else:
+        # Assign one word per positional param, coercing int when annotated
+        for i, param in enumerate(positional_params):
+            if i >= len(parts):
+                break
+            value = parts[i]
+            if param.annotation is int or param.annotation == 'int':
+                try:
+                    value = int(value)
+                except (ValueError, TypeError):
+                    pass
+            call_args.append(value)
+        # Keyword-only params (after bare *) get the full remainder as one string
+        if kw_only_params:
+            consumed = min(len(positional_params), len(parts))
+            remainder_parts = parts[consumed:]
+            remainder = ' '.join(remainder_parts) if remainder_parts else (arg_str if not positional_params else None)
+            if remainder:
+                call_kwargs[kw_only_params[0].name] = remainder
+    return tuple(call_args), call_kwargs
+
+async def _call_openai_chat(messages, model, log_prefix=""):
+    try:
+        api_logger.debug(f"{log_prefix} Calling OpenAI Responses API")
+        resp = await openai_client.responses.create(model=model, input=messages)
+        text = getattr(resp, 'output_text', None)
+        if text:
+            return text
+        api_logger.error(f"{log_prefix} Responses API returned no output_text: {resp}")
+        return None
+    except Exception as e:
+        api_logger.error(f"{log_prefix} Error calling OpenAI Responses API: {e}")
+        return None
+
 class TwitchBot(commands.AutoBot):
     # Minimal Component surface for TwitchIO when Command._injected is the bot instance.
     __all_guards__ = ()
@@ -4134,11 +4230,10 @@ class TwitchBot(commands.AutoBot):
                                             await send_chat_message(f"The command {sub_command} is no longer available.")
                                 # Handle (call.)
                                 if '(call.' in response:
-                                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                                    calling_match = re.search(r'\(call\.(\w+)(?:\.([^)]+))?\)', response)
                                     if calling_match:
-                                        match_call = calling_match.group(1)
-                                        response = response.replace(f"(call.{match_call})", "")
-                                        await self.call_command(match_call, message)
+                                        response = response.replace(calling_match.group(0), "")
+                                        await self.call_command(calling_match.group(1), message, calling_match.group(2))
                                 # Handle random replacements
                                 if '(random.percent' in response or '(random.number' in response or '(random.pick.' in response:
                                     # Unified pattern for all placeholders
@@ -4350,7 +4445,7 @@ class TwitchBot(commands.AutoBot):
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
-        if messageAuthor.lower() == BOT_USERNAME.lower():
+        if messageAuthor.lower() in IGNORED_WELCOME_USERNAMES:
             # Skip message counting and welcome message for the bot itself
             return
         send_shoutout = False
@@ -4371,6 +4466,9 @@ class TwitchBot(commands.AutoBot):
                     (messageAuthor, user_level, user_level)
                 )
                 await connection.commit()
+                # Known bots are counted above, but never welcomed or auto-shouted-out.
+                if messageAuthor.lower() in await get_known_bots():
+                    return
                 # Check if user is already in seen_today
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 seen_today_result = await cursor.fetchone()
@@ -4381,18 +4479,29 @@ class TwitchBot(commands.AutoBot):
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                 user_data = await cursor.fetchone()
+                if not user_data and is_bot_creator(messageAuthor):
+                    await cursor.execute('SELECT * FROM seen_users WHERE LOWER(username) = %s LIMIT 1', (messageAuthor.lower(),))
+                    user_data = await cursor.fetchone()
+                # Hold the creator out of seen_users until the one-time hello is actually sent.
+                creator_first_visit = is_bot_creator(messageAuthor) and not user_data
                 if user_data:
                     has_welcome_message = user_data.get("welcome_message")
                     user_status_enabled = user_data.get("status", 'True') == 'True'
                 else:
                     has_welcome_message = None
                     user_status_enabled = True
-                    await cursor.execute(
-                        'INSERT INTO seen_users (username, status) VALUES (%s, %s)',
-                        (messageAuthor, "True")
-                    )
+                    if not creator_first_visit:
+                        await cursor.execute(
+                            'INSERT INTO seen_users (username, status) VALUES (%s, %s)',
+                            (messageAuthor, "True")
+                        )
+                        await connection.commit()
+                        chat_logger.info(f"Added new user to seen_users: {messageAuthor}")
+                # Update last_seen and set first_seen if null
+                if not creator_first_visit:
+                    seen_username = user_data.get("username") if user_data else messageAuthor
+                    await cursor.execute('UPDATE seen_users SET last_seen = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE username = %s', (seen_username,))
                     await connection.commit()
-                    chat_logger.info(f"Added new user to seen_users: {messageAuthor}")
                 # Load streamer preferences
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()
@@ -4419,6 +4528,8 @@ class TwitchBot(commands.AutoBot):
                 # First-chat only when online and message is not a command (beta parity for modules)
                 is_command_message = bool(messageContent and messageContent.strip().startswith('!'))
                 if not already_seen_today and stream_online and not is_command_message:
+                    if creator_first_visit:
+                        await record_and_welcome_bot_creator(cursor, connection, messageAuthor)
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
@@ -4440,8 +4551,8 @@ class TwitchBot(commands.AutoBot):
                         await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
                         create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
-                    # Only send welcome message if enabled
-                    if user_status_enabled and send_welcome_messages:
+                    # Only send welcome message if enabled. The creator hello already went out on a first visit.
+                    if user_status_enabled and send_welcome_messages and not creator_first_visit:
                         if not user_data:
                             if is_vip:
                                 message_to_send = replace_user_placeholder(new_default_vip_welcome_message, messageAuthor)
@@ -4451,7 +4562,7 @@ class TwitchBot(commands.AutoBot):
                                 message_to_send = replace_user_placeholder(new_default_welcome_message, messageAuthor)
                         else:
                             if has_welcome_message:
-                                message_to_send = has_welcome_message
+                                message_to_send = replace_user_placeholder(has_welcome_message, messageAuthor)
                             else:
                                 if is_vip:
                                     message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
@@ -4472,8 +4583,7 @@ class TwitchBot(commands.AutoBot):
                         if message_to_send.strip():
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
-                            await add_shoutout(user_to_shoutout, user_id, is_automated=True)
-                            await send_chat_message(shoutout_message)
+                            await add_shoutout(user_to_shoutout, user_id, is_automated=True, shoutout_message=shoutout_message, source="welcome_message")
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                     # Birthday wish is its own message, so it goes out even when welcome messages are off
                     await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
@@ -4619,6 +4729,10 @@ class TwitchBot(commands.AutoBot):
                     is_mod = await is_user_mod(messageAuthorID)
                     await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
                     user_data = await cursor.fetchone()
+                    if not user_data and is_bot_creator(messageAuthor):
+                        await cursor.execute('SELECT * FROM seen_users WHERE LOWER(username) = %s LIMIT 1', (messageAuthor.lower(),))
+                        user_data = await cursor.fetchone()
+                    creator_first_visit = is_bot_creator(messageAuthor) and not user_data
                     if user_data:
                         has_welcome_message = user_data.get("welcome_message")
                         user_status_enabled = user_data.get("status", 'True') == 'True'
@@ -4643,13 +4757,15 @@ class TwitchBot(commands.AutoBot):
                         default_welcome_message = preferences["default_welcome_message"]
                         default_vip_welcome_message = preferences["default_vip_welcome_message"]
                         default_mod_welcome_message = preferences["default_mod_welcome_message"]
+                    if creator_first_visit:
+                        await record_and_welcome_bot_creator(cursor, connection, messageAuthor)
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
                     )
                     await connection.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today from first-command welcome flow.")
-                    if user_status_enabled and send_welcome_messages:
+                    if user_status_enabled and send_welcome_messages and not creator_first_visit:
                         if not user_data:
                             if is_vip:
                                 message_to_send = new_default_vip_welcome_message.replace("(user)", messageAuthor)
@@ -4676,9 +4792,10 @@ class TwitchBot(commands.AutoBot):
                         if message_to_send.strip():
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
-                            await add_shoutout(user_to_shoutout, user_id, is_automated=True)
-                            await send_chat_message(shoutout_message)
+                            await add_shoutout(user_to_shoutout, user_id, is_automated=True, shoutout_message=shoutout_message, source="welcome_message")
                         chat_logger.info(f"Sent first-command welcome message to {messageAuthor}")
+                        create_task(self.safe_walkon(messageAuthor, messageAuthorID))
+                    elif creator_first_visit and user_status_enabled and send_welcome_messages:
                         create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                     # Birthday wish is its own message, so it goes out even when welcome messages are off
                     await send_birthday_wish(cursor, messageAuthorID, messageAuthor)
@@ -4759,26 +4876,40 @@ class TwitchBot(commands.AutoBot):
             if connection:
                 await connection.release()
 
-    async def call_command(self, command_name, ctx):
+    async def call_command(self, command_name, ctx, arg_str=None):
         if command_name in self.running_commands:
             bot_logger.warning(f"Command '{command_name}' is already running, skipping.")
             return
-        # If ctx doesn't have 'view', it's a Message, create a Context
-        if not hasattr(ctx, 'view'):
-            ctx = Context(message=ctx, bot=self, prefix='!')
-        command_method = getattr(self, f"{command_name}_command", None)
-        if command_method:
-            bot_logger.info(f"Calling command: {command_name}")
-            self.running_commands.add(command_name)
-            try:
-                await command_method(ctx)
-            except Exception as e:
-                bot_logger.error(f"Error executing command '{command_name}': {e}")
-            finally:
-                self.running_commands.discard(command_name)
-        else:
+        # TwitchIO 3: build a Context from the chat message; timed messages have none, so act as the broadcaster
+        if ctx is None:
+            ctx = _FakeContext(self, f"!{command_name} {arg_str}".strip() if arg_str else f"!{command_name}")
+        elif not isinstance(ctx, (commands.Context, _FakeContext)):
+            ctx = Context(ctx, bot=self)
+        command_obj = getattr(self, f"{command_name}_command", None)
+        if command_obj is None:
             bot_logger.warning(f"Command '{command_name}' not found.")
             await send_chat_message(f"Command '{command_name}' not found.")
+            return
+        callback = getattr(command_obj, '_callback', None)
+        injected = getattr(command_obj, '_injected', None)
+        if callback is None and callable(command_obj):
+            # Plain bound method, self is already applied
+            callback, injected = command_obj, None
+        if callback is None:
+            bot_logger.error(f"Command '{command_name}' has no callable implementation.")
+            return
+        bot_logger.info(f"Calling command: {command_name}, arg_str: {arg_str}")
+        call_args, call_kwargs = _build_command_args(callback, arg_str)
+        self.running_commands.add(command_name)
+        try:
+            if callback is not command_obj:
+                await callback(injected if injected is not None else self, ctx, *call_args, **call_kwargs)
+            else:
+                await callback(ctx, *call_args, **call_kwargs)
+        except Exception as e:
+            bot_logger.error(f"Error executing command '{command_name}': {e}")
+        finally:
+            self.running_commands.discard(command_name)
 
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
@@ -4988,41 +5119,9 @@ class TwitchBot(commands.AutoBot):
                 api_logger.debug(f"Error loading chat history for {user_id}: {e}")
             # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
-            # Call OpenAI chat completion via AsyncOpenAI client
-            try:
-                api_logger.debug("Calling OpenAI chat completion from get_ai_response")
-                chat_client = getattr(openai_client, 'chat', None)
-                ai_text = None
-                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        choice = resp['choices'][0]
-                        if 'message' in choice and 'content' in choice['message']:
-                            ai_text = choice['message']['content']
-                        elif 'text' in choice:
-                            ai_text = choice['text']
-                    else:
-                        # Try attribute access
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
-                    else:
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                else:
-                    api_logger.error("No compatible chat completions method found on openai_client")
-                    return "AI chat completions API is not available."
-            except Exception as e:
-                api_logger.error(f"Error calling chat completion API: {e}")
-                return "An error occurred while contacting the AI chat service."
+            ai_text = await _call_openai_chat(messages, OPENAI_MODEL, log_prefix="[AI]")
             if not ai_text:
-                api_logger.error(f"Chat completion returned no usable text: {resp}")
-                return "The AI chat service returned an unexpected response."
+                return "An error occurred while contacting the AI chat service."
             api_logger.info("AI response received from chat completion")
             # Persist the user message and AI response to per-user history
             try:
@@ -6659,6 +6758,47 @@ class TwitchBot(commands.AutoBot):
                 await media_songrequest(ctx, connection, bucket_key, cooldown_bucket)
                 return
             headers = {"Authorization": f"Bearer {access_token}"}
+            author_name = (ctx.author.name or "").lower()
+            is_broadcaster = author_name in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower())
+            # A song permit lets one request skip every song request limit; mods also skip the per-viewer limit
+            permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
+            skip_viewer_limit = is_broadcaster or permit_bypass or bool(getattr(ctx.author, "moderator", False))
+            # Fetch settings to check enabled state and per-viewer limits
+            try:
+                settings = await get_media_settings(connection)
+                if not settings.get("enabled", 1) and not is_broadcaster:
+                    await send_chat_message("Song requests are currently disabled.")
+                    return
+                per_viewer_limit = settings.get("per_viewer_limit", 2)
+            except Exception as e:
+                api_logger.error(f"[SONG REQUEST] Failed to get media settings: {e}")
+                per_viewer_limit = 2
+                settings = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2}
+            # Sync / prune the song_requests dictionary in real time using the Spotify queue
+            queue_length = 0
+            try:
+                queue_url = "https://api.spotify.com/v1/me/player/queue"
+                async with httpClientSession() as queue_session:
+                    async with queue_session.get(queue_url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data and 'queue' in data:
+                                queue_length = len(data['queue'])
+                                queue_ids = {song['uri'] for song in data['queue']}
+                                currently_playing = data.get('currently_playing')
+                                if currently_playing and 'uri' in currently_playing:
+                                    queue_ids.add(currently_playing['uri'])
+                                removed = await sync_song_request_cache(connection, song_requests, queue_ids)
+                                for _song_id, song_info in removed:
+                                    api_logger.info(f"[SONG REQUEST] Song \"{song_info.get('song_name')} by {song_info.get('artist_name')}\" removed from tracking list (real-time sync).")
+            except Exception as e:
+                api_logger.error(f"[SONG REQUEST] Failed to prune song requests before limit check: {e}")
+            # Enforce the per-viewer limit (broadcaster, owner, mods and permit holders are exempt)
+            if not skip_viewer_limit:
+                user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == author_name)
+                if int(per_viewer_limit) > 0 and user_requests_count >= int(per_viewer_limit):
+                    await send_chat_message(viewer_limit_message(ctx.author.name, user_requests_count, per_viewer_limit))
+                    return
             message = ctx.message.text
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
@@ -6761,6 +6901,7 @@ class TwitchBot(commands.AutoBot):
                             song_id = track_data["uri"]
                             song_name = track_data["name"]
                             artist_name = track_data["artists"][0]["name"]
+                            duration_ms = track_data["duration_ms"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await send_chat_message(f"Sorry, I don't accept karaoke or instrumental versions.")
@@ -6787,6 +6928,7 @@ class TwitchBot(commands.AutoBot):
                             song_id = track["uri"]
                             song_name = track["name"]
                             artist_name = track["artists"][0]["name"]
+                            duration_ms = track["duration_ms"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await send_chat_message(f"No song found: {message_content}")
@@ -6797,11 +6939,35 @@ class TwitchBot(commands.AutoBot):
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
                             await send_chat_message(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
-            settings = await get_media_settings(connection)
-            # A song permit lets one request skip every song request limit
-            permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
-            author_name = (ctx.author.name or "").lower()
-            if author_name not in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower()) and not permit_bypass:
+            # Run evaluate_guardrails from modules/media_helpers.py
+            try:
+                banlist = await get_media_banlist(connection)
+            except Exception as e:
+                api_logger.error(f"[SONG REQUEST] Failed to get media banlist: {e}")
+                banlist = []
+            if not skip_viewer_limit:
+                user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == author_name)
+            else:
+                user_requests_count = 0
+            ok, reason = evaluate_guardrails(
+                duration=duration_ms // 1000,
+                queue_count=queue_length,
+                viewer_count=user_requests_count,
+                settings=settings,
+                video_id=song_id,
+                title=f"{song_name} {artist_name}",
+                banlist=banlist
+            )
+            if not ok:
+                msgs = {
+                    "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
+                    "queue_full": "The song queue is full, please try again later.",
+                    "viewer_limit": viewer_limit_message(ctx.author.name, user_requests_count, settings['per_viewer_limit']),
+                    "banned": "Sorry, that song isn't allowed here.",
+                }
+                await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
+                return
+            if not is_broadcaster and not permit_bypass:
                 artist_block = await artist_request_block_message(connection, artist_name, settings)
                 if artist_block:
                     await send_chat_message(artist_block)
@@ -10590,16 +10756,21 @@ class TwitchBot(commands.AutoBot):
                     f"@{ctx.author.name}, @{user_to_shoutout} is already in the shoutout queue."
                 )
                 return
+            in_cooldown, cooldown_minutes, _ = await get_shoutout_cooldown_state(user_id)
+            if in_cooldown:
+                await send_chat_message(
+                    f"Sorry, this person has received a shoutout within the last {cooldown_minutes} minutes, please wait for the cooldown to end before sending a shoutout for this user again."
+                )
+                return
             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "command")
             chat_logger.info(shoutout_message)
-            queued = await add_shoutout(user_to_shoutout, user_id, is_automated=False)
+            queued = await add_shoutout(user_to_shoutout, user_id, is_automated=False, shoutout_message=shoutout_message, source="command")
             if queued == "already_queued":
                 chat_logger.info(f"@{user_to_shoutout} was already in the shoutout queue; informing {ctx.author.name}")
                 await send_chat_message(
                     f"@{ctx.author.name}, @{user_to_shoutout} is already in the shoutout queue."
                 )
                 return
-            await send_chat_message(shoutout_message)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -11662,7 +11833,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='todolist')
-    async def todolist_command(self, ctx: commands.Context):
+    async def todolist_command(self, ctx: commands.Context, *categories):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -11684,7 +11855,8 @@ class TwitchBot(commands.AutoBot):
                     return
                 # Record usage right away so overlapping uses can't both pass the cooldown
                 add_usage('todolist', bucket_key, cooldown_bucket)
-            await todolist_command_handler(ctx, connection)
+            category_ids = parse_todolist_category_ids(categories)
+            await todolist_command_handler(ctx, connection, category_ids)
         except Exception as e:
             bot_logger.error(f"An error occurred in todolist_command: {e}")
         finally:
@@ -12598,6 +12770,28 @@ async def save_birthday(cursor, user_id, user_name, day, month, added_by):
         (str(user_id), user_name.lower(), day, month, added_by),
     )
 
+# The bot creator is not in this channel's seen_users until the one-time hello below is sent.
+def is_bot_creator(username):
+    if not username or not bot_owner:
+        return False
+    return str(username).lower() == str(bot_owner).lower()
+
+BOT_CREATOR_WELCOME = "@{user} That's my creator! Welcome to the stream, {user}. First time I've seen you in this chat, so hello from me."
+
+async def record_and_welcome_bot_creator(cursor, connection, username):
+    await cursor.execute('SELECT id FROM seen_users WHERE LOWER(username) = %s LIMIT 1', (username.lower(),))
+    if await cursor.fetchone():
+        return False
+    await send_chat_message(BOT_CREATOR_WELCOME.format(user=username))
+    await cursor.execute('INSERT INTO seen_users (username, status) VALUES (%s, %s)', (username, "True"))
+    await cursor.execute(
+        'UPDATE seen_users SET last_seen = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE username = %s',
+        (username,)
+    )
+    await connection.commit()
+    chat_logger.info(f"Sent bot-creator welcome to {username}")
+    return True
+
 async def send_birthday_wish(cursor, user_id, user_name):
     try:
         saved = await get_saved_birthday(cursor, user_id)
@@ -13019,6 +13213,16 @@ async def get_known_bots():
     except Exception as e:
         bot_logger.error(f"[KNOWN BOTS] Failed to load known_bots from website DB: {e}")
     return set(bots)
+
+async def is_points_excluded(user_name, settings=None):
+    # Points skip the channel's manually excluded users plus the global known bots (admin panel), case-insensitive.
+    name = (user_name or '').strip().lstrip('@').lower()
+    if not name:
+        return False
+    if settings is None:
+        settings = await get_point_settings()
+    manual = {u.strip().lower() for u in str((settings or {}).get('excluded_users') or '').split(',') if u.strip()}
+    return name in manual or name in await get_known_bots()
 
 # Working & Study task & pomo command helpers Function to resolve the chatter's current project string (None for the default context)
 async def resolve_active_project(cursor, user_id):
@@ -14860,11 +15064,10 @@ async def process_dynamic_variables(
                         response = response.replace('(pronouns.them)', 'them')
                 # Handle (call.) - defer command invocation until after the main message is sent
                 if '(call.' in response:
-                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                    calling_match = re.search(r'\(call\.(\w+)(?:\.([^)]+))?\)', response)
                     if calling_match:
-                        match_call = calling_match.group(1)
-                        response = response.replace(f"(call.{match_call})", "")
-                        pending_calls.append(match_call)
+                        response = response.replace(calling_match.group(0), "")
+                        pending_calls.append((calling_match.group(1), calling_match.group(2)))
                 # Handle (shoutout.username)
                 if '(shoutout.' in response:
                     so_match = re.search(r'\(shoutout\.(\w+)\)', response)
@@ -14875,9 +15078,7 @@ async def process_dynamic_variables(
                             so_user_id, so_display_name = await get_twitch_user_by_login(so_username)
                             if so_user_id:
                                 so_message = await get_shoutout_message(so_user_id, so_display_name or so_username, "variable")
-                                await add_shoutout(so_display_name or so_username, so_user_id, is_automated=True)
-                                if so_message:
-                                    await send_chat_message(so_message)
+                                await add_shoutout(so_display_name or so_username, so_user_id, is_automated=True, shoutout_message=so_message, source="variable")
                             else:
                                 chat_logger.warning(f"(shoutout.{so_username}): user not found on Twitch, shoutout skipped")
                         except Exception as so_err:
@@ -15110,11 +15311,11 @@ async def process_dynamic_variables(
             if send_to_chat:
                 await send_long_chat_message(response)
             # Fire any deferred (call.) commands after the main message
-            for call_cmd in pending_calls:
+            for call_cmd, call_args in pending_calls:
                 try:
                     bot_ref = BOTS_TWITCH_BOT
                     if bot_ref and hasattr(bot_ref, 'call_command'):
-                        await bot_ref.call_command(call_cmd, None)
+                        await bot_ref.call_command(call_cmd, None, restore_viewer_text(call_args) if call_args else None)
                     else:
                         chat_logger.warning(f"Cannot call command '{call_cmd}': bot not available")
                 except Exception as e:
@@ -15347,20 +15548,34 @@ async def get_automated_shoutout_cooldown():
             await connection.release()
     return 60  # Default to 60 minutes
 
-# Helper function to check if user is within automated shoutout cooldown
-async def has_automated_shoutout_cooldown(user_id):
-    if user_id not in recent_shoutouts:
-        return False
-    last_shoutout_time = recent_shoutouts[user_id]
+# Normalize user IDs used for shoutout cooldown tracking, so IDs loaded from the database match live ones
+def normalize_shoutout_user_id(user_id):
+    return str(user_id) if user_id is not None else ""
+
+# Helper function to get shoutout cooldown state for any shoutout source
+async def get_shoutout_cooldown_state(user_id):
+    normalized_user_id = normalize_shoutout_user_id(user_id)
     cooldown_minutes = await get_automated_shoutout_cooldown()
+    if not normalized_user_id or normalized_user_id not in recent_shoutouts:
+        return False, cooldown_minutes, 0
+    last_shoutout_time = recent_shoutouts[normalized_user_id]
     cooldown_duration = timedelta(minutes=cooldown_minutes)
     time_since_shoutout = time_right_now() - last_shoutout_time
-    return time_since_shoutout < cooldown_duration
+    if time_since_shoutout >= cooldown_duration:
+        return False, cooldown_minutes, 0
+    remaining_seconds = max(0, (cooldown_duration - time_since_shoutout).total_seconds())
+    remaining_minutes = max(1, int((remaining_seconds + 59) // 60))
+    return True, cooldown_minutes, remaining_minutes
+
+# Helper function to check if user is within automated shoutout cooldown
+async def has_automated_shoutout_cooldown(user_id):
+    in_cooldown, _, _ = await get_shoutout_cooldown_state(user_id)
+    return in_cooldown
 
 # Helper function to record automated shoutout
 async def record_automated_shoutout(user_id, user_name):
     now = time_right_now()
-    recent_shoutouts[user_id] = now
+    recent_shoutouts[normalize_shoutout_user_id(user_id)] = now
     twitch_logger.info(f"Recorded automated shoutout for {user_name} (user_id: {user_id}) at {now}")
     # Store in database
     connection = None
@@ -15382,6 +15597,23 @@ async def record_automated_shoutout(user_id, user_name):
         if connection:
             await connection.release()
 
+# Helper function to log a delivered shoutout to the persistent history table
+async def log_shoutout_history(user_id, user_name, via=None):
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                "INSERT INTO shoutout_history (user_id, user_name, via) VALUES (%s, %s, %s)",
+                (user_id, user_name, via)
+            )
+            await connection.commit()
+    except Exception as e:
+        twitch_logger.error(f"Error logging shoutout history: {e}")
+    finally:
+        if connection:
+            await connection.release()
+
 async def load_automated_shoutout_tracking():
     connection = None
     try:
@@ -15390,7 +15622,7 @@ async def load_automated_shoutout_tracking():
             await cursor.execute("SELECT user_id, shoutout_time FROM automated_shoutout_tracking")
             results = await cursor.fetchall()
             for row in results:
-                recent_shoutouts[row['user_id']] = row['shoutout_time']
+                recent_shoutouts[normalize_shoutout_user_id(row['user_id'])] = row['shoutout_time']
             twitch_logger.info(f"Loaded {len(results)} automated shoutout tracking entries from database")
     except Exception as e:
         twitch_logger.error(f"Error loading automated shoutout tracking: {e}")
@@ -15451,20 +15683,22 @@ def is_shoutout_queued(user_id):
         return False
     return str(user_id) in shoutout_queued_ids
 
-# Enqueue shoutout requests
-async def add_shoutout(user_to_shoutout, user_id, is_automated=True, skip_if_queued=True):
+# Enqueue shoutout requests (the chat line rides in the queue so it goes out in order with the API call)
+async def add_shoutout(user_to_shoutout, user_id, is_automated=True, skip_if_queued=True, shoutout_message=None, source="unknown", trigger_api=True):
     queued_id = str(user_id) if user_id is not None else None
     if skip_if_queued and queued_id and queued_id in shoutout_queued_ids:
-        twitch_logger.info(f"Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - already in the shoutout queue.")
+        twitch_logger.info(f"Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - already in the shoutout queue. [source={source}]")
         return "already_queued"
-    if is_automated and await has_automated_shoutout_cooldown(user_id):
+    if trigger_api and is_automated and await has_automated_shoutout_cooldown(user_id):
         cooldown_minutes = await get_automated_shoutout_cooldown()
-        twitch_logger.info(f"Skipping automated shoutout for {user_to_shoutout} (user_id: {user_id}) - still within {cooldown_minutes} minute cooldown.")
+        twitch_logger.info(f"Automated shoutout for {user_to_shoutout} (user_id: {user_id}) is within the {cooldown_minutes} minute cooldown; skipping the Twitch API, chat message still sends if present. [source={source}]")
+        trigger_api = False
+    if not trigger_api and not shoutout_message:
         return False
     if skip_if_queued and queued_id:
         shoutout_queued_ids.add(queued_id)
-    await shoutout_queue.put((user_to_shoutout, user_id, is_automated, skip_if_queued))
-    twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue.")
+    await shoutout_queue.put((user_to_shoutout, user_id, is_automated, skip_if_queued, shoutout_message, source, trigger_api))
+    twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue. [source={source}, trigger_api={trigger_api}]")
     return True
 
 # Worker to process shoutout queue
@@ -15472,38 +15706,47 @@ async def shoutout_worker():
     global last_shoutout_time
     while True:
         item = await shoutout_queue.get()
-        # Older 3-tuples stay compatible if a process is mid-upgrade
-        if len(item) == 4:
+        # Older tuple shapes stay compatible if a process is mid-upgrade
+        shoutout_message, source, trigger_api = None, "unknown", True
+        if len(item) == 7:
+            user_to_shoutout, user_id, is_automated, skip_if_queued, shoutout_message, source, trigger_api = item
+        elif len(item) == 4:
             user_to_shoutout, user_id, is_automated, skip_if_queued = item
         else:
             user_to_shoutout, user_id, is_automated = item
             skip_if_queued = True
         try:
             now = time_right_now()
-            # Check global cooldown
-            if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
+            # User-specific cooldown only blocks the Twitch API call; the chat line still goes out
+            if trigger_api and user_id in shoutout_tracker:
+                if now - shoutout_tracker[user_id] < TWITCH_SHOUTOUT_USER_COOLDOWN:
+                    twitch_logger.info(f"User-specific cooldown in effect for {user_to_shoutout}; skipping the Twitch API. [source={source}]")
+                    trigger_api = False
+            if not trigger_api and not shoutout_message:
+                continue
+            # Global cooldown only matters when calling the Twitch API
+            if trigger_api and last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
                 wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
                 twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
                 await sleep(wait_time)
-            # Check user-specific cooldown
-            if user_id in shoutout_tracker:
-                last_user_shoutout_time = shoutout_tracker[user_id]
-                if now - last_user_shoutout_time < TWITCH_SHOUTOUT_USER_COOLDOWN:
-                    twitch_logger.info(f"Skipping shoutout for {user_to_shoutout}. User-specific cooldown in effect.")
-                    continue
-            # Trigger the shoutout
-            await trigger_twitch_shoutout(user_to_shoutout, user_id)
-            twitch_logger.info(f"Shoutout sent for {user_to_shoutout}.")
-            shoutout_user_key = (user_to_shoutout or "").lower()
-            if shoutout_user_key:
-                shoutout_user[shoutout_user_key] = {"timestamp": time.time()}
-                create_task(remove_shoutout_user(shoutout_user_key, 60))
-            # Record automated shoutout
-            if is_automated:
+            if trigger_api:
+                # Set the dedupe marker before the API call so the channel.shoutout.create event sees it
+                shoutout_user_key = (user_to_shoutout or "").lower()
+                if shoutout_user_key:
+                    shoutout_user[shoutout_user_key] = {"timestamp": time.time()}
+                    create_task(remove_shoutout_user(shoutout_user_key, 60))
+                await trigger_twitch_shoutout(user_to_shoutout, user_id)
+                twitch_logger.info(f"Shoutout sent for {user_to_shoutout}. [source={source}]")
+            if shoutout_message:
+                await send_chat_message(shoutout_message)
+            # Record automated shoutout cooldown only when the Twitch API was called
+            if trigger_api and is_automated:
                 await record_automated_shoutout(user_id, user_to_shoutout)
-            # Update cooldown trackers
-            last_shoutout_time = time_right_now()
-            shoutout_tracker[user_id] = last_shoutout_time
+            # Persist to the shoutout history log for all-time counts
+            await log_shoutout_history(user_id, user_to_shoutout, "automated" if is_automated else "command")
+            if trigger_api:
+                last_shoutout_time = time_right_now()
+                shoutout_tracker[user_id] = last_shoutout_time
         except Exception as e:
             twitch_logger.error(f"Unhandled error in shoutout_worker while processing shoutout for {user_to_shoutout}: {e}")
         finally:
@@ -15816,7 +16059,7 @@ async def process_weather_websocket(data):
 # Function to process the stream being online
 async def process_stream_online_websocket():
     global stream_online, current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
-    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, stream_session_started_at
+    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, stream_session_started_at, ad_1min_last_notified_next_ad_at, ad_1min_last_notified_ts
     was_offline = not stream_online
     stream_online = True
     if was_offline:
@@ -15861,6 +16104,8 @@ async def process_stream_online_websocket():
         if was_offline:
             ad_upcoming_notified = False
             ad_upcoming_last_notified_next_ad_at = None
+            ad_1min_last_notified_next_ad_at = None
+            ad_1min_last_notified_ts = 0.0
         # Fallback lookup: if game is unknown/missing, query channels endpoint
         if is_live and (not current_game or str(current_game).strip().lower() == "unknown"):
             try:
@@ -16190,7 +16435,7 @@ async def update_timed_messages():
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Fetch all enabled messages
-            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 1")
+            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger, trigger_type, scheduled_time FROM timed_messages WHERE status = 1")
             current_messages = await cursor.fetchall()
             chat_logger.info(f"Found {len(current_messages)} enabled timed messages in database")
             if not current_messages:
@@ -16228,7 +16473,9 @@ async def update_timed_messages():
                 # Check if message content or settings have changed
                 if (current_row["message"] != active_row["message"] or
                     current_row["interval_count"] != active_row["interval_count"] or
-                    current_row["chat_line_trigger"] != active_row["chat_line_trigger"]):
+                    current_row["chat_line_trigger"] != active_row["chat_line_trigger"] or
+                    current_row.get("trigger_type", "timer") != active_row.get("trigger_type", "timer") or
+                    current_row.get("scheduled_time") != active_row.get("scheduled_time")):
                     # Restart the message with new settings
                     await stop_timed_message(message_id)
                     await start_timed_message(message_id, current_row)
@@ -16245,24 +16492,43 @@ async def start_timed_message(message_id, row):
     message = row["message"]
     interval = row["interval_count"]
     chat_line_trigger = row["chat_line_trigger"]
+    trigger_type = row.get("trigger_type", "timer")
     # Store message details in memory
     active_timed_messages[message_id] = dict(row)
-    # If interval_count is set, this is an interval-based message
-    if interval and int(interval) > 0:
-        interval_mins = max(5, min(60, int(interval)))
-        wait_time = interval_mins * 60
-        task = create_task(send_interval_message(message_id, message, wait_time))
-        message_tasks[message_id] = task
-        scheduled_tasks.add(task)
-        chat_logger.info(f"Started interval message ID: {message_id} every {interval_mins} minutes")
-    # If chat_line_trigger is set, this is a chat-count based message
-    elif chat_line_trigger and int(chat_line_trigger) > 0:
-        chat_trigger_tasks[message_id] = {
-            "chat_line_trigger": int(chat_line_trigger),
-            "message": message,
-            "last_trigger_count": chat_line_count
-        }
-        chat_logger.info(f"Started chat count message ID: {message_id} - trigger after {chat_line_trigger} messages")
+    if trigger_type in ("timer", "both"):
+        # Timer-based: fire on a fixed minute interval
+        if interval and int(interval) > 0:
+            interval_mins = max(5, min(480, int(interval)))
+            wait_time = interval_mins * 60
+            task = create_task(send_interval_message(message_id, message, wait_time))
+            message_tasks[message_id] = task
+            scheduled_tasks.add(task)
+            chat_logger.info(f"[TIMED MESSAGE] Started timer message ID: {message_id} every {interval_mins} minutes")
+    if trigger_type in ("chat_lines", "both"):
+        # Chat-line-based: fire after N non-command chat messages
+        if chat_line_trigger and int(chat_line_trigger) > 0:
+            chat_trigger_tasks[message_id] = {
+                "chat_line_trigger": int(chat_line_trigger),
+                "message": message,
+                "last_trigger_count": chat_line_count
+            }
+            chat_logger.info(f"[TIMED MESSAGE] Started chat-lines message ID: {message_id} - trigger after {chat_line_trigger} chat lines")
+    if trigger_type == "scheduled":
+        # Scheduled: fire once at a specific clock time in the streamer's timezone, daily
+        scheduled_time_str = row.get("scheduled_time")
+        if scheduled_time_str:
+            # MySQL TIME columns return timedelta objects; convert to HH:MM string
+            if hasattr(scheduled_time_str, 'seconds'):
+                total_seconds = int(scheduled_time_str.total_seconds())
+                scheduled_time_str = f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}"
+            else:
+                scheduled_time_str = str(scheduled_time_str)[:5]  # trim to HH:MM
+            task = create_task(send_scheduled_message(message_id, message, scheduled_time_str))
+            message_tasks[message_id] = task
+            scheduled_tasks.add(task)
+            chat_logger.info(f"[TIMED MESSAGE] Started scheduled message ID: {message_id} at {scheduled_time_str} (streamer timezone)")
+        else:
+            bot_logger.warning(f"[TIMED MESSAGE] Scheduled message ID: {message_id} has no scheduled_time, skipping")
 
 async def stop_timed_message(message_id):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
@@ -16363,6 +16629,47 @@ async def send_interval_message(message_id, message, interval_seconds):
         else:
             break
 
+async def send_scheduled_message(message_id, message, scheduled_time_str):
+    """Fire a timed message once per day at a specific clock time in the streamer's timezone."""
+    global stream_online, timed_messages_paused_for_rerun
+    while stream_online and not timed_messages_paused_for_rerun:
+        connection = None
+        try:
+            connection = await mysql_handler.get_connection()
+            async with connection.cursor() as cursor:
+                await cursor.execute("SELECT timezone FROM profile")
+                result = await cursor.fetchone()
+            tz_str = (result[0] if result and result[0] else None) or 'UTC'
+        except Exception as e:
+            bot_logger.error(f"[TIMED MESSAGE] Could not read timezone for scheduled message {message_id}: {e}")
+            tz_str = 'UTC'
+        finally:
+            if connection:
+                await connection.release()
+        try:
+            tz = pytz_timezone(tz_str)
+        except Exception:
+            tz = set_timezone.UTC
+        now = datetime.now(tz)
+        parts = scheduled_time_str.split(':')
+        h, m = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        wait_secs = (target - now).total_seconds()
+        chat_logger.info(f"[TIMED MESSAGE] Scheduled message ID: {message_id} fires in {wait_secs:.0f}s (at {scheduled_time_str} {tz_str})")
+        await sleep(wait_secs)
+        if stream_online and not timed_messages_paused_for_rerun:
+            sent = await send_timed_message(message_id, message, 0)
+            if timed_messages_paused_for_rerun or not stream_online:
+                break
+            if sent:
+                chat_logger.info(f"[TIMED MESSAGE] Sent scheduled message ID: {message_id}")
+        else:
+            break
+        # Wait a short buffer before re-computing next day's target to avoid double-firing
+        await sleep(60)
+
 # True when a live rerun should swallow this timed message. Sets the pause flag before the caller loops again.
 async def rerun_blocks_timed_message(message_id):
     global timed_messages_paused_for_rerun
@@ -16399,7 +16706,17 @@ async def send_timed_message(message_id, message, delay):
             return False
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
-            await send_chat_message(message)
+            # Timed messages run variables such as (call.X) and (call.X.args) like the 5.9 bots
+            if has_dynamic_variables(message):
+                await process_dynamic_variables(
+                    command=f"timed_message_{message_id}",
+                    response=message,
+                    user=CHANNEL_NAME,
+                    send_to_chat=True,
+                    emit_additional=True,
+                )
+            else:
+                await send_chat_message(message)
             last_message_time = get_event_loop().time()
             chat_logger.info(f"Message sent successfully")
             return True
@@ -17030,6 +17347,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
             # Retrieve the bot settings to get the raid points amount and subscriber multiplier
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(from_broadcaster_name, settings)  # manual list + known bots get no points
             raid_points = int(settings['raid_points'])
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             # Check if the user is a subscriber and apply the multiplier
@@ -17043,7 +17361,9 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             current_points = result.get("points") if result else 0
             # Update the raider's points
             new_points = current_points + total_awarded_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, from_broadcaster_id))
             else:
                 await cursor.execute(
@@ -17100,8 +17420,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                await add_shoutout(user_to_shoutout, user_id, is_automated=True)
-                await send_chat_message(shoutout_message)
+                await add_shoutout(user_to_shoutout, user_id, is_automated=True, shoutout_message=shoutout_message, source="raid")
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -17175,12 +17494,12 @@ async def process_cheer_event(user_id, user_name, bits):
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                await add_shoutout(user_name, user_id, is_automated=True)
-                await send_chat_message(shoutout_message)
+                await add_shoutout(user_name, user_id, is_automated=True, shoutout_message=shoutout_message, source="cheer")
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             cheer_points = int(settings['cheer_points'])
             subscriber_multiplier = int(settings['subscriber_multiplier'])
             # Check if the user is a subscriber and apply the multiplier
@@ -17192,7 +17511,9 @@ async def process_cheer_event(user_id, user_name, bits):
             current_points = result.get("points") if result else 0
             # Award points based on the cheer event
             new_points = current_points + cheer_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
             else:
                 await cursor.execute(
@@ -17254,6 +17575,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
@@ -17263,7 +17585,9 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             result = await cursor.fetchone()
             current_points = result.get("points") if result else 0
             new_points = current_points + subscriber_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                 event_logger.info(f"Updated points for user_id: {user_id} to {new_points}")
             else:
@@ -17321,8 +17645,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                 if not is_upgrade and alert_message.strip():
                     await send_chat_message(alert_message)
                 if not is_upgrade and send_shoutout and shoutout_message:
-                    await add_shoutout(user_name, user_id, is_automated=True)
-                    await send_chat_message(shoutout_message)
+                    await add_shoutout(user_name, user_id, is_automated=True, shoutout_message=shoutout_message, source="subscription")
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -17372,6 +17695,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             event_logger.debug(f"Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
@@ -17381,7 +17705,9 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             result = await cursor.fetchone()
             current_points = result.get("points") if result else 0
             new_points = current_points + subscriber_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                 event_logger.info(f"Updated points for user_id: {user_id} to {new_points}")
             else:
@@ -17439,8 +17765,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 if not is_upgrade and alert_message.strip():
                     await send_chat_message(alert_message)
                 if not is_upgrade and send_shoutout and shoutout_message:
-                    await add_shoutout(user_name, user_id, is_automated=True)
-                    await send_chat_message(shoutout_message)
+                    await add_shoutout(user_name, user_id, is_automated=True, shoutout_message=shoutout_message, source="subscription")
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -17548,6 +17873,7 @@ async def process_followers_event(user_id, user_name):
             )
             # Retrieve the bot settings to get the follower points amount
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             follower_points = settings['follower_points']
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -17555,7 +17881,9 @@ async def process_followers_event(user_id, user_name):
             current_points = result.get("points") if result else 0
             # Update the user's points based on the follow event
             new_points = current_points + follower_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
             else:
                 await cursor.execute(
@@ -17597,8 +17925,7 @@ async def process_followers_event(user_id, user_name):
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                await add_shoutout(user_name, user_id, is_automated=True)
-                await send_chat_message(shoutout_message)
+                await add_shoutout(user_name, user_id, is_automated=True, shoutout_message=shoutout_message, source="follow")
             create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
             safe_create_task(pet_try_event_trigger("follow", user_name))
             marker_description = f"New Twitch Follower: {user_name}"
@@ -17943,18 +18270,18 @@ async def websocket_notice(
                             await cursor.execute("SELECT voice, language FROM tts_settings LIMIT 1")
                         result = await cursor.fetchone()
                         if result:
-                            params['voice'] = result.get('voice', 'default')
+                            params['voice'] = result.get('voice', 'Alloy')
                             params['language'] = result.get('language', 'en')
                             params['style'] = result.get('style') or 'normal'
                             if result.get('expressive_voice'):
                                 params['expressive_voice'] = result.get('expressive_voice')
                         else:
-                            params['voice'] = 'default'
+                            params['voice'] = 'Alloy'
                             params['language'] = 'en'
                             params['style'] = 'normal'
                     except MySQLOtherErrors as e:
                         websocket_logger.error(f"Database error while fetching TTS settings for the channel: {e}")
-                        params['voice'] = 'default'
+                        params['voice'] = 'Alloy'
                         params['language'] = 'en'
                         params['style'] = 'normal'
                     params['text'] = text
@@ -18255,7 +18582,7 @@ async def wait_and_persist_outgoing_raid():
 
 async def check_stream_online():
     global stream_online, current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
-    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at
+    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at, ad_1min_last_notified_next_ad_at, ad_1min_last_notified_ts
     try:
         was_online = stream_online
         async with await mysql_handler.get_connection() as connection, connection.cursor(DictCursor) as cursor:
@@ -18291,6 +18618,8 @@ async def check_stream_online():
                                 stream_session_started_at = datetime.now(timezone.utc).timestamp()
                             ad_upcoming_notified = False
                             ad_upcoming_last_notified_next_ad_at = None
+                            ad_1min_last_notified_next_ad_at = None
+                            ad_1min_last_notified_ts = 0.0
                             last_ad_message_ts = 0.0
                             clear_ad_break_chat_history("stream-online-status-check-reset")
                         current_game = stream_data.get('game_name', None)
@@ -19235,14 +19564,59 @@ async def view_task(ctx, params, user_id, connection):
             await send_chat_message(f"{user.name}, please provide the task ID to view.")
             chat_logger.warning(f"{user.name} did not provide task ID for viewing.")
 
-async def todolist_command_handler(ctx, connection):
+def parse_todolist_category_ids(categories=()):
+    if not categories:
+        return None
+    ids = []
+    for part in categories:
+        for piece in str(part).split(','):
+            piece = piece.strip()
+            if piece.isdigit():
+                category_id = int(piece)
+                if category_id > 0 and category_id not in ids:
+                    ids.append(category_id)
+    return ids
+
+# ToDo List Function - Todolist (view top 5 public tasks)
+async def todolist_command_handler(ctx, connection, category_ids=None):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
-        await cursor.execute(
+        where_parts = [
+            "(t.private = 0 OR t.private IS NULL)",
+            "(t.completed IS NULL OR t.completed != 'Yes')",
+        ]
+        params = []
+        list_label = "To-Do List"
+
+        if category_ids is not None:
+            if not category_ids:
+                await send_chat_message(f"{user.name}, please provide a valid category ID for the to-do list.")
+                chat_logger.info(f"{user.name} requested the to-do list with invalid category IDs.")
+                return
+
+            placeholders = ','.join(['%s'] * len(category_ids))
+            await cursor.execute(
+                f"SELECT id, category FROM categories WHERE id IN ({placeholders})",
+                category_ids,
+            )
+            valid_categories = await cursor.fetchall()
+            valid_ids = [row['id'] for row in valid_categories]
+            if not valid_ids:
+                await send_chat_message(f"{user.name}, no matching to-do categories were found.")
+                chat_logger.info(f"{user.name} requested the to-do list for unknown category IDs: {category_ids}.")
+                return
+
+            cat_placeholders = ','.join(['%s'] * len(valid_ids))
+            where_parts.append(f"t.category IN ({cat_placeholders})")
+            params.extend(valid_ids)
+            list_label = f"To-Do List ({', '.join(row['category'] for row in valid_categories)})"
+
+        sql = (
             "SELECT t.id, t.objective, t.completed, c.category AS category_name "
             "FROM todos t LEFT JOIN categories c ON t.category = c.id "
-            "WHERE (t.private = 0 OR t.private IS NULL) AND (t.completed IS NULL OR t.completed != 'Yes') ORDER BY t.id ASC LIMIT 5"
+            f"WHERE {' AND '.join(where_parts)} ORDER BY t.id ASC LIMIT 5"
         )
+        await cursor.execute(sql, params)
         tasks = await cursor.fetchall()
         if not tasks:
             await send_chat_message(f"{user.name}, there are no tasks on the to-do list right now.")
@@ -19252,7 +19626,7 @@ async def todolist_command_handler(ctx, connection):
         for task in tasks:
             status = '✓' if task.get('completed') == 'Yes' else '○'
             parts.append(f"{status} #{task['id']}: {task['objective']}")
-        await send_chat_message(f"To-Do List: {' | '.join(parts)}")
+        await send_chat_message(f"{list_label}: {' | '.join(parts)}")
         chat_logger.info(f"{user.name} viewed the to-do list.")
 
 # Function to get Category Names for the ToDo List
@@ -19280,18 +19654,22 @@ async def start_subathon(ctx):
             if subathon_has_time_saved(subathon_state):
                 await resume_subathon(ctx)
             else:
-                await cursor.execute("SELECT * FROM subathon_settings LIMIT 1")
+                await cursor.execute("SELECT * FROM subathon_settings ORDER BY id DESC LIMIT 1")
                 settings = await cursor.fetchone()
                 if settings:
-                    starting_minutes = settings["starting_minutes"]
+                    starting_minutes = int(settings.get("starting_minutes") or 60)
                     subathon_start_time = time_right_now()
                     subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
-                    await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
+                    await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes, remaining_seconds) VALUES (%s, %s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0, 0))
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
                     start_looped_task("subathon_countdown", subathon_countdown)
                     # Send websocket notice
-                    additional_data = {'starting_minutes': starting_minutes}
+                    # end_timestamp_ms lets the overlay tick against an absolute target so it doesn't drift
+                    additional_data = {
+                        'starting_minutes': starting_minutes,
+                        'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
+                    }
                     create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
                 else:
                     await send_chat_message(f"Can't start subathon, please go to the dashboard and set up subathons.")
@@ -19327,12 +19705,17 @@ async def pause_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                remaining_minutes = (subathon_state["end_time"] - time_right_now()).total_seconds() // 60
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))
+                remaining_seconds_float = (subathon_state["end_time"] - time_right_now()).total_seconds()
+                remaining_seconds = max(0, int(remaining_seconds_float))
+                remaining_minutes = remaining_seconds // 60
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, remaining_seconds = %s WHERE id = %s", (True, remaining_minutes, remaining_seconds, subathon_state["id"]))
                 await connection.commit()
-                await send_chat_message(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
+                await send_chat_message(f"Subathon paused with {remaining_minutes} minutes remaining.")
                 # Send websocket notice
-                additional_data = {'remaining_minutes': remaining_minutes}
+                additional_data = {
+                    'remaining_minutes': remaining_minutes,
+                    'remaining_seconds': remaining_seconds,
+                }
                 create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data=additional_data))
             else:
                 await send_chat_message("No subathon is active or it's already paused!")
@@ -19348,13 +19731,22 @@ async def resume_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and subathon_state["paused"]:
-                subathon_end_time = time_right_now()+ timedelta(minutes=subathon_state["remaining_minutes"])
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
+                # Seconds are kept on pause so a resume doesn't lose the part-minute
+                stored_seconds = subathon_state.get("remaining_seconds") or 0
+                if stored_seconds <= 0:
+                    stored_seconds = int(subathon_state["remaining_minutes"]) * 60
+                subathon_end_time = time_right_now() + timedelta(seconds=stored_seconds)
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, remaining_seconds = %s, end_time = %s WHERE id = %s", (False, 0, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
-                await send_chat_message(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
+                resumed_minutes = stored_seconds // 60
+                await send_chat_message(f"Subathon resumed with {resumed_minutes} minutes remaining!")
                 start_looped_task("subathon_countdown", subathon_countdown)
                 # Send websocket notice
-                additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
+                additional_data = {
+                    'remaining_minutes': resumed_minutes,
+                    'remaining_seconds': stored_seconds,
+                    'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
+                }
                 create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
     finally:
         if connection:
@@ -19373,7 +19765,10 @@ async def addtime_subathon(ctx, minutes):
                 await connection.commit()
                 await send_chat_message(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
-                additional_data = {'added_minutes': minutes}
+                additional_data = {
+                    'added_minutes': minutes,
+                    'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
+                }
                 create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data=additional_data))
             else:
                 await send_chat_message("No subathon is active or it's paused!")
@@ -20310,6 +20705,31 @@ def can_send_ad_message():
     except Exception:
         return True
 
+def can_send_1min_ad_notice(next_ad_at):
+    normalized = normalize_next_ad_at(next_ad_at)
+    if normalized is None:
+        return False
+    try:
+        now_ts = datetime.now(timezone.utc).timestamp()
+        if now_ts - ad_1min_last_notified_ts < AD_1MIN_NOTIFY_COOLDOWN_SECONDS:
+            return False
+        if ad_1min_last_notified_next_ad_at == normalized:
+            return False
+    except Exception:
+        return True
+    return True
+
+def mark_1min_ad_notice_sent(next_ad_at):
+    global ad_1min_last_notified_ts, ad_1min_last_notified_next_ad_at
+    normalized = normalize_next_ad_at(next_ad_at)
+    if normalized is None:
+        return
+    try:
+        ad_1min_last_notified_ts = datetime.now(timezone.utc).timestamp()
+        ad_1min_last_notified_next_ad_at = normalized
+    except Exception:
+        pass
+
 def normalize_next_ad_at(value):
     if value is None:
         return None
@@ -20720,34 +21140,9 @@ async def handle_ad_break_start(duration_seconds, started_at=None):
                 raise RuntimeError("Ad AI instructions unavailable from API endpoint")
             messages.append({"role": "user", "content": user_content})
             try:
-                api_logger.debug("Calling OpenAI chat completion for AI ad break")
-                chat_client = getattr(openai_client, 'chat', None)
-                ai_text = None
-                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        choice = resp['choices'][0]
-                        if 'message' in choice and 'content' in choice['message']:
-                            ai_text = choice['message']['content']
-                        elif 'text' in choice:
-                            ai_text = choice['text']
-                    else:
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
-                    else:
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                else:
-                    api_logger.error("No compatible chat completions method found on openai_client for ad break")
-                    ai_text = None
+                ai_text = await _call_openai_chat(messages, OPENAI_MODEL, log_prefix="[ADS]")
                 if not ai_text:
-                    api_logger.error(f"Chat completion returned no usable text for ad break: {resp if 'resp' in locals() else 'No response'}")
+                    api_logger.error("Chat completion returned no usable text for ad break")
                 else:
                     ai_text = ai_text.strip()
                     clear_ad_break_chat_history("first-ai-ad-response-received")
@@ -20884,6 +21279,35 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                                     api_logger.debug("Ad upcoming notification disabled by settings")
                                 last_notification_time = next_ad_at
                                 ad_upcoming_notified = True
+                        # Notify if ad is coming up in the 1-minute window (60s polling hits this window once; the dedupe stops repeats)
+                        elif 30 <= time_until_ad <= 90:
+                            if can_send_1min_ad_notice(next_ad_at):
+                                settings = await get_ad_settings()
+                                if settings and settings['enable_ad_notice'] and settings.get('enable_1min_ad_message', False):
+                                    duration_text = format_duration(duration)
+                                    if settings.get('ad_1min_message'):
+                                        message = settings['ad_1min_message']
+                                        message = message.replace("(minutes)", "1")
+                                        message = message.replace("(duration)", duration_text)
+                                    else:
+                                        message = "Ads are starting in 1 minute!"
+                                    if can_send_ad_message():
+                                        try:
+                                            sent_ok = await send_chat_message(message)
+                                            if not sent_ok:
+                                                api_logger.error(f"Failed to send 1-minute ad notification: {message}")
+                                            else:
+                                                try_mark_ad_message_sent_after(True)
+                                                mark_1min_ad_notice_sent(next_ad_at)
+                                                api_logger.info(f"Sent 1-minute ad notification: {message}")
+                                        except Exception as e:
+                                            api_logger.error(f"Exception while sending 1-minute ad notification: {e}")
+                                    else:
+                                        api_logger.info("Skipped 1-minute ad notification due to cooldown")
+                                else:
+                                    api_logger.debug("Ad 1-minute upcoming notification disabled by settings")
+                            else:
+                                api_logger.debug("Skipped 1-minute ad notification (dedupe)")
                     except Exception as e:
                         api_logger.error(f"Error parsing ad time: {e}")
                 if last_ad_at and last_ad_at != last_ad_time:
