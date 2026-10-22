@@ -49,7 +49,7 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
         exit();
       }
       $followerData = json_decode($response, true);
-      if (json_last_error() !== JSON_ERROR_NONE) {
+      if (json_last_error() !== JSON_ERROR_NONE || !isset($followerData["data"]) || !is_array($followerData["data"])) {
         echo json_encode(["status" => "error", "message" => t('followers_json_decode_error')]);
         exit();
       }
@@ -177,6 +177,13 @@ function fetchFollowers($url, $authToken, $clientID) {
   ]);
   curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
   $response = curl_exec($curl);
+  // Any non-200 Helix reply (expired token, 401, rate limit) is a failed fetch,
+  // so the sync never treats an error body as "no followers" and wipes the table.
+  $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  if ($response !== false && $httpCode !== 200) {
+    error_log('followers: helix http ' . $httpCode . ' | URL: ' . curl_getinfo($curl, CURLINFO_EFFECTIVE_URL), 3, 'curl_errors.log');
+    return false;
+  }
   if ($response === false) {
     // Handle cURL error
     $errorMessage = 'cURL error: ' . curl_error($curl);
