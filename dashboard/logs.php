@@ -90,9 +90,9 @@ function read_log_file($file_path) {
       $dirCheckCommand = "test -d " . escapeshellarg($dirname) . " && echo '1' || echo '0'";
       $dirCheckResult = SSHConnectionManager::executeCommandNoMarker($connection, $dirCheckCommand);
       if (trim($dirCheckResult) !== '1') {
-        return ['error' => "Log directory not found: $dirname"];
+        return ['error' => 'Log directory not found'];
       }
-      return ['error' => "Log file not found: $file_path"];
+      return ['error' => 'Log file not found'];
     }
     // Read the entire file using the no-marker function to avoid appended exit markers
     $readCommand = "cat " . escapeshellarg($file_path);
@@ -106,7 +106,10 @@ function read_log_file($file_path) {
       'linesTotal' => $linesTotal,
       'logContent' => $logContent
     ];
-  } catch (Exception $e) { return ['error' => 'SSH connection failed: ' . $e->getMessage()]; }
+  } catch (Exception $e) {
+    error_log('logs.php: SSH connection failed: ' . $e->getMessage());
+    return ['error' => 'Could not read this log right now. Please try again.'];
+  }
 }
 
 // Helper function to highlight log dates in a string and add <br> at end of each line
@@ -148,6 +151,25 @@ function highlight_log_dates($text) {
     );
   }
   return implode("<br>", $lines);
+}
+
+// Only the known log types, a numeric rotation and a plain username may build a log path.
+$allowedLogTypes = ['bot', 'chat', 'twitch', 'api', 'chat_history', 'event_log', 'websocket', 'system', 'integrations', 'crash'];
+$logRequestRejected = false;
+foreach (['download_log', 'list_rotations', 'log'] as $logKey) {
+  if (isset($_GET[$logKey]) && !in_array((string) $_GET[$logKey], $allowedLogTypes, true)) $logRequestRejected = true;
+}
+if (isset($_GET['rotation']) && !preg_match('/^\d{1,3}$/', (string) $_GET['rotation'])) $logRequestRejected = true;
+if (!preg_match('/^[A-Za-z0-9_]{1,25}$/', (string) ($_SESSION['username'] ?? ''))) $logRequestRejected = true;
+if ($logRequestRejected && (isset($_GET['download_log']) || isset($_GET['list_rotations']) || isset($_GET['log']))) {
+  ob_clean();
+  http_response_code(400);
+  header('Content-Type: application/json');
+  echo json_encode(['error' => 'Unknown log type.']);
+  exit();
+}
+if (isset($_GET['logType']) && ($logRequestRejected || !in_array((string) $_GET['logType'], $allowedLogTypes, true))) {
+  unset($_GET['logType']);
 }
 
 // AJAX handler to download log file
@@ -222,7 +244,7 @@ if (isset($_GET['log'])) {
   header('Pragma: no-cache');
   if (isset($result['error'])) {
     // If file not found, treat as empty log
-    if ($result['error'] === 'Log file not found: ' . $log || strpos($result['error'], 'not found') !== false) {
+    if (strpos($result['error'], 'not found') !== false) {
       echo json_encode(['data' => '(log file is empty)']);
     } else {
       echo json_encode(['error' => $result['error']]);

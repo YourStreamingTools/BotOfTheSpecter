@@ -71,11 +71,12 @@ function fetchTwitchPage($endpoint, array $query, $accessToken, $clientID) {
 	$httpCode = (int) $result['http_code'];
 	$body = json_decode((string) $result['body'], true);
 	if ($result['curl_error']) {
+		error_log('videos.php: Twitch request failed: ' . $result['curl_error']);
 		return [
 			'items' => [],
 			'cursor' => '',
 			'http_code' => $httpCode,
-			'error' => t('videos_error_twitch_connect') . ' ' . $result['curl_error'],
+			'error' => t('videos_error_twitch_connect') . ' ' . t('videos_js_try_again'),
 		];
 	}
 	if ($httpCode !== 200) {
@@ -153,7 +154,8 @@ function fetchClipDownloadUrls(array $clipIds, $broadcasterId, $editorId, $acces
 		$downloadResult = twitchApiRequest('GET', $downloadUrl, $accessToken, $clientID);
 		$downloadBody = json_decode((string) $downloadResult['body'], true);
 		if ($downloadResult['curl_error']) {
-			$error = t('videos_error_clip_download_lookup') . ' ' . $downloadResult['curl_error'];
+			error_log('videos.php: downloadResult: ' . $downloadResult['curl_error']);
+			$error = t('videos_error_clip_download_lookup') . ' ' . t('videos_js_try_again');
 			break;
 		}
 		if ((int) $downloadResult['http_code'] !== 200) {
@@ -584,7 +586,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		$deleteResult = twitchApiRequest('DELETE', $deleteUrl, $accessToken, $clientID);
 		$deleteBody = json_decode((string) $deleteResult['body'], true);
 		if ($deleteResult['curl_error']) {
-			$flashError = t('videos_error_delete_failed') . ' ' . $deleteResult['curl_error'];
+			error_log('videos.php: deleteResult: ' . $deleteResult['curl_error']);
+			$flashError = t('videos_error_delete_failed') . ' ' . t('videos_js_try_again');
 		} elseif ((int) $deleteResult['http_code'] === 200) {
 			$deletedItems = isset($deleteBody['data']) && is_array($deleteBody['data']) ? $deleteBody['data'] : [];
 			if (in_array($deleteVideoId, $deletedItems, true) || empty($deletedItems)) {

@@ -52,7 +52,8 @@ function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first =
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
 if ($resp === false) {
-            return [null, t('schedule_error_request_failed') . ' ' . htmlspecialchars($curlErr)];
+            error_log('schedule: Twitch request failed: ' . $curlErr);
+            return [null, t('schedule_error_request_failed')];
         }
         if ($httpCode !== 200) {
             if ($httpCode === 401) {
@@ -472,40 +473,13 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
         echo json_encode(['success' => false, 'error' => $fetchError]);
         exit();
     }
+    // An expired vacation is only hidden here. Listing the page never changes the
+    // schedule on Twitch; the user can still save a new vacation or clear it.
     if (!empty($schedule['vacation']['end_time'])) {
         try {
             $vacEndUtc = new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC'));
-            $nowUtc = new DateTime('now', new DateTimeZone('UTC'));
-            if ($nowUtc > $vacEndUtc) {
-                $autoCancelUrl = 'https://api.twitch.tv/helix/schedule/settings?' . http_build_query([
-                    'broadcaster_id' => $broadcasterId,
-                    'is_vacation_enabled' => 'false'
-                ]);
-                $chAuto = curl_init($autoCancelUrl);
-                curl_setopt($chAuto, CURLOPT_CUSTOMREQUEST, 'PATCH');
-                curl_setopt($chAuto, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($chAuto, CURLOPT_TIMEOUT, 10);
-                curl_setopt($chAuto, CURLOPT_SSL_VERIFYPEER, true);
-                curl_setopt($chAuto, CURLOPT_HTTPHEADER, [
-                    'Client-ID: ' . $clientID,
-                    'Authorization: Bearer ' . ($_SESSION['access_token'] ?? '')
-                ]);
-                $autoResp = curl_exec($chAuto);
-                $autoCode = curl_getinfo($chAuto, CURLINFO_HTTP_CODE);
-                $autoErr = curl_error($chAuto);
-                if ($autoCode === 204) {
-                    $listSuccess = t('schedule_msg_vacation_auto_ended');
-                    list($refreshSchedule, $refreshError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'] ?? '', 25, 5);
-                    if (empty($refreshError) && !empty($refreshSchedule)) {
-                        $schedule = $refreshSchedule;
-                    }
-                } else {
-                    echo json_encode([
-                        'success' => false,
-                        'error' => t('schedule_error_auto_cancel_failed', [$autoCode]) . ' ' . htmlspecialchars($autoResp ?: $autoErr)
-                    ]);
-                    exit();
-                }
+            if (new DateTime('now', new DateTimeZone('UTC')) > $vacEndUtc) {
+                $schedule['vacation'] = null;
             }
         } catch (Exception $e) {
             // Ignore invalid vacation timestamps; standard rendering/validation will continue.
@@ -546,7 +520,8 @@ if (isset($_GET['ajax'])) {
         $err = curl_error($ch);
 if ($resp === false) {
             http_response_code(502);
-            echo json_encode(['error' => t('schedule_error_request_failed') . ' ' . $err]);
+            error_log('schedule: Twitch request failed: ' . $err);
+            echo json_encode(['error' => t('schedule_error_request_failed')]);
             exit();
         } elseif ($code === 200) {
             $data = json_decode($resp, true);
@@ -554,7 +529,8 @@ if ($resp === false) {
             exit();
         } else {
             http_response_code($code);
-            echo json_encode(['error' => t('schedule_error_twitch_returned', [$code]), 'body' => $resp]);
+            error_log('schedule: Twitch HTTP ' . $code . ': ' . $resp);
+            echo json_encode(['error' => t('schedule_error_twitch_returned', [$code])]);
             exit();
         }
     }
@@ -576,7 +552,8 @@ if ($resp === false) {
         $err = curl_error($ch);
 if ($resp === false) {
             http_response_code(502);
-            echo json_encode(['error' => t('schedule_error_request_failed') . ' ' . $err]);
+            error_log('schedule: Twitch request failed: ' . $err);
+            echo json_encode(['error' => t('schedule_error_request_failed')]);
             exit();
         } elseif ($code === 200) {
             $data = json_decode($resp, true);
@@ -586,7 +563,8 @@ if ($resp === false) {
             exit();
         } else {
             http_response_code($code);
-            echo json_encode(['error' => t('schedule_error_twitch_returned', [$code]), 'body' => $resp]);
+            error_log('schedule: Twitch HTTP ' . $code . ': ' . $resp);
+            echo json_encode(['error' => t('schedule_error_twitch_returned', [$code])]);
             exit();
         }
     }
@@ -682,15 +660,14 @@ $responseCanceledState = $cancelState;
                 'is_canceled' => $responseCanceledState,
                 'requested_is_canceled' => $cancelState,
                 'message' => $responseCanceledState ? t('schedule_msg_segment_canceled') : t('schedule_msg_segment_uncanceled'),
-                'debug' => $debugMeta
             ]);
             exit();
         }
+        error_log('schedule: segment cancel failed: ' . json_encode($debugMeta));
         http_response_code($codeCancel > 0 ? $codeCancel : 500);
         echo json_encode([
             'ok' => false,
-            'error' => t('schedule_error_twitch_http', [$codeCancel]) . ' ' . htmlspecialchars($respCancel ?: $errCancel),
-            'debug' => $debugMeta
+            'error' => t('schedule_error_twitch_http', [$codeCancel]),
         ]);
         exit();
     }
@@ -792,7 +769,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
 if ($codeSeg === 200) {
                             $success = t('schedule_msg_segment_created');
                         } else {
-                            $error = t('schedule_error_twitch_http', [$codeSeg]) . ' ' . htmlspecialchars($respSeg ?: $errSeg);
+                            error_log('schedule: Twitch reply: ' . ($respSeg ?: $errSeg));
+                            $error = t('schedule_error_twitch_http', [$codeSeg]);
                         }
                     }
                 } catch (Exception $e) {
@@ -856,7 +834,8 @@ if ($codeSeg === 200) {
 if ($codeUpd === 200) {
                         $success = t('schedule_msg_segment_updated');
                     } else {
-                        $error = t('schedule_error_twitch_http', [$codeUpd]) . ' ' . htmlspecialchars($respUpd ?: $errUpd);
+                        error_log('schedule: Twitch reply: ' . ($respUpd ?: $errUpd));
+                        $error = t('schedule_error_twitch_http', [$codeUpd]);
                     }
                 }
             }
@@ -893,7 +872,8 @@ if ($codeUpd === 200) {
 if ($codeCancel === 200) {
                     $success = $cancelState ? t('schedule_msg_segment_canceled') : t('schedule_msg_segment_uncanceled');
                 } else {
-                    $error = t('schedule_error_twitch_http', [$codeCancel]) . ' ' . htmlspecialchars($respCancel ?: $errCancel);
+                    error_log('schedule: Twitch reply: ' . ($respCancel ?: $errCancel));
+                    $error = t('schedule_error_twitch_http', [$codeCancel]);
                 }
             }
         }
@@ -919,7 +899,8 @@ if ($codeCancel === 200) {
 if ($codeDel === 204) {
                     $success = t('schedule_msg_segment_deleted');
                 } else {
-                    $error = t('schedule_error_twitch_http', [$codeDel]) . ' ' . htmlspecialchars($respDel ?: $errDel);
+                    error_log('schedule: Twitch reply: ' . ($respDel ?: $errDel));
+                    $error = t('schedule_error_twitch_http', [$codeDel]);
                 }
             }
         }
@@ -943,7 +924,8 @@ if ($httpCode === 204) {
                 $success = t('schedule_msg_settings_updated');
             } else {
                 $body = $resp ?: '';
-                $error = t('schedule_error_twitch_http', [$httpCode]) . ' ' . htmlspecialchars($body ?: $curlErr);
+                error_log('schedule: Twitch reply: ' . ($body ?: $curlErr));
+                $error = t('schedule_error_twitch_http', [$httpCode]);
             }
         }
     }
