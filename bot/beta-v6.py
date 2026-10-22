@@ -19026,11 +19026,44 @@ async def generate_user_lotto_numbers(user_name):
                     game_running = await cursor.fetchone()
                 if not game_running:
                     return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
-            # Draw the numbers if the game is running
-            all_numbers = random.sample(range(1, 48), 9)
-            # Combine both sets of numbers into one string
-            winning_numbers = ', '.join(map(str, all_numbers[:6]))
-            supplementary_numbers = ', '.join(map(str, all_numbers[6:]))
+            # Weighted outcome: pick the result first, then build a ticket that lands exactly on it
+            winning_db_numbers = set(map(int, str(game_running["winning_numbers"]).split(', ')))
+            supplementary_db_numbers = set(map(int, str(game_running["supplementary_numbers"]).split(', ')))
+            # (main matches, supplementary matches) per outcome; None means "any amount"
+            lotto_outcomes = {
+                "No win": (None, None),
+                "Division 1 (Jackpot!)": (6, 0),
+                "Division 2": (5, 1),
+                "Division 3": (5, 0),
+                "Division 4": (4, None),
+                "Division 5": (3, 1),
+                "Division 6": (3, 0),
+            }
+            lotto_weights = {
+                "No win": 1,
+                "Division 1 (Jackpot!)": 1,
+                "Division 2": 19.6,
+                "Division 3": 19.6,
+                "Division 4": 19.6,
+                "Division 5": 19.6,
+                "Division 6": 19.6,
+            }
+            outcome = random.choices(list(lotto_weights.keys()), weights=list(lotto_weights.values()), k=1)[0]
+            main_match, supp_match = lotto_outcomes[outcome]
+            if main_match is None:
+                main_match = random.randint(0, 2)
+            if supp_match is None:
+                supp_match = random.randint(0, 3)
+            elif supp_match == 1:
+                supp_match = random.randint(1, 3)
+            user_main_numbers = set(random.sample(sorted(winning_db_numbers), main_match))
+            main_pool = sorted(set(range(1, 48)) - winning_db_numbers - supplementary_db_numbers)
+            user_main_numbers.update(random.sample(main_pool, 6 - main_match))
+            user_supp_numbers = set(random.sample(sorted(supplementary_db_numbers), supp_match))
+            supp_pool = sorted(set(range(1, 48)) - supplementary_db_numbers - user_main_numbers)
+            user_supp_numbers.update(random.sample(supp_pool, 3 - supp_match))
+            winning_numbers = ', '.join(map(str, sorted(user_main_numbers)))
+            supplementary_numbers = ', '.join(map(str, sorted(user_supp_numbers)))
             all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
             # Insert the user's numbers into the database
             await cursor.execute(
