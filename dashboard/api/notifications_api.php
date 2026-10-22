@@ -1,6 +1,8 @@
 <?php
 // Buffer all output so BOM/whitespace from includes doesn't corrupt JSON
 ob_start();
+// Never print PHP file names or line numbers to the browser; errors go to the server log.
+ini_set('display_errors', '0');
 
 // Initialize the session
 require_once '/var/www/lib/session_bootstrap.php';
@@ -11,11 +13,12 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
     if (!(error_reporting() & $errno)) {
         return true;
     }
+    error_log('notifications_api: ' . $errstr . ' in ' . basename($errfile) . ':' . $errline);
     ob_clean();
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Server error: ' . $errstr . ' in ' . basename($errfile) . ' line ' . $errline
+        'error' => 'Something went wrong. Please try again.'
     ]);
     exit();
 });
@@ -41,6 +44,16 @@ ob_clean();
 // Get access token from session
 $accessToken = $_SESSION['access_token'];
 $userId = $_SESSION['user_id'];
+// The signed-in user's own Twitch id: webhook subscriptions are listed and deleted only for this channel.
+$ownTwitchId = (string) ($_SESSION['twitchUserId'] ?? $user['twitch_user_id'] ?? '');
+
+// Webhook subscriptions (app token) whose condition names this channel.
+function own_webhook_subs($clientID, $clientSecret, string $uid): array {
+    if ($uid === '') return [];
+    $app = getAppAccessToken($clientID, $clientSecret);
+    $d = $app ? twitchGetSubs($app, $clientID) : null;
+    return array_values(array_filter($d['data'] ?? [], fn($s) => ($s['transport']['method'] ?? '') === 'webhook' && in_array($uid, array_map('strval', (array) ($s['condition'] ?? [])), true)));
+}
 
 // Handle AJAX requests
 $action = $_POST['action'] ?? $_GET['action'] ?? null;
@@ -57,6 +70,16 @@ try {
                 exit();
             }
             $transport = $_POST['transport'] ?? 'websocket';
+            if (!in_array($transport, ['websocket', 'webhook'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid transport']);
+                exit();
+            }
+            if ($transport === 'webhook' && !in_array((string) $_POST['subscription_id'], array_column(own_webhook_subs($clientID, $clientSecret, $ownTwitchId), 'id'), true)) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'That subscription could not be found.']);
+                exit();
+            }
             deleteSubscription($_POST['subscription_id'], $accessToken, $clientID, $clientSecret, $transport);
             break;
         case 'delete_session':
@@ -88,10 +111,11 @@ try {
             break;
     }
 } catch (Exception $e) {
+    error_log('notifications_api: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Exception: ' . $e->getMessage()
+        'error' => 'Something went wrong. Please try again.'
     ]);
 }
 
@@ -146,7 +170,7 @@ function fetchSubscriptions($userToken, $clientID, $clientSecret, $userId, $db) 
         if ($whData !== null) {
             $webhookSubs = array_values(array_filter(
                 $whData['data'] ?? [],
-                fn($s) => ($s['transport']['method'] ?? '') === 'webhook'
+                fn($s) => ($s['transport']['method'] ?? '') === 'webhook' && ($GLOBALS['ownTwitchId'] ?? '') !== '' && in_array($GLOBALS['ownTwitchId'], array_map('strval', (array) ($s['condition'] ?? [])), true)
             ));
         }
     }
@@ -192,6 +216,7 @@ function fetchSubscriptions($userToken, $clientID, $clientSecret, $userId, $db) 
             'sessionGroupsDisabled' => $sessionGroupsDisabled,
             'sessionNames'          => $sessionNames,
             'userId'                => $userId,
+            'twitchUserId'          => $GLOBALS['ownTwitchId'] ?? '',
         ]
     ]);
 }

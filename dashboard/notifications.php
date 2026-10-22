@@ -2,8 +2,9 @@
 // Initialize the session
 require_once '/var/www/lib/session_bootstrap.php';
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Errors go to the server log, never to the page (no file names or line numbers).
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
 
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -58,7 +59,8 @@ if ($_appToken) {
     if (curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200) {
         $_whData = json_decode($_whResp, true);
         foreach ($_whData['data'] ?? [] as $_s) {
-            if (($_s['transport']['method'] ?? '') === 'webhook') $_webhookSubs[] = $_s;
+            // Only this channel's webhooks: the app token sees every channel's.
+            if (($_s['transport']['method'] ?? '') === 'webhook' && (string) $twitchUserId !== '' && in_array((string) $twitchUserId, array_map('strval', (array) ($_s['condition'] ?? [])), true)) $_webhookSubs[] = $_s;
         }
     }
 }
@@ -494,7 +496,7 @@ function buildActiveSessionsSection(data) {
     for (const [sessionId, subs] of Object.entries(data.sessionGroups)) {
         sessionNumber++;
         const sessionName = data.sessionNames[sessionId] || NOTIF_I18N.websocketSessionLabel.replace(':number', sessionNumber);
-        html += buildSessionGroup(sessionId, subs, sessionName, data.userId, false);
+        html += buildSessionGroup(sessionId, subs, sessionName, String(data.twitchUserId || ''), false);
     }
     html += '</div></div>';
     return html;
@@ -515,7 +517,7 @@ function buildDisabledSessionsSection(data) {
     for (const [sessionId, subs] of Object.entries(data.sessionGroupsDisabled)) {
         sessionNumber++;
         const sessionName = data.sessionNames[sessionId] || NOTIF_I18N.websocketSessionLabel.replace(':number', sessionNumber);
-        html += buildSessionGroup(sessionId, subs, sessionName, data.userId, true);
+        html += buildSessionGroup(sessionId, subs, sessionName, String(data.twitchUserId || ''), true);
     }
     html += '</div></div>';
     return html;
