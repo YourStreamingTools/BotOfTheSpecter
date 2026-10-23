@@ -196,7 +196,7 @@ class TaskCursorWrapper:
             query = query.replace("user_tasks", "streamer_tasks")
         return await self.cursor.execute(query, params)
 
-VERSION = "5.9.2"
+VERSION = "5.9.3"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
@@ -10908,11 +10908,12 @@ class TwitchBot(commands.Bot):
             # Record usage right away so overlapping uses can't both pass the cooldown
             add_usage('addcommand', bucket_key, cooldown_bucket)
             # Parse: !addcommand <cmd> "<response>" [permission]  or legacy: !addcommand <cmd> <response>
-            _VALID_PERMS = {'everyone', 'mod', 'mods', 'vip', 'subscribers', 'broadcaster'}
-            _PERM_ALIASES = {'mods': 'mod', 'subscribers': 'all-subs'}
+            # Also: !addcommand <cmd> "<permission>" <response>
+            _VALID_PERMS = {'everyone', 'mod', 'mods', 'vip', 'vips', 'sub', 'subs', 'subscriber', 'subscribers', 'broadcaster'}
+            _PERM_ALIASES = {'mods': 'mod', 'vips': 'vip', 'sub': 'all-subs', 'subs': 'all-subs', 'subscriber': 'all-subs', 'subscribers': 'all-subs'}
             _raw = ctx.message.content.strip().split(' ', 1)
             if len(_raw) < 2 or not _raw[1].strip():
-                await send_chat_message('Invalid command format. Use: !addcommand [command] [response] or !addcommand [command] "[response]" [permission]')
+                await send_chat_message('Invalid command format. Use: !addcommand [command] [response] or !addcommand [command] "[permission]" [response]')
                 return
             try:
                 command, _rest = _raw[1].split(' ', 1)
@@ -10922,7 +10923,12 @@ class TwitchBot(commands.Bot):
                 await send_chat_message('Invalid command format. Use: !addcommand [command] [response] or !addcommand [command] "[response]" [permission]')
                 return
             permission = 'everyone'
-            if _rest.startswith('"'):
+            _lead = re.match(r'^"([A-Za-z]+)"\s+(.+)$', _rest, re.S)
+            if _lead and _lead.group(1).lower() in _VALID_PERMS:
+                _perm_input = _lead.group(1).lower()
+                permission = _PERM_ALIASES.get(_perm_input, _perm_input)
+                response = _lead.group(2).strip()
+            elif _rest.startswith('"'):
                 _close = _rest.find('"', 1)
                 if _close == -1:
                     await send_chat_message("Missing closing quote in response.")
@@ -10932,7 +10938,7 @@ class TwitchBot(commands.Bot):
                 if _after:
                     _perm_input = _after.split()[0].lower()
                     if _perm_input not in _VALID_PERMS:
-                        await send_chat_message(f"Unknown permission '{_perm_input}'. Valid: everyone, mod, vip, subscribers, broadcaster")
+                        await send_chat_message(f"Unknown permission '{_perm_input}'. Valid: everyone, mod, vip, subs, broadcaster")
                         return
                     permission = _PERM_ALIASES.get(_perm_input, _perm_input)
             else:
