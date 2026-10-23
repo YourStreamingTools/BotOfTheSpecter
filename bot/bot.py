@@ -196,7 +196,7 @@ class TaskCursorWrapper:
             query = query.replace("user_tasks", "streamer_tasks")
         return await self.cursor.execute(query, params)
 
-VERSION = "5.9"
+VERSION = "5.9.2"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
@@ -6708,12 +6708,9 @@ class TwitchBot(commands.Bot):
             # A song permit lets one request skip every song request limit
             permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
             skip_viewer_limit = is_broadcaster or permit_bypass or bool(getattr(ctx.message.author, "is_mod", False))
-            # Fetch settings to check enabled state and per-viewer limits
+            # Fetch settings for per-viewer limits (the media player request toggle only applies to local playback, not Spotify)
             try:
                 settings = await get_media_settings(connection)
-                if not settings.get("enabled", 1) and not is_broadcaster:
-                    await send_chat_message("Song requests are currently disabled.")
-                    return
                 per_viewer_limit = settings.get("per_viewer_limit", 2)
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to get media settings: {e}")
