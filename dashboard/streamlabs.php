@@ -41,6 +41,23 @@ if ($twitchUserId) {
     $stmt->close();
 }
 
+require_once __DIR__ . '/includes/write_guard.php';
+
+// Reveal/copy the access token on demand so it is never written into the page.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reveal_access_token') {
+    session_write_close();
+    dashboard_write_guard('');
+    header('Content-Type: application/json');
+    header('Cache-Control: no-store');
+    if (!dashboard_request_is_ajax() || !$isLinked || empty($access_token)) {
+        http_response_code(400);
+        echo json_encode(['success' => false]);
+        exit();
+    }
+    echo json_encode(['success' => true, 'token' => (string) $access_token]);
+    exit();
+}
+
 // List endpoint first so the browser can paint skeletons, then fetch StreamLabs data.
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
     session_write_close();
@@ -119,7 +136,9 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             $socket_token_data = json_decode($socket_token_response, true);
             if (isset($socket_token_data['socket_token'])) {
                 $socketToken = $socket_token_data['socket_token'];
-                $payload['socket_token'] = $socketToken;
+                if (!$isActAsUser) {
+                    $payload['socket_token'] = $socketToken;
+                }
                 if (!empty($socketToken) && isset($twitchUserId)) {
                     $colCheckSql = "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'streamlabs_tokens' AND COLUMN_NAME = 'socket_token'";
                     if ($colRes = $conn->query($colCheckSql)) {
@@ -168,8 +187,9 @@ $client_secret = $streamlabs_client_secret;
 $redirect_uri = 'https://dashboard.botofthespecter.com/streamlabs.php';
 $scope = 'donations.read socket.token';
 
-// Handle unlinking
-if (isset($_GET['action']) && $_GET['action'] === 'unlink') {
+// Handle unlinking (POST only, same-origin, never while acting as another user)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'unlink') {
+    dashboard_write_guard('/streamlabs.php');
     if ($twitchUserId) {
         $stmt = $conn->prepare("DELETE FROM streamlabs_tokens WHERE twitch_user_id = ?");
         $stmt->bind_param("s", $twitchUserId);
@@ -248,12 +268,14 @@ if (isset($_GET['code']) && !$isActAsUser) {
                         header("Location: streamlabs.php");
                         exit();
                     } else {
-                        $linkingMessage = t('streamlabs_msg_save_tokens_failed') . " " . $stmt->error;
+                        $linkingMessage = t('streamlabs_msg_save_tokens_failed');
+                        error_log('streamlabs save tokens: ' . $stmt->error);
                         $linkingMessageType = "is-warning";
                     }
                     $stmt->close();
                 } else {
-                    $linkingMessage = t('streamlabs_msg_prepare_failed') . " " . $conn->error;
+                    $linkingMessage = t('streamlabs_msg_prepare_failed');
+                    error_log('streamlabs prepare: ' . $conn->error);
                     $linkingMessageType = "is-warning";
                 }
             } else {
@@ -312,10 +334,12 @@ ob_start();
                     <i class="fas fa-check-circle"></i>
                     <?= t('streamlabs_badge_linked') ?>
                 </span>
+                <?php if (!$isActAsUser): ?>
                 <button id="unlinkHeaderBtn" class="sp-btn sp-btn-danger sp-btn-sm" title="<?= htmlspecialchars(t('streamlabs_unlink_account_title')) ?>">
                     <i class="fas fa-unlink"></i>
                     <?= t('streamlabs_unlink') ?>
                 </button>
+                <?php endif; ?>
             <?php else: ?>
                 <span class="sp-badge sp-badge-red">
                     <i class="fas fa-exclamation-circle"></i>
@@ -345,7 +369,7 @@ ob_start();
             <!-- Tokens section -->
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
                 <!-- Access Token -->
-                <?php if ($access_token): ?>
+                <?php if ($access_token && !$isActAsUser): ?>
                     <div class="sp-card" style="margin-bottom: 0;">
                         <div class="sp-card-header">
                             <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);"><?= t('streamlabs_access_token_label') ?></span>
@@ -359,11 +383,12 @@ ob_start();
                             </div>
                         </div>
                         <div class="sp-card-body">
-                            <input type="text" id="accessTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
+                            <input type="text" id="accessTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', 40); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                         </div>
                     </div>
                 <?php endif; ?>
                 <!-- Socket Token -->
+                <?php if (!$isActAsUser): ?>
                 <div id="socketTokenHost" aria-busy="true">
                     <div id="socketTokenSkeleton" class="sp-card" style="margin-bottom: 0;">
                         <div class="sp-card-header">
@@ -391,6 +416,7 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
             </div>
             <!-- Recent Donations section -->
             <div id="donationsCard" class="sp-card" style="margin-bottom: 1.5rem;" aria-busy="true">
@@ -477,7 +503,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 cancelButtonColor: '#6c757d'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    window.location.href = 'streamlabs.php?action=unlink';
+                    const f = document.createElement('form');
+                    f.method = 'POST';
+                    f.action = 'streamlabs.php';
+                    const a = document.createElement('input');
+                    a.type = 'hidden';
+                    a.name = 'action';
+                    a.value = 'unlink';
+                    f.appendChild(a);
+                    document.body.appendChild(f);
+                    f.submit();
                 }
             });
         });
@@ -490,8 +525,20 @@ if ($isLinked && isset($access_token)):
 ob_start();
 ?>
 <script>
-const accessToken = "<?php echo addslashes($access_token) ?>";
-const accessTokenDotCount = <?php echo (int)strlen($access_token); ?>;
+// The access token is fetched only when shown or copied; it is not in the page.
+let accessToken = '';
+const accessTokenDotCount = 40;
+function loadAccessToken() {
+    if (accessToken) return Promise.resolve(accessToken);
+    const body = new URLSearchParams({ action: 'reveal_access_token' });
+    return fetch('streamlabs.php', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: body })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d || !d.success || !d.token) throw new Error('unavailable');
+            accessToken = String(d.token);
+            return accessToken;
+        });
+}
 let accessTokenVisible = false;
 let socketToken = '';
 let socketTokenDotCount = 0;
@@ -697,7 +744,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyAccessIcon = document.getElementById('copyAccessTokenIcon');
     if (copyAccessBtn) {
         copyAccessBtn.addEventListener('click', function() {
-            navigator.clipboard.writeText(accessToken).then(() => {
+            loadAccessToken().then((tok) => navigator.clipboard.writeText(tok)).then(() => {
                 copyAccessIcon.classList.remove('fa-copy');
                 copyAccessIcon.classList.add('fa-check');
                 copyAccessBtn.classList.add('sp-btn-success');
@@ -730,15 +777,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     confirmButtonColor: '#f39c12',
                     cancelButtonColor: '#6c757d'
                 }).then((result) => {
-                    if (result.isConfirmed) {
-                        accessDisplay.value = accessToken;
+                    if (!result.isConfirmed) return;
+                    loadAccessToken().then((tok) => {
+                        accessDisplay.value = tok;
                         accessEye.classList.remove('fa-eye');
                         accessEye.classList.add('fa-eye-slash');
                         accessBtn.title = <?php echo json_encode(t('streamlabs_hide_access_token_title')); ?>;
                         accessBtn.classList.remove('sp-btn-warning');
                         accessBtn.classList.add('sp-btn-danger');
                         accessTokenVisible = true;
-                    }
+                    }).catch(() => {
+                        Swal.fire({ icon: 'error', title: SL_I18N.loadError });
+                    });
                 });
             } else {
                 accessDisplay.value = '•'.repeat(accessTokenDotCount);

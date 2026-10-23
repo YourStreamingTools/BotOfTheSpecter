@@ -240,8 +240,9 @@ function streamelements_build_list_payload(mysqli $db, mysqli $conn, $twitchUser
         'is_partner' => $isPartner,
         'suspended' => $suspended,
         'expires_html' => $expires_html,
-        'api_token' => $apiToken,
-        'jwt_token' => $stored_jwt_token,
+        // Tokens stay hidden while an admin is acting as this user.
+        'api_token' => $isActAsUser ? null : $apiToken,
+        'jwt_token' => $isActAsUser ? null : $stored_jwt_token,
         'channel_id' => $channelId,
         'tips_code' => $tips_code,
         'tips_failed_message' => ($tips_code !== null && $tips_code !== 200)
@@ -420,7 +421,7 @@ if (!$isActAsUser) {
         . "&response_type=code"
         . "&scope=" . urlencode($scope)
         . "&state={$state}"
-        . "&redirect_uri=" . $redirect_uri;
+        . "&redirect_uri=" . urlencode($redirect_uri);
 }
 
 session_write_close();
