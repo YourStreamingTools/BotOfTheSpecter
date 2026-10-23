@@ -8,7 +8,12 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once "/var/www/config/database.php";
 require_once "/var/www/config/db_connect.php";
 include '../includes/user_db.php';
-include 'file_paths.php';
+include __DIR__ . '/../includes/file_paths.php';
+require_once __DIR__ . '/../includes/write_guard.php';
+require_once __DIR__ . '/../includes/modules_validate.php';
+if (!function_exists('t')) {
+    include_once __DIR__ . '/../lang/i18n.php';
+}
 include '../includes/storage_used.php';
 session_write_close();
 
@@ -25,7 +30,7 @@ $db = new mysqli($db_servername, $db_username, $db_password, $db_name);
 // Check connection
 if ($db->connect_error) {
     error_log("Connection failed: " . $db->connect_error);
-    die("Database connection failed. Please check the configuration.");
+    die("Database connection failed. Please try again later.");
 }
 
 // Initialize the active tab variable
@@ -34,10 +39,15 @@ $activeTab = "joke-blacklist"; // Default tab
 // Process POST requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     session_start(); // Reopen session for flash messages
+    // Same-origin only. Module changes are blocked while acting as another user;
+    // the Music page's player preference save is left as it was.
+    dashboard_write_guard('/modules.php', ($_POST['section_save'] ?? '') !== 'music');
     // Determine which tab to return to based on POST data
     if (isset($_POST['blacklist'])) {
         $activeTab = "joke-blacklist";
-        $new_blacklist = isset($_POST['blacklist']) ? $_POST['blacklist'] : [];
+        $new_blacklist = (isset($_POST['blacklist']) && is_array($_POST['blacklist'])) ? $_POST['blacklist'] : [];
+        // Only keep known joke categories, in a fixed order.
+        $new_blacklist = array_values(array_intersect(modules_joke_categories(), array_map('strval', $new_blacklist)));
         $new_blacklist_json = json_encode($new_blacklist);
         // Update the blacklist in the database
         $update_sql = "UPDATE joke_settings SET blacklist = ? WHERE id = 1";
@@ -62,9 +72,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     elseif (isset($_POST['sound_file']) && isset($_POST['twitch_alert_id'])) {
         $activeTab = "twitch-audio-alerts";
         $status = "";
-        $soundFile = htmlspecialchars($_POST['sound_file']);
-        $rewardId = isset($_POST['twitch_alert_id']) ? htmlspecialchars($_POST['twitch_alert_id']) : '';
+        // Store the real filename (escape only when printing).
+        $soundFile = (string) $_POST['sound_file'];
+        $rewardId = trim((string) $_POST['twitch_alert_id']);
+        if ($soundFile === '' || $soundFile !== basename($soundFile) || $soundFile[0] === '.' || !is_file($twitch_sound_alert_path . '/' . $soundFile)) {
+            $_SESSION['update_message'] = "That sound file no longer exists.";
+            header("Location: /modules.php?tab=" . $activeTab);
+            exit();
+        }
+        if ($rewardId !== '' && !in_array($rewardId, modules_sound_events(), true)) {
+            $_SESSION['update_message'] = "Unknown Twitch event.";
+            header("Location: /modules.php?tab=" . $activeTab);
+            exit();
+        }
+        $safeSoundFile = htmlspecialchars($soundFile);
         $db->begin_transaction();
+        // Older saves stored the HTML-escaped name; drop that row so the file has one mapping.
+        if ($safeSoundFile !== $soundFile) {
+            $dropLegacy = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
+            $dropLegacy->bind_param('s', $safeSoundFile);
+            $dropLegacy->execute();
+            $dropLegacy->close();
+        }
+        if ($rewardId !== '') {
+            $taken = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE twitch_alert_id = ? AND sound_mapping <> ? LIMIT 1");
+            $taken->bind_param('ss', $rewardId, $soundFile);
+            $taken->execute();
+            $taken->store_result();
+            $isTaken = $taken->num_rows > 0;
+            $taken->close();
+            if ($isTaken) {
+                $db->rollback();
+                $_SESSION['update_message'] = "That event already has a sound. Remove its mapping first.";
+                header("Location: /modules.php?tab=" . $activeTab);
+                exit();
+            }
+        }
         // Check if a mapping already exists for this sound file
         $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = ?");
         $checkExisting->bind_param('s', $soundFile);
@@ -76,18 +119,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
                 $updateMapping->bind_param('ss', $rewardId, $soundFile);
                 if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
+                    error_log("module_data_post mapping update: " . $db->error);
+                    $status .= "Failed to update mapping for file '" . $safeSoundFile . "'.<br>";
                 } else {
-                    $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
+                    $status .= "Mapping for file '" . $safeSoundFile . "' has been updated successfully.<br>";
                 }
             } else {
                 // Delete the mapping if no reward is selected
                 $deleteMapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
                 $deleteMapping->bind_param('s', $soundFile);
                 if (!$deleteMapping->execute()) {
-                    $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
+                    error_log("module_data_post mapping remove: " . $db->error);
+                    $status .= "Failed to remove mapping for file '" . $safeSoundFile . "'.<br>";
                 } else {
-                    $status .= "Mapping for file '" . $soundFile . "' has been removed.<br>";
+                    $status .= "Mapping for file '" . $safeSoundFile . "' has been removed.<br>";
                 }
             }
         } else {
@@ -96,9 +141,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
                 $insertMapping->bind_param('ss', $soundFile, $rewardId);
                 if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . $db->error . "<br>";
+                    error_log("module_data_post mapping create: " . $db->error);
+                    $status .= "Failed to create mapping for file '" . $safeSoundFile . "'.<br>";
                 } else {
-                    $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
+                    $status .= "Mapping for file '" . $safeSoundFile . "' has been created successfully.<br>";
                 }
             }
         }
@@ -247,43 +293,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $walkon_path = "/var/www/walkons/" . $username;
         $videoalert_path = "/var/www/videoalerts/" . $username;
         $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path]);
+        require_once __DIR__ . '/../includes/upload_helpers.php';
         foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
             if (empty($tmp_name))
                 continue;
-            $fileName = $_FILES["filesToUpload"]["name"][$key];
-            $fileSize = $_FILES["filesToUpload"]["size"][$key];
+            $fileName = (string) $_FILES["filesToUpload"]["name"][$key];
+            $fileSize = (int) $_FILES["filesToUpload"]["size"][$key];
             $fileError = $_FILES["filesToUpload"]["error"][$key];
+            $displayName = htmlspecialchars(basename($fileName));
+            // Check for upload errors first
+            if ($fileError !== UPLOAD_ERR_OK || !is_uploaded_file($tmp_name)) {
+                $status .= "Failed to upload " . $displayName . ". The upload did not complete.<br>";
+                continue;
+            }
+            $realSize = (int) @filesize($tmp_name);
+            if ($realSize > $fileSize) {
+                $fileSize = $realSize;
+            }
             // Check file size with accurate storage used calculation
             if ($current_storage_used + $fileSize > $max_storage_size) {
-                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Storage limit exceeded. Using " .
+                $status .= "Failed to upload " . $displayName . ". Storage limit exceeded. Using " .
                     round($current_storage_used / 1024 / 1024, 2) . "MB of " .
                     round($max_storage_size / 1024 / 1024, 2) . "MB.<br>";
                 continue;
             }
-            // Verify file is an MP3
+            // Verify file is really an MP3 (extension and detected type)
             $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-            if ($fileType != "mp3") {
-                $status .= "Failed to upload " . htmlspecialchars($fileName) . ". Only MP3 files are allowed.<br>";
+            if ($fileType !== "mp3" || !upload_validate_extension_and_mime($tmp_name, $fileType, ['mp3'])) {
+                $status .= "Failed to upload " . $displayName . ". Only MP3 files are allowed.<br>";
                 continue;
             }
-            // Check for upload errors
-            if ($fileError !== 0) {
-                $status .= "Error uploading " . htmlspecialchars($fileName) . ". Error code: $fileError<br>";
-                continue;
-            }
-            // Full path for the destination file
-            $targetFile = $twitch_sound_alert_path . '/' . basename($fileName);
-            // Move file to destination
-            if (move_uploaded_file($tmp_name, $targetFile)) {
+            // Clean name and never overwrite an existing file
+            $target = upload_unique_target($twitch_sound_alert_path, upload_sanitize_filename($fileName, 'mp3'));
+            if (move_uploaded_file($tmp_name, $target['path'])) {
+                @chmod($target['path'], 0644);
                 $current_storage_used += $fileSize;
-                // Remove the database update since the table doesn't exist
-                $status .= "The file " . htmlspecialchars($fileName) . " has been uploaded.<br>";
+                $status .= "The file " . htmlspecialchars($target['name']) . " has been uploaded.<br>";
             } else {
-                $error = error_get_last();
-                $status .= "Sorry, there was an error uploading " . htmlspecialchars($fileName) . ".<br>";
-                if ($error) {
-                    $status .= "Error details: " . htmlspecialchars(print_r($error, true)) . "<br>";
-                }
+                error_log("module_data_post upload move failed: " . print_r(error_get_last(), true));
+                $status .= "Failed to upload " . $displayName . ". Please try again.<br>";
             }
         }
         // Calculate storage percentage
@@ -323,9 +371,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $fileSize = is_file($full_path) ? filesize($full_path) : 0;
             try {
                 // First delete any database mappings
-                $delete_mapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
+                $delete_mapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping IN (?, ?)");
                 if ($delete_mapping) {
-                    $delete_mapping->bind_param('s', $file_name);
+                    $escaped_name = htmlspecialchars($file_name);
+                    $delete_mapping->bind_param('ss', $file_name, $escaped_name);
                     $delete_mapping->execute();
                     $delete_mapping->close();
                 }
@@ -341,7 +390,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $status .= "Failed to delete " . htmlspecialchars($file_name) . ".<br>";
                 }
             } catch (Exception $e) {
-                $status .= "Error: " . $e->getMessage() . "<br>";
+                error_log("module_data_post delete: " . $e->getMessage());
+                $status .= "Failed to delete " . htmlspecialchars($file_name) . ".<br>";
             }
         }
         // Calculate storage percentage
@@ -379,7 +429,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $section = $_POST['section_save'];
         $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
         if ($db->connect_error) {
-            die('Connection failed: ' . $db->connect_error);
+            error_log('module_data_post chat alerts connect: ' . $db->connect_error);
+            echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+            exit();
         }
         $fieldsToUpdate = [];
         if ($section === 'general') {
@@ -572,7 +624,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->execute()) {
             $_SESSION['update_message'] = "Automated shoutout cooldown updated to $cooldown_minutes minutes.";
         } else {
-            $_SESSION['update_message'] = "Error updating automated shoutout cooldown: " . $stmt->error;
+            $_SESSION['update_message'] = "Could not update the automated shoutout cooldown.";
+            error_log("module_data_post shoutout cooldown: " . $stmt->error);
         }
         $stmt->close();
     }
@@ -585,7 +638,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->execute()) {
             $_SESSION['update_message'] = "Automated shoutout cooldown removed for user.";
         } else {
-            $_SESSION['update_message'] = "Error removing cooldown: " . $stmt->error;
+            $_SESSION['update_message'] = "Could not remove the cooldown.";
+            error_log("module_data_post remove cooldown: " . $stmt->error);
         }
         $stmt->close();
     }
@@ -596,28 +650,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->execute()) {
             $_SESSION['update_message'] = "All automated shoutout cooldowns have been cleared.";
         } else {
-            $_SESSION['update_message'] = "Error clearing cooldowns: " . $stmt->error;
+            $_SESSION['update_message'] = "Could not clear the cooldowns.";
+            error_log("module_data_post clear cooldowns: " . $stmt->error);
         }
         $stmt->close();
     }
     // Handle TTS Settings Update
     elseif (isset($_POST['tts_voice']) && isset($_POST['tts_language'])) {
         $activeTab = "tts-settings";
-        $tts_voice = $_POST['tts_voice'];
-        $tts_language = $_POST['tts_language'];
+        $tts_voice = (string) $_POST['tts_voice'];
+        $tts_language = (string) $_POST['tts_language'];
         $tts_style = (isset($_POST['tts_style']) && $_POST['tts_style'] === 'expressive') ? 'expressive' : 'normal';
         $tts_expressive_voice = isset($_POST['tts_expressive_voice']) ? trim((string) $_POST['tts_expressive_voice']) : '';
+        if (!in_array($tts_voice, modules_tts_voices(), true) || !in_array($tts_language, modules_tts_languages(), true)
+            || ($tts_expressive_voice !== '' && !preg_match('/^[A-Za-z0-9]{1,64}$/', $tts_expressive_voice))) {
+            $_SESSION['update_message'] = "Unknown TTS voice or language.";
+            header("Location: /modules.php?tab=" . $activeTab);
+            exit();
+        }
         $stmt = $db->prepare("INSERT INTO tts_settings (id, voice, language, style, expressive_voice) VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE voice = ?, language = ?, style = ?, expressive_voice = ?");
         if ($stmt) {
             $stmt->bind_param('ssssssss', $tts_voice, $tts_language, $tts_style, $tts_expressive_voice, $tts_voice, $tts_language, $tts_style, $tts_expressive_voice);
             if ($stmt->execute()) {
                 $_SESSION['update_message'] = "TTS settings updated successfully.";
             } else {
-                $_SESSION['update_message'] = "Error updating TTS settings: " . $stmt->error;
+                $_SESSION['update_message'] = "Could not update TTS settings.";
+                error_log("module_data_post tts: " . $stmt->error);
             }
             $stmt->close();
         } else {
-            $_SESSION['update_message'] = "Error updating TTS settings: " . $db->error;
+            $_SESSION['update_message'] = "Could not update TTS settings.";
+            error_log("module_data_post tts prepare: " . $db->error);
         }
     }
     // Handle Chat Protection Settings
@@ -662,7 +725,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif (isset($_POST['whitelist_link'])) {
         $activeTab = "chat-protection";
-        $whitelist_link = $_POST['whitelist_link'];
+        $whitelist_link = trim((string) $_POST['whitelist_link']);
+        if (($problem = modules_link_problem($db, 'whitelist', $whitelist_link)) !== null) {
+            $_SESSION['update_message'] = $problem;
+            header("Location: /modules.php?tab=" . $activeTab);
+            exit();
+        }
         $stmt = $db->prepare("INSERT INTO link_whitelist (link) VALUES (?)");
         $stmt->bind_param("s", $whitelist_link);
         if ($stmt->execute()) {
@@ -675,7 +743,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif (isset($_POST['blacklist_link'])) {
         $activeTab = "chat-protection";
-        $blacklist_link = $_POST['blacklist_link'];
+        $blacklist_link = trim((string) $_POST['blacklist_link']);
+        if (($problem = modules_link_problem($db, 'blacklist', $blacklist_link)) !== null) {
+            $_SESSION['update_message'] = $problem;
+            header("Location: /modules.php?tab=" . $activeTab);
+            exit();
+        }
         $stmt = $db->prepare("INSERT INTO link_blacklisting (link) VALUES (?)");
         $stmt->bind_param("s", $blacklist_link);
         if ($stmt->execute()) {
@@ -740,7 +813,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     elseif (isset($_POST['blocked_term'])) {
         $activeTab = "chat-protection";
-        $blocked_term = trim($_POST['blocked_term']);
+        $blocked_term = trim((string) $_POST['blocked_term']);
+        if (($problem = modules_term_problem($db, $blocked_term)) !== null) {
+            $_SESSION['update_message'] = $problem;
+            header("Location: /modules.php?tab=" . $activeTab);
+            exit();
+        }
         $stmt = $db->prepare("INSERT INTO blocked_terms (term) VALUES (?)");
         $stmt->bind_param("s", $blocked_term);
         if ($stmt->execute()) {
