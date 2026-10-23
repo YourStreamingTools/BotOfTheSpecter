@@ -33,6 +33,9 @@ if (empty($server_id)) {
     echo json_encode(['success' => false, 'message' => 'Server ID is required']);
     exit();
 }
+// Only the user's saved Discord server may be changed.
+require_once __DIR__ . '/../includes/discord_guard.php';
+$server_id = discord_guard_saved_guild((int) ($_SESSION['user_id'] ?? 0), $server_id);
 
 // Validate setting name
 $allowed_settings = [

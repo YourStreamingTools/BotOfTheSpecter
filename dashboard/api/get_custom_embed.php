@@ -34,6 +34,11 @@ $user_id = $_SESSION['user_id'];
 // Get parameters
 $embed_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $server_id = isset($_GET['server_id']) ? trim($_GET['server_id']) : '';
+if ($server_id !== '') {
+    // Only embeds for the user's saved Discord server.
+    require_once __DIR__ . '/../includes/discord_guard.php';
+    $server_id = discord_guard_saved_guild((int) $user_id, $server_id);
+}
 
 if (!$embed_id || !$server_id) {
     http_response_code(400);

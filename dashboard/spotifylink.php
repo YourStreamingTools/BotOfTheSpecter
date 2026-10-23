@@ -214,6 +214,23 @@ if ($isActAsUser && isset($_GET['code'])) {
     }
 }
 
+// Users who never linked Spotify have no spotify_tokens row, so an UPDATE alone
+// changed nothing. Create the row first (same columns as the OAuth callback).
+function spotifylink_ensure_row($conn, $user_id, int $own_client): void
+{
+    $checkStmt = $conn->prepare("SELECT 1 FROM spotify_tokens WHERE user_id = ?");
+    $checkStmt->bind_param("i", $user_id);
+    $checkStmt->execute();
+    $exists = (bool) $checkStmt->get_result()->fetch_row();
+    $checkStmt->close();
+    if ($exists) return;
+    $empty = '';
+    $insertStmt = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token, auth, own_client) VALUES (?, ?, ?, 0, ?)");
+    $insertStmt->bind_param("issi", $user_id, $empty, $empty, $own_client);
+    $insertStmt->execute();
+    $insertStmt->close();
+}
+
 // Handle POST requests for own client settings
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isActAsUser && (isset($_POST['use_own_client']) || isset($_POST['save_credentials']))) {
@@ -225,10 +242,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt->bind_param("i", $user_id);
         $updateStmt->execute();
         $updateStmt->close();
+        spotifylink_ensure_row($conn, $user_id, 1);
         $own_client = 1;
     } elseif (isset($_POST['save_credentials'])) {
         $client_id_input = $_POST['client_id'] ?? '';
         $client_secret_input = $_POST['client_secret'] ?? '';
+        spotifylink_ensure_row($conn, $user_id, (int) $own_client);
         $updateStmt = $conn->prepare("UPDATE spotify_tokens SET client_id = ?, client_secret = ? WHERE user_id = ?");
         $updateStmt->bind_param("ssi", $client_id_input, $client_secret_input, $user_id);
         $updateStmt->execute();
