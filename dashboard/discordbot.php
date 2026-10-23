@@ -430,6 +430,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         echo json_encode(['success' => false, 'message' => 'Server ID required']);
         exit;
       }
+      require_once __DIR__ . '/includes/discord_guard.php';
+      $server_id = discord_guard_saved_guild((int) $user_id, $server_id);
       if ($action === 'save_auto_role') {
         $auto_role_id = $data['auto_role_id'] ?? null;
         if (!$auto_role_id) {
@@ -471,10 +473,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       // Handle form POST requests
       if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id']) && !isset($_POST['save_stream_online']) && !isset($_POST['save_alert_channels']) && !isset($_POST['save_stream_monitoring'])) {
         // Server Configuration: Save only guild_id to discord_users table
-        $guild_id = $_POST['guild_id'];
+        $guild_id = trim((string) $_POST['guild_id']);
+        // Same rule as the server picker: only a server the user owns.
+        $ownedGuildIds = $guild_id === '' ? [] : array_map(fn($g) => (string) ($g['id'] ?? ''), getUserAdminGuilds($discordData['access_token'] ?? ''));
         $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
         $stmt->bind_param("si", $guild_id, $user_id);
-        if ($stmt->execute()) {
+        if ($guild_id !== '' && !in_array($guild_id, $ownedGuildIds, true)) {
+          $errorMsg = "You can only pick a Discord server you own.";
+        } elseif ($stmt->execute()) {
           $buildStatus = t('discordbot_msg_server_config_saved');
         } else {
           $errorMsg = "Error saving Discord Server configuration: " . $stmt->error;
@@ -574,6 +580,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $monitor_username = trim(str_replace(' ', '', $_POST['monitor_username']));
         if (empty($monitor_username)) {
           $errorMsg = t('discordbot_msg_username_empty');
+        } elseif (!preg_match('/^[A-Za-z0-9_]{1,25}$/', $monitor_username)) {
+          $errorMsg = "Enter a valid Twitch username (letters, numbers and underscores, up to 25 characters).";
         } elseif (strtolower($monitor_username) === strtolower($username)) {
           $errorMsg = t('discordbot_msg_cannot_track_self');
         } else {
@@ -2078,7 +2086,7 @@ ob_start();
           <?php endif; ?>
           <?php if ($errorMsg): ?>
             <div style="flex:0 0 100%;">
-              <div class="sp-alert sp-alert-success"
+              <div class="sp-alert sp-alert-danger"
                 style="border-radius: 12px; border: 2px solid #ff4e65; box-shadow: 0 4px 16px rgba(255,78,101,0.2);">
                 <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                   <div>
@@ -3578,7 +3586,7 @@ ob_start();
 ?>
 <script>
   const tableBody = document.querySelector('#savedStreamersModal tbody');
-  const initialSavedStreamers = <?php echo json_encode($savedStreamers); ?>;
+  const initialSavedStreamers = <?php echo json_encode($savedStreamers, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
   let streamersToDisplay = initialSavedStreamers;
   function populateStreamersTable() {
     tableBody.innerHTML = '';
@@ -3587,17 +3595,31 @@ ob_start();
       return;
     }
     streamersToDisplay.forEach(streamer => {
+      // Built with DOM nodes so saved usernames and URLs are never parsed as HTML or script.
       const row = document.createElement('tr');
-      row.innerHTML = `
-      <td>${streamer.username}</td>
-      <td><a href="${streamer.stream_url}" target="_blank">${streamer.stream_url}</a></td>
-      <td>
-        <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="removeStreamer('${streamer.username}')">
-          <span class="icon"><i class="fas fa-trash"></i></span>
-          <span>Remove</span>
-        </button>
-      </td>
-    `;
+      const nameCell = document.createElement('td');
+      nameCell.textContent = String(streamer.username || '');
+      const urlCell = document.createElement('td');
+      const url = String(streamer.stream_url || '');
+      if (/^https:\/\/(www\.)?twitch\.tv\//i.test(url)) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = url;
+        urlCell.appendChild(link);
+      } else {
+        urlCell.textContent = url;
+      }
+      const actCell = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sp-btn sp-btn-danger sp-btn-sm';
+      btn.dataset.username = String(streamer.username || '');
+      btn.innerHTML = '<span class="icon"><i class="fas fa-trash"></i></span><span>Remove</span>';
+      btn.addEventListener('click', () => removeStreamer(btn.dataset.username));
+      actCell.appendChild(btn);
+      row.append(nameCell, urlCell, actCell);
       tableBody.appendChild(row);
     });
   }
@@ -3605,7 +3627,7 @@ ob_start();
   function removeStreamer(username) {
     Swal.fire({
       title: 'Remove Tracked Streamer?',
-      html: `Are you sure you want to remove <b>${username}</b> from your tracked streamer list?<br><br>This will stop the Discord bot from posting when this streamer goes live in your monitoring channel on your Discord server.`,
+      html: `Are you sure you want to remove <b>${escapeHtml(username)}</b> from your tracked streamer list?<br><br>This will stop the Discord bot from posting when this streamer goes live in your monitoring channel on your Discord server.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Yes, Remove',

@@ -91,6 +91,18 @@ if (empty($server_id)) {
     exit();
 }
 
+// Only the user's saved Discord server may be changed. Sends also re-check that
+// the user still owns it and that the target channel is in it.
+require_once __DIR__ . '/../includes/discord_guard.php';
+if ($action !== 'save_discord_channels') {
+    $server_id = discord_guard_saved_guild((int) $user_id, $server_id);
+    $discordGuardSends = ['send_reaction_roles_message' => 'reaction_roles_channel_id', 'send_rules_message' => 'rules_channel_id', 'send_stream_schedule_message' => 'stream_schedule_channel_id', 'send_custom_embed' => 'channel_id'];
+    if (isset($discordGuardSends[$action])) {
+        discord_guard_owner((int) $user_id, $server_id);
+        if (isset($input[$discordGuardSends[$action]])) $input[$discordGuardSends[$action]] = discord_guard_channel($server_id, $input[$discordGuardSends[$action]]);
+    }
+}
+
 try {
     switch ($action) {
         case 'save_welcome_message':
@@ -1410,6 +1422,7 @@ debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                 exit();
             }
             $guild_id = $input['guild_id'];
+            if ((string) $guild_id !== '') discord_guard_owner((int) $user_id, trim((string) $guild_id));
             $live_channel_id = $input['live_channel_id'];
             $online_text = isset($input['online_text']) ? trim($input['online_text']) : '';
             $offline_text = isset($input['offline_text']) ? trim($input['offline_text']) : '';
