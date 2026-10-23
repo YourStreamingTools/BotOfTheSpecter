@@ -461,6 +461,7 @@ hyperate_task = None                                    # HypeRate WebSocket tas
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
+shoutout_in_flight = False                              # Whether the shoutout worker is currently processing an item
 websocket_connected = False                             # Whether the websocket is currently connected
 _pending_chat_overlay = []                              # CHAT_MESSAGE payloads sent before the overlay socket registered
 MEDIA_MIGRATED = False                                  # Loaded from website.users.new_media at startup; enables unified /var/www/media/ library
@@ -4148,159 +4149,22 @@ class TwitchBot(commands.AutoBot):
                                 return
                             # Record usage right away so overlapping uses can't both pass the cooldown
                             add_usage(command, bucket_key, cooldown_bucket)
-                            switches = [
-                                '(customapi.', '(count)', '(daysuntil.',
-                                '(command.', '(user)', '(author)', 
-                                '(random.percent)', '(random.number)', '(random.percent.',
-                                '(random.number.', '(random.pick.', '(math.',
-                                '(usercount)', '(timeuntil.', '(game)',
-                                '(call.'
-                            ]
-                            responses_to_send = []
-                            variable_passes = 0
-                            while any(switch in response for switch in switches):
-                                variable_passes += 1
-                                if variable_passes > MAX_DYNAMIC_VARIABLE_PASSES:
-                                    chat_logger.warning(f"Stopped processing variables for '{command}' after {MAX_DYNAMIC_VARIABLE_PASSES} passes")
-                                    break
-                                response_at_pass_start = response
-                                # Handle (count)
-                                if '(count)' in response:
-                                    try:
-                                        if arg is None:
-                                            await update_custom_count(command, "1")
-                                        else:
-                                            await update_custom_count(command, arg)
-                                        get_count = await get_custom_count(command)
-                                        response = response.replace('(count)', str(get_count))
-                                    except Exception as e:
-                                        chat_logger.error(f"{e}")
-                                # Handle (usercount)
-                                if '(usercount)' in response:
-                                    try:
-                                        user_mention = re.search(r'@(\w+)', messageContent)
-                                        user_name = user_mention.group(1) if user_mention else messageAuthor
-                                        if arg is None:
-                                            await update_user_count(command, user_name, "1")
-                                        else:
-                                            await update_user_count(command, user_name, arg)
-                                        get_count = await get_user_count(command, user_name)
-                                        response = response.replace('(usercount)', str(get_count))
-                                    except Exception as e:
-                                        chat_logger.error(f"Error while handling (usercount): {e}")
-                                        response = response.replace('(usercount)', "Error")
-                                # Handle (daysuntil.)
-                                if '(daysuntil.' in response:
-                                    get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
-                                    if get_date:
-                                        date_str = get_date.group(1)
-                                        event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                        current_date = time_right_now(tz).date()
-                                        days_left = (event_date - current_date).days
-                                        # If days_left is negative, try next year
-                                        if days_left < 0:
-                                            next_year_date = same_day_next_year(event_date)
-                                            days_left = (next_year_date - current_date).days
-                                        response = response.replace(f"(daysuntil.{date_str})", str(days_left))
-                                # Handle (timeuntil.)
-                                if '(timeuntil.' in response:
-                                    get_datetime = re.search(r'\(timeuntil\.(\d{4}-\d{2}-\d{2}(?:-\d{1,2}-\d{2})?)\)', response)
-                                    if get_datetime:
-                                        datetime_str = get_datetime.group(1)
-                                        response = response.replace(f"(timeuntil.{datetime_str})", format_time_until(datetime_str, tz))
-                                # Handle (user) and (author)
-                                if '(user)' in response:
-                                    user_mention = re.search(r'@(\w+)', messageContent)
-                                    user_name = user_mention.group(1) if user_mention else messageAuthor
-                                    response = response.replace('(user)', user_name)
-                                if '(author)' in response:
-                                    response = response.replace('(author)', messageAuthor)
-                                # Handle (command.)
-                                if '(command.' in response:
-                                    command_match = re.search(r'\(command\.(\w+)\)', response)
-                                    if command_match:
-                                        sub_command = command_match.group(1)
-                                        await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
-                                        sub_response = await cursor.fetchone()
-                                        if sub_response:
-                                            response = response.replace(f"(command.{sub_command})", "")
-                                            responses_to_send.append(sub_response["response"])
-                                        else:
-                                            chat_logger.error(f"{sub_command} is no longer available.")
-                                            await send_chat_message(f"The command {sub_command} is no longer available.")
-                                # Handle (call.)
-                                if '(call.' in response:
-                                    calling_match = re.search(r'\(call\.(\w+)(?:\.([^)]+))?\)', response)
-                                    if calling_match:
-                                        response = response.replace(calling_match.group(0), "")
-                                        await self.call_command(calling_match.group(1), message, calling_match.group(2))
-                                # Handle random replacements
-                                if '(random.percent' in response or '(random.number' in response or '(random.pick.' in response:
-                                    # Unified pattern for all placeholders
-                                    pattern = r'\((random\.(percent|number|pick))(?:\.(.+?))?\)'
-                                    matches = re.finditer(pattern, response)
-                                    for match in matches:
-                                        category = match.group(1)  # 'random.percent', 'random.number', or 'random.pick'
-                                        details = match.group(3)  # Range (x-y) or items for pick
-                                        replacement = ''  # Initialize the replacement string
-                                        if 'percent' in category or 'number' in category:
-                                            # Default bounds for random.percent and random.number
-                                            lower_bound, upper_bound = 0, 100
-                                            if details:  # If range is specified, extract it
-                                                range_match = re.match(r'(\d+)-(\d+)', details)
-                                                if range_match:
-                                                    # Accept the range either way round (100-1 works like 1-100)
-                                                    lower_bound, upper_bound = sorted((int(range_match.group(1)), int(range_match.group(2))))
-                                            random_value = random.randint(lower_bound, upper_bound)
-                                            replacement = f'{random_value}%' if 'percent' in category else str(random_value)
-                                        elif 'pick' in category:
-                                            # Split the details into items to pick from
-                                            items = details.split('.') if details else []
-                                            replacement = random.choice(items) if items else ''
-                                        # Replace the placeholder with the generated value
-                                        response = response.replace(match.group(0), replacement)
-                                # Handle (math.x+y)
-                                if '(math.' in response:
-                                    math_match = re.search(r'\(math\.(.+?)\)', response)
-                                    if math_match:
-                                        math_expression = math_match.group(1)
-                                        try:
-                                            math_result = safe_math(math_expression)
-                                            response = response.replace(f'(math.{math_expression})', str(math_result))
-                                        except Exception as e:
-                                            chat_logger.error(f"Math expression error: {e}")
-                                            response = response.replace(f'(math.{math_expression})', "Error")
-                                # Handle (customapi.)
-                                if '(customapi.' in response:
-                                    pattern = r'\(customapi\.(\S+?)\)'
-                                    matches = re.finditer(pattern, response)
-                                    for match in matches:
-                                        full_placeholder = match.group(0)
-                                        url = match.group(1)
-                                        json_flag = False
-                                        if url.startswith('json.'):
-                                            json_flag = True
-                                            url = url[5:]  # Remove 'json.' prefix for fetching
-                                        api_response = await fetch_api_response(url, json_flag=json_flag)
-                                        # API text can echo viewer input, so it is inserted as plain text
-                                        response = response.replace(full_placeholder, escape_viewer_text(api_response))
-                                # Handle (game)
-                                if '(game)' in response:
-                                    try:
-                                        game_name = await get_current_game()
-                                        response = response.replace('(game)', game_name)
-                                    except Exception as e:
-                                        chat_logger.error(f"Error getting current game: {e}")
-                                        response = response.replace('(game)', "Error")
-                                # A pass that changes nothing means the remaining tokens can't be resolved; send them as plain text
-                                if response == response_at_pass_start:
-                                    chat_logger.warning(f"Unresolved variables left as text in '{command}': {response[:200]!r}")
-                                    break
-                            response = restore_viewer_text(response)
-                            await send_chat_message(response)
-                            for resp in responses_to_send:
-                                chat_logger.info(f"{command} command ran with response: {resp}")
-                                await send_chat_message(resp)
+                            # Handle (call.) - collect for deferred execution after the main response
+                            pending_call = None
+                            if '(call.' in response:
+                                calling_match = re.search(r'\(call\.(\w+)(?:\.([^)]+))?\)', response)
+                                if calling_match:
+                                    pending_call = (calling_match.group(1), calling_match.group(2))
+                                    response = response.replace(calling_match.group(0), "").strip()
+                            # Extract user mention
+                            user_mention = re.search(r'@(\w+)', messageContent)
+                            user_name = user_mention.group(1) if user_mention else messageAuthor
+                            # Process variables with the shared handler (opens its own DB connection, many-options random.pick support)
+                            if response.strip():
+                                await process_dynamic_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                            # Fire (call.) after the main response has been sent
+                            if pending_call:
+                                await self.call_command(pending_call[0], message, pending_call[1])
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -4789,6 +4653,10 @@ class TwitchBot(commands.AutoBot):
                             user_id = messageAuthorID
                             user_to_shoutout = messageAuthor
                             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
+                        if has_dynamic_variables(message_to_send):
+                            message_to_send = await process_dynamic_variables(
+                                command="welcome_message", response=message_to_send, user=messageAuthor
+                            )
                         if message_to_send.strip():
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
@@ -10761,6 +10629,9 @@ class TwitchBot(commands.AutoBot):
                 return
             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "command")
             chat_logger.info(shoutout_message)
+            now = time_right_now()
+            in_global_cooldown = last_shoutout_time != datetime.min and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
+            will_be_queued = shoutout_in_flight or not shoutout_queue.empty() or in_global_cooldown
             queued = await add_shoutout(user_to_shoutout, user_id, is_automated=False, shoutout_message=shoutout_message, source="command")
             if queued == "already_queued":
                 chat_logger.info(f"@{user_to_shoutout} was already in the shoutout queue; informing {ctx.author.name}")
@@ -10768,6 +10639,14 @@ class TwitchBot(commands.AutoBot):
                     f"@{ctx.author.name}, @{user_to_shoutout} is already in the shoutout queue."
                 )
                 return
+            if not queued:
+                cooldown_minutes = await get_automated_shoutout_cooldown()
+                await send_chat_message(
+                    f"Sorry, this person has received a shoutout within the last {cooldown_minutes} minutes, please wait for the cooldown to end before sending a shoutout for this user again."
+                )
+                return
+            if will_be_queued:
+                await send_chat_message(f"Got it, @{ctx.author.name}, the shoutout is currently in the queue.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -15574,7 +15453,8 @@ async def has_automated_shoutout_cooldown(user_id):
 # Helper function to record automated shoutout
 async def record_automated_shoutout(user_id, user_name):
     now = time_right_now()
-    recent_shoutouts[normalize_shoutout_user_id(user_id)] = now
+    normalized_user_id = normalize_shoutout_user_id(user_id)
+    recent_shoutouts[normalized_user_id] = now
     twitch_logger.info(f"Recorded automated shoutout for {user_name} (user_id: {user_id}) at {now}")
     # Store in database
     connection = None
@@ -15585,13 +15465,11 @@ async def record_automated_shoutout(user_id, user_name):
                 """INSERT INTO automated_shoutout_tracking (user_id, user_name, shoutout_time) 
                    VALUES (%s, %s, %s) 
                    ON DUPLICATE KEY UPDATE user_name = %s, shoutout_time = %s""",
-                (user_id, user_name, now, user_name, now)
+                (normalized_user_id, user_name, now, user_name, now)
             )
             await connection.commit()
     except Exception as e:
         twitch_logger.error(f"Error storing automated shoutout in database: {e}")
-
-# Helper function to load automated shoutout tracking from database
     finally:
         if connection:
             await connection.release()
@@ -15686,25 +15564,29 @@ def is_shoutout_queued(user_id):
 async def add_shoutout(user_to_shoutout, user_id, is_automated=True, skip_if_queued=True, shoutout_message=None, source="unknown", trigger_api=True):
     queued_id = str(user_id) if user_id is not None else None
     if skip_if_queued and queued_id and queued_id in shoutout_queued_ids:
-        twitch_logger.info(f"Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - already in the shoutout queue. [source={source}]")
+        twitch_logger.info(f"[SHOUTOUT] Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - already in the shoutout queue. [source={source}]")
         return "already_queued"
-    if trigger_api and is_automated and await has_automated_shoutout_cooldown(user_id):
-        cooldown_minutes = await get_automated_shoutout_cooldown()
-        twitch_logger.info(f"Automated shoutout for {user_to_shoutout} (user_id: {user_id}) is within the {cooldown_minutes} minute cooldown; skipping the Twitch API, chat message still sends if present. [source={source}]")
+    # Per-user cooldown (any source) only blocks the Twitch API call; the chat line still goes out
+    in_cooldown, cooldown_minutes, remaining_minutes = await get_shoutout_cooldown_state(user_id)
+    if in_cooldown and trigger_api:
+        twitch_logger.info(f"[SHOUTOUT] Per-user cooldown active for {user_to_shoutout} (user_id: {user_id}) - skipping Twitch API only ({cooldown_minutes} min window, {remaining_minutes} min remaining); chat message will still send if present. [source={source}]")
         trigger_api = False
     if not trigger_api and not shoutout_message:
+        if in_cooldown:
+            twitch_logger.info(f"[SHOUTOUT] Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - within cooldown and no chat message to send. [source={source}]")
         return False
     if skip_if_queued and queued_id:
         shoutout_queued_ids.add(queued_id)
     await shoutout_queue.put((user_to_shoutout, user_id, is_automated, skip_if_queued, shoutout_message, source, trigger_api))
-    twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue. [source={source}, trigger_api={trigger_api}]")
+    twitch_logger.info(f"[SHOUTOUT] Added shoutout request for {user_to_shoutout} to the queue. [source={source}, trigger_api={trigger_api}]")
     return True
 
 # Worker to process shoutout queue
 async def shoutout_worker():
-    global last_shoutout_time
+    global last_shoutout_time, shoutout_in_flight
     while True:
         item = await shoutout_queue.get()
+        shoutout_in_flight = True
         # Older tuple shapes stay compatible if a process is mid-upgrade
         shoutout_message, source, trigger_api = None, "unknown", True
         if len(item) == 7:
@@ -15716,78 +15598,93 @@ async def shoutout_worker():
             skip_if_queued = True
         try:
             now = time_right_now()
-            # User-specific cooldown only blocks the Twitch API call; the chat line still goes out
-            if trigger_api and user_id in shoutout_tracker:
-                if now - shoutout_tracker[user_id] < TWITCH_SHOUTOUT_USER_COOLDOWN:
-                    twitch_logger.info(f"User-specific cooldown in effect for {user_to_shoutout}; skipping the Twitch API. [source={source}]")
-                    trigger_api = False
+            # Per-user cooldown only blocks the Twitch API call; the chat line still goes out
+            in_cooldown, cooldown_minutes, remaining_minutes = await get_shoutout_cooldown_state(user_id)
+            if in_cooldown and trigger_api:
+                twitch_logger.info(f"[SHOUTOUT] Skipping Twitch API for {user_to_shoutout} - user cooldown in effect ({cooldown_minutes} minute window, {remaining_minutes} minute(s) remaining); chat message will still send if present. [source={source}]")
+                trigger_api = False
             if not trigger_api and not shoutout_message:
+                twitch_logger.info(f"[SHOUTOUT] Nothing to process for {user_to_shoutout} (API off, no chat message). [source={source}]")
                 continue
-            # Global cooldown only matters when calling the Twitch API
+            # Global cooldown only matters when calling the Twitch API; chat-only items skip the wait
             if trigger_api and last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
                 wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
-                twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
+                twitch_logger.info(f"[SHOUTOUT] Waiting {wait_time} seconds for global cooldown.")
                 await sleep(wait_time)
             if trigger_api:
                 # Set the dedupe marker before the API call so the channel.shoutout.create event sees it
                 shoutout_user_key = (user_to_shoutout or "").lower()
                 if shoutout_user_key:
                     shoutout_user[shoutout_user_key] = {"timestamp": time.time()}
-                    create_task(remove_shoutout_user(shoutout_user_key, 60))
-                await trigger_twitch_shoutout(user_to_shoutout, user_id)
-                twitch_logger.info(f"Shoutout sent for {user_to_shoutout}. [source={source}]")
+                    safe_create_task(remove_shoutout_user(shoutout_user_key, 60))
+                shoutout_sent = await trigger_twitch_shoutout(user_to_shoutout, user_id)
+                if not shoutout_sent:
+                    twitch_logger.info(f"[SHOUTOUT] Twitch API shoutout failed for {user_to_shoutout}; still sending chat message. [source={source}]")
             if shoutout_message:
                 await send_chat_message(shoutout_message)
-            # Record automated shoutout cooldown only when the Twitch API was called
-            if trigger_api and is_automated:
+            twitch_logger.info(f"[SHOUTOUT] Shoutout processed for {user_to_shoutout}. [source={source}, trigger_api={trigger_api}]")
+            # Record the per-user cooldown only when the Twitch API was called (chat-only does not extend it)
+            if trigger_api:
                 await record_automated_shoutout(user_id, user_to_shoutout)
-            # Persist to the shoutout history log for all-time counts
-            await log_shoutout_history(user_id, user_to_shoutout, "automated" if is_automated else "command")
+            # Persist to the shoutout history log for all-time counts (chat-only still counts)
+            await log_shoutout_history(user_id, user_to_shoutout, source)
+            # Only bump the global cooldown when the Twitch API was called
             if trigger_api:
                 last_shoutout_time = time_right_now()
                 shoutout_tracker[user_id] = last_shoutout_time
         except Exception as e:
-            twitch_logger.error(f"Unhandled error in shoutout_worker while processing shoutout for {user_to_shoutout}: {e}")
+            twitch_logger.error(f"[SHOUTOUT] Unhandled error in shoutout_worker while processing shoutout for {user_to_shoutout}: {e}")
         finally:
+            # Always mark the task done so the queue doesn't stall
+            shoutout_in_flight = False
             if skip_if_queued and user_id is not None:
                 shoutout_queued_ids.discard(str(user_id))
             shoutout_queue.task_done()
 
-# Function to trigger a Twitch shoutout via Twitch API
+# Function to trigger a Twitch shoutout via Twitch API; returns True when Twitch accepted it
 async def trigger_twitch_shoutout(user_to_shoutout, user_id):
     connection = None
     try:
         connection = await mysql_handler.get_connection(db_name="website")
     except Exception as e:
-        twitch_logger.error(f"Database connection error while fetching bot access token: {e}")
-        return
+        twitch_logger.error(f"[SHOUTOUT] Database connection error while fetching bot access token: {e}")
+        return False
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            bot_id = "971436498"
+            await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (bot_id,))
+            result = await cursor.fetchone()
+        bot_auth = result.get('twitch_access_token') if result else None
+    except Exception as e:
+        twitch_logger.error(f"[SHOUTOUT] Failed to load bot access token: {e}")
+        return False
     finally:
         if connection:
             await connection.release()
-    async with connection.cursor(DictCursor) as cursor:
-        bot_id = "971436498"
-        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
-        result = await cursor.fetchone()
-        bot_auth = result.get('twitch_access_token')
-        url = 'https://api.twitch.tv/helix/chat/shoutouts'
-        headers = {
-            "Authorization": f"Bearer {bot_auth}",
-            "Client-ID": CLIENT_ID,
-        }
-        payload = {
-            "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": user_id,
-            "moderator_id": bot_id
-        }
-        try:
-            async with httpClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status in (200, 204):
-                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                    else:
-                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-        except aiohttpClientError as e:
-            twitch_logger.error(f"Error triggering shoutout: {e}")
+    if not bot_auth:
+        twitch_logger.error(f"[SHOUTOUT] No bot access token found for bot_id={bot_id}")
+        return False
+    url = 'https://api.twitch.tv/helix/chat/shoutouts'
+    headers = {
+        "Authorization": f"Bearer {bot_auth}",
+        "Client-ID": CLIENT_ID,
+    }
+    payload = {
+        "from_broadcaster_id": CHANNEL_ID,
+        "to_broadcaster_id": user_id,
+        "moderator_id": bot_id
+    }
+    try:
+        async with httpClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status in (200, 204):
+                    twitch_logger.info(f"[SHOUTOUT] Shoutout triggered successfully for {user_to_shoutout}.")
+                    return True
+                twitch_logger.error(f"[SHOUTOUT] Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                return False
+    except aiohttpClientError as e:
+        twitch_logger.error(f"[SHOUTOUT] Error triggering shoutout: {e}")
+        return False
 
 # Function to get the last stream category for a user to shoutout
 # Returns (game_name, broadcaster_login); either can be None
@@ -16617,10 +16514,7 @@ async def handle_chat_message(messageAuthor, messageContent=""):
 
 async def send_interval_message(message_id, message, interval_seconds):
     global stream_online, scheduled_tasks, timed_messages_paused_for_rerun
-    switchs = ["(game)",]
-    if message and any(switch in message for switch in switchs):
-        game_name = await get_current_game()
-        message = message.replace("(game)", game_name)
+    # Variables such as (game) are resolved on every send by send_timed_message, so they never go stale
     while stream_online and not timed_messages_paused_for_rerun:
         await sleep(interval_seconds)
         if stream_online and not timed_messages_paused_for_rerun:
