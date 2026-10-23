@@ -11937,10 +11937,9 @@ class TwitchBot(commands.AutoBot):
                         prize = prize_pool.get(division, 0)
                         # Paid by Twitch user id (the old name-only insert failed for winners without a points row and stopped the draw)
                         total_points = await credit_lotto_prize(user_name, prize)
-                        if total_points is None:
-                            total_points = "unknown"
-                        # Send message about the win
-                        message = f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}"
+                        total_text = f"{int(total_points):,}" if total_points is not None else "unknown"
+                        # Send message about the win (numbers with thousands separators)
+                        message = f"@{user_name} you've won {division} and received {int(prize):,} points! Total points: {total_text}"
                         await send_chat_message(message)
                         winners += 1
                     # Remove user lotto entry after the draw
