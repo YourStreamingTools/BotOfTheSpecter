@@ -17,6 +17,12 @@ if (!empty($_SESSION['update_message'])) {
     $updateMessage = $_SESSION['update_message'];
     unset($_SESSION['update_message']);
 }
+require_once __DIR__ . '/includes/write_guard.php';
+require_once __DIR__ . '/includes/modules_validate.php';
+// Every POST to this page changes settings: same-origin only, never while acting as another user.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    dashboard_write_guard('/modules.php');
+}
 session_write_close();
 
 function modules_default_chat_alerts()
@@ -530,11 +536,13 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
     try {
         echo json_encode(modules_build_list_payload($db, $conn, $user_id, $username));
     } catch (mysqli_sql_exception $e) {
+        error_log('modules list: ' . $e->getMessage());
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Could not load your module settings. Try again.']);
     } catch (Exception $e) {
+        error_log('modules list: ' . $e->getMessage());
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Could not load your module settings. Try again.']);
     }
     exit();
 }
@@ -593,23 +601,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_module_bot') {
     include '/var/www/config/twitch.php';
     session_start(); // Reopen session for flash messages
-    $botName = trim($_POST['bot_username'] ?? '');
-    $botId   = trim($_POST['bot_channel_id'] ?? '');
+    $botName = strtolower(ltrim(trim((string) ($_POST['bot_username'] ?? '')), '@'));
     if ($botName === '') {
         $_SESSION['update_message'] = t('modules_err_provide_bot_username');
         header("Location: ?tab=custom-module-bot");
         exit();
     }
-    // Auto-resolve ID if not provided
-    if ($botId === '') {
-        [$resolvedId, $resolveErr] = resolveModuleBotTwitchUserId($botName);
-        if ($resolvedId === false) {
-            $_SESSION['update_message'] = $resolveErr;
-            header("Location: ?tab=custom-module-bot");
-            exit();
-        }
-        $botId = $resolvedId;
+    if (!preg_match('/^[a-z0-9_]{3,25}$/', $botName)) {
+        $_SESSION['update_message'] = t('modules_err_twitch_user_not_found');
+        header("Location: ?tab=custom-module-bot");
+        exit();
     }
+    // Always look the ID up on the server; never trust a bot_channel_id sent by the browser.
+    [$resolvedId, $resolveErr] = resolveModuleBotTwitchUserId($botName);
+    if ($resolvedId === false || !preg_match('/^\d{1,20}$/', (string) $resolvedId)) {
+        $_SESSION['update_message'] = $resolvedId === false ? $resolveErr : t('modules_err_twitch_user_not_found');
+        header("Location: ?tab=custom-module-bot");
+        exit();
+    }
+    $botId = (string) $resolvedId;
     // Prevent duplicate bot username for this channel
     $dupStmt = $conn->prepare("SELECT id FROM custom_module_bots WHERE channel_id = ? AND bot_username = ? LIMIT 1");
     $isDupe = false;
@@ -654,7 +664,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Handle joke command status update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['toggle_joke_command'])) {
     session_start(); // Reopen session for flash messages
-    $new_status = $_POST['joke_command_status'];
+    $new_status = (string) ($_POST['joke_command_status'] ?? '');
+    if (!in_array($new_status, ['Enabled', 'Disabled'], true)) {
+        header("Location: ?tab=joke-blacklist");
+        exit();
+    }
     $stmt = $db->prepare("UPDATE builtin_commands SET status = ? WHERE command = 'joke'");
     $stmt->bind_param('s', $new_status);
     $stmt->execute();
@@ -674,7 +688,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['save_spotify_settings'
     $pvs = max(0, intval($_POST['per_viewer_stream_limit'] ?? 0));
     // Add the per-stream column if this channel hasn't been migrated yet
     try {
-        $db->query("ALTER TABLE media_request_settings ADD COLUMN per_viewer_stream_limit INT NOT NULL DEFAULT 0");
+        $colCheck = $db->query("SHOW COLUMNS FROM media_request_settings LIKE 'per_viewer_stream_limit'");
+        if ($colCheck && $colCheck->num_rows === 0) {
+            $db->query("ALTER TABLE media_request_settings ADD COLUMN per_viewer_stream_limit INT NOT NULL DEFAULT 0");
+        }
     } catch (Throwable $ignored) {
     }
     $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, per_viewer_stream_limit) VALUES (1, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), max_song_seconds = VALUES(max_song_seconds), max_queue_length = VALUES(max_queue_length), per_viewer_limit = VALUES(per_viewer_limit), per_viewer_stream_limit = VALUES(per_viewer_stream_limit)");
@@ -3160,9 +3177,11 @@ ob_start();
     function sendStreamEvent(eventType, fileName) {
         const xhr = new XMLHttpRequest();
         const url = "/api/notify_event.php";
-        const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
+        // The server adds this channel's API key from the session; it is never put in the page.
+        const params = `event=${encodeURIComponent(eventType)}&sound=${encodeURIComponent(fileName)}&channel_name=${encodeURIComponent(<?php echo json_encode((string) $username, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)}`;
         xhr.open("POST", url, true);
         xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {

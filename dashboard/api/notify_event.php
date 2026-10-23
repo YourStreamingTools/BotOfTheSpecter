@@ -10,6 +10,15 @@ require_once '/var/www/config/database.php';
 // Prepare a response array
 $response = ['success' => false, 'message' => '', 'output' => ''];
 
+// Pages that should not expose the API key in their JS (e.g. Specter Modules)
+// leave api_key out; use the signed-in channel's key, same-origin callers only.
+if (isset($_POST['event']) && !isset($_POST['api_key']) && !empty($_SESSION['api_key'])) {
+    require_once __DIR__ . '/../includes/write_guard.php';
+    if (dashboard_same_origin_ok()) {
+        $_POST['api_key'] = (string) $_SESSION['api_key'];
+    }
+}
+
 try {
     // Get the event type and api_key from the request
     if (isset($_POST['event']) && isset($_POST['api_key'])) {
