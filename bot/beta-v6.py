@@ -6763,12 +6763,9 @@ class TwitchBot(commands.AutoBot):
             # A song permit lets one request skip every song request limit; mods also skip the per-viewer limit
             permit_bypass = has_song_permit(song_request_permits, ctx.author.name)
             skip_viewer_limit = is_broadcaster or permit_bypass or bool(getattr(ctx.author, "moderator", False))
-            # Fetch settings to check enabled state and per-viewer limits
+            # Fetch settings for per-viewer limits (the media player request toggle only applies to local playback, not Spotify)
             try:
                 settings = await get_media_settings(connection)
-                if not settings.get("enabled", 1) and not is_broadcaster:
-                    await send_chat_message("Song requests are currently disabled.")
-                    return
                 per_viewer_limit = settings.get("per_viewer_limit", 2)
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to get media settings: {e}")
@@ -10952,32 +10949,33 @@ class TwitchBot(commands.AutoBot):
             add_usage('enablecommand', bucket_key, cooldown_bucket)
             # Parse the command from the message
             try:
-                command = ctx.message.text.strip().split(' ')[1]
+                command = ctx.message.text.strip().split(' ', 1)[1].strip().lstrip('!').lower()
             except IndexError:
                 await send_chat_message(f"Invalid command format. Use: !enablecommand [command]")
                 return
-            # First check if it's a built-in command
-            await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
-            builtin_result = await cursor.fetchone()
-            if builtin_result:
-                # It's a built-in command, enable it
-                await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
-                await connection.commit()
-                chat_logger.info(f"{ctx.author.name} has enabled the built-in command: {command}")
-                await send_chat_message(f'Built-in command enabled: !{command}')
-            else:
-                # Check if it's a custom command
-                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
-                custom_result = await cursor.fetchone()
-                if custom_result:
-                    # It's a custom command, enable it
-                    await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Enabled', command))
+            async with connection.cursor(DictCursor) as cursor:
+                # First check if it's a built-in command
+                await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
+                builtin_result = await cursor.fetchone()
+                if builtin_result:
+                    # It's a built-in command, enable it
+                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Enabled', command))
                     await connection.commit()
-                    chat_logger.info(f"{ctx.author.name} has enabled the custom command: {command}")
-                    await send_chat_message(f'Custom command enabled: !{command}')
+                    chat_logger.info(f"{ctx.author.name} has enabled the built-in command: {command}")
+                    await send_chat_message(f'Built-in command enabled: !{command}')
                 else:
-                    # Command doesn't exist in either table
-                    await send_chat_message(f"Command !{command} not found.")
+                    # Check if it's a custom command
+                    await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                    custom_result = await cursor.fetchone()
+                    if custom_result:
+                        # It's a custom command, enable it
+                        await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Enabled', command))
+                        await connection.commit()
+                        chat_logger.info(f"{ctx.author.name} has enabled the custom command: {command}")
+                        await send_chat_message(f'Custom command enabled: !{command}')
+                    else:
+                        # Command doesn't exist in either table
+                        await send_chat_message(f"Command !{command} not found.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -11012,32 +11010,33 @@ class TwitchBot(commands.AutoBot):
             add_usage('disablecommand', bucket_key, cooldown_bucket)
             # Parse the command from the message
             try:
-                command = ctx.message.text.strip().split(' ')[1]
+                command = ctx.message.text.strip().split(' ', 1)[1].strip().lstrip('!').lower()
             except IndexError:
                 await send_chat_message(f"Invalid command format. Use: !disablecommand [command]")
                 return
-            # First check if it's a built-in command
-            await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
-            builtin_result = await cursor.fetchone()
-            if builtin_result:
-                # It's a built-in command, disable it
-                await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
-                await connection.commit()
-                chat_logger.info(f"{ctx.author.name} has disabled the built-in command: {command}")
-                await send_chat_message(f'Built-in command disabled: !{command}')
-            else:
-                # Check if it's a custom command
-                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
-                custom_result = await cursor.fetchone()
-                if custom_result:
-                    # It's a custom command, disable it
-                    await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Disabled', command))
+            async with connection.cursor(DictCursor) as cursor:
+                # First check if it's a built-in command
+                await cursor.execute('SELECT command FROM builtin_commands WHERE command = %s', (command,))
+                builtin_result = await cursor.fetchone()
+                if builtin_result:
+                    # It's a built-in command, disable it
+                    await cursor.execute('UPDATE builtin_commands SET status = %s WHERE command = %s', ('Disabled', command))
                     await connection.commit()
-                    chat_logger.info(f"{ctx.author.name} has disabled the custom command: {command}")
-                    await send_chat_message(f'Custom command disabled: !{command}')
+                    chat_logger.info(f"{ctx.author.name} has disabled the built-in command: {command}")
+                    await send_chat_message(f'Built-in command disabled: !{command}')
                 else:
-                    # Command doesn't exist in either table
-                    await send_chat_message(f"Command !{command} not found.")
+                    # Check if it's a custom command
+                    await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                    custom_result = await cursor.fetchone()
+                    if custom_result:
+                        # It's a custom command, disable it
+                        await cursor.execute('UPDATE custom_commands SET status = %s WHERE command = %s', ('Disabled', command))
+                        await connection.commit()
+                        chat_logger.info(f"{ctx.author.name} has disabled the custom command: {command}")
+                        await send_chat_message(f'Custom command disabled: !{command}')
+                    else:
+                        # Command doesn't exist in either table
+                        await send_chat_message(f"Command !{command} not found.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -19393,7 +19392,7 @@ async def generate_user_lotto_numbers(user_name):
             user_supp_numbers.update(random.sample(supp_pool, 3 - supp_match))
             winning_numbers = ', '.join(map(str, sorted(user_main_numbers)))
             supplementary_numbers = ', '.join(map(str, sorted(user_supp_numbers)))
-            all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
+            all_numbers_str = f"Your lotto numbers are {winning_numbers}, and your supplementary numbers are {supplementary_numbers}."
             # Insert the user's numbers into the database
             await cursor.execute(
                 "INSERT INTO stream_lotto (username, winning_numbers, supplementary_numbers) VALUES (%s, %s, %s)",
