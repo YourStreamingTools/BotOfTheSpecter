@@ -10679,24 +10679,48 @@ class TwitchBot(commands.AutoBot):
                 return
             # Record usage right away so overlapping uses can't both pass the cooldown
             add_usage('addcommand', bucket_key, cooldown_bucket)
-            # Parse the command and response from the message
+            # Parse: !addcommand <cmd> "<permission>" <response>, !addcommand <cmd> "<response>" [permission] or !addcommand <cmd> <response>
+            _VALID_PERMS = {'everyone', 'mod', 'mods', 'vip', 'vips', 'sub', 'subs', 'subscriber', 'subscribers', 'broadcaster'}
+            _PERM_ALIASES = {'mods': 'mod', 'vips': 'vip', 'sub': 'all-subs', 'subs': 'all-subs', 'subscriber': 'all-subs', 'subscribers': 'all-subs'}
+            _usage = 'Invalid command format. Use: !addcommand [command] [response] or !addcommand [command] "[permission]" [response]'
             try:
-                command, response = ctx.message.text.strip().split(' ', 1)[1].split(' ', 1)
+                command, _rest = ctx.message.text.strip().split(' ', 1)[1].split(' ', 1)
                 # Lookups use the bare lowercase name, so "!Hello" must be stored as "hello"
                 command = command.lstrip('!').lower()
             except (ValueError, IndexError):
-                await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
+                await send_chat_message(_usage)
                 return
+            permission = 'everyone'
+            _lead = re.match(r'^"([A-Za-z]+)"\s+(.+)$', _rest, re.S)
+            if _lead and _lead.group(1).lower() in _VALID_PERMS:
+                _perm_input = _lead.group(1).lower()
+                permission = _PERM_ALIASES.get(_perm_input, _perm_input)
+                response = _lead.group(2).strip()
+            elif _rest.startswith('"'):
+                _close = _rest.find('"', 1)
+                if _close == -1:
+                    await send_chat_message("Missing closing quote in response.")
+                    return
+                response = _rest[1:_close]
+                _after = _rest[_close + 1:].strip()
+                if _after:
+                    _perm_input = _after.split()[0].lower()
+                    if _perm_input not in _VALID_PERMS:
+                        await send_chat_message(f"Unknown permission '{_perm_input}'. Valid: everyone, mod, vip, subs, broadcaster")
+                        return
+                    permission = _PERM_ALIASES.get(_perm_input, _perm_input)
+            else:
+                response = _rest
             # Insert the command and response into the database
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
                 if await cursor.fetchone():
                     await send_chat_message(f"Command !{command} already exists. Use !editcommand to change it.")
                     return
-                await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
+                await cursor.execute('INSERT INTO custom_commands (command, response, status, permission) VALUES (%s, %s, %s, %s)', (command, response, 'Enabled', permission))
                 await connection.commit()
-            chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
-            await send_chat_message(f'Custom command added: !{command}')
+            chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response} (permission: {permission})")
+            await send_chat_message(f'Custom command added: !{command} (permission: {permission})')
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
