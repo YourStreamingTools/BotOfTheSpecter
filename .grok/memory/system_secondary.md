@@ -215,6 +215,7 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 - If the relay ffmpeg dies (MediaMTX down), the phone's RTMPS session is closed so it reconnects
 - Cloud Studio pages use `GET /v2/camera/view-token` (1h HMAC token `v1.<exp>.<sig>`, env `CAMERA_VIEW_TOKEN_SECRET` must match in api and stream .env) as the viewer password
 - `GET /api/cameras?username=` (admin key) lists live cameras; `api.py` `GET /v2/camera/list` aggregates it across `CAMERA_STREAM_SERVERS` using the `rtmp-server` admin key
+- Linked phones (Cloud Studio pairing): `/v2/camera/pair/redeem` creates a `website.camera_devices` row and returns a `scd_` device token (sha256 stored, never the API key); the phone publishes `/camera/<device token>` and stream.py takes user + camera from the row (`?cam` ignored). `GET /v2/camera/devices` lists them, `DELETE /v2/camera/devices/{id}` revokes and calls each stream server's `POST /api/cameras/disconnect?device_id=`; live device sessions also recheck the row every 30s. The app checks `GET /v2/camera/device/me` (header `X-Device-Token`), 401 `unlinked` means relink. A relink always makes a new row; a clashing camera slug becomes `name-2`
 
 **Auxiliary Scripts** (in `/stream/`):
 - `check_videos.py` - Validates/audits recorded MP4 files

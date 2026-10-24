@@ -193,6 +193,9 @@ _CAMERA_USERNAME_RE = re.compile(r"^[a-z0-9_]{1,25}$")
 CAMERA_DEFAULT_NAME = "main"
 _CAMERA_NAME_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
 
+CAMERA_DEVICE_TOKEN_PREFIX = "scd_"
+CAMERA_DEVICE_RECHECK_SECONDS = 30
+
 def split_camera_key(publishing_name: str) -> tuple[str, str | None]:
     """'<API key>?cam=desk' -> (key, 'desk'); no cam means 'main'; an invalid name comes back as None."""
     from urllib.parse import parse_qs
@@ -377,6 +380,45 @@ async def get_username_from_api_key(api_key):
 
 async def validate_api_key(api_key):
     return await get_username_from_api_key(api_key)
+
+async def camera_device_lookup(token: str) -> dict | None:
+    # Linked phone (Cloud Studio pairing): scd_ token -> {id, username, camera}; unlinked devices come back as None.
+    import hashlib
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT id, username, camera FROM camera_devices WHERE token_hash = %s AND revoked_at IS NULL",
+                (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
+            )
+            row = await cursor.fetchone()
+            if row:
+                await cursor.execute("UPDATE camera_devices SET last_seen_at = UTC_TIMESTAMP() WHERE id = %s", (row["id"],))
+                await sqldb.commit()
+            return row
+    except Exception as e:
+        logger.error(f"Error in camera_device_lookup: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+async def camera_device_active(device_id: int) -> bool | None:
+    # True while linked, False once unlinked, None if the database could not be asked.
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT revoked_at FROM camera_devices WHERE id = %s", (device_id,))
+            row = await cursor.fetchone()
+            return bool(row) and row["revoked_at"] is None
+    except Exception as e:
+        logger.warning(f"Error in camera_device_active: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
 
 def _camera_password_matches(password: str, stored_hash: str) -> bool:
     import bcrypt
@@ -629,6 +671,7 @@ class SessionRegistry:
             "publishing_name": None,
             "username": None,
             "camera": None,
+            "camera_device_id": None,
             "flv_file_path": None,
             "publish_started_at": None,
             "forwarding": None,
@@ -651,13 +694,14 @@ class SessionRegistry:
             logger.warning(f"force_disconnect callback raised: {e}")
         return True
 
-    def attach_publish(self, session_id: int, *, publishing_name: str, username: str, flv_file_path: str, camera: str | None = None) -> None:
+    def attach_publish(self, session_id: int, *, publishing_name: str, username: str, flv_file_path: str, camera: str | None = None, camera_device_id: int | None = None) -> None:
         s = self._sessions.get(session_id)
         if s is None:
             return
         s["publishing_name"] = publishing_name
         s["username"] = username
         s["camera"] = camera
+        s["camera_device_id"] = camera_device_id
         s["flv_file_path"] = flv_file_path
         s["publish_started_at"] = datetime.datetime.now()
 
@@ -813,10 +857,19 @@ class RTMP2FLVController(SimpleRTMPController):
         publishing_name = message.publishing_name
         is_camera = getattr(session, "rtmp_app", "") == CAMERA_APP_NAME
         camera_name = None
+        camera_device_id = None
         lookup_key = publishing_name
         if is_camera:
             lookup_key, camera_name = split_camera_key(publishing_name)
-        username = await validate_api_key(lookup_key)
+        if is_camera and lookup_key.startswith(CAMERA_DEVICE_TOKEN_PREFIX):
+            # Linked phone: the device decides user and camera, so ?cam= is ignored. Unlinked tokens are refused.
+            device = await camera_device_lookup(lookup_key)
+            username = device["username"] if device else None
+            if device:
+                camera_name = device["camera"] if _CAMERA_NAME_RE.match(device["camera"] or "") else None
+                camera_device_id = device["id"]
+        else:
+            username = await validate_api_key(lookup_key)
         if not username:
             logger.warning(f"Unauthorized API key: {publishing_name}")
             session.writer.close()
@@ -826,7 +879,7 @@ class RTMP2FLVController(SimpleRTMPController):
                 logger.warning(f"Ignored SSL error after close notify: {e}")
             return
         if is_camera:
-            await self._start_camera_relay(session, publishing_name, username, camera_name)
+            await self._start_camera_relay(session, publishing_name, username, camera_name, camera_device_id)
             await super().on_ns_publish(session, message)
             return
         slot = await get_storage_slot(username)
@@ -880,16 +933,17 @@ class RTMP2FLVController(SimpleRTMPController):
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
         await super().on_ns_publish(session, message)
 
-    async def _start_camera_relay(self, session, publishing_name, username, camera_name):
+    async def _start_camera_relay(self, session, publishing_name, username, camera_name, camera_device_id=None):
         session.publishing_name = publishing_name
         session.camera_username = username.lower()
         session.camera_name = camera_name
+        session.camera_device_id = camera_device_id
         session.flv_file_path = None
         session.twitch_key = None
         session.ffmpeg_process = None
         self.session_registry.attach_publish(
             id(session), publishing_name=publishing_name, username=username, flv_file_path=None,
-            camera=camera_name,
+            camera=camera_name, camera_device_id=camera_device_id,
         )
         if not _CAMERA_USERNAME_RE.match(session.camera_username) or not camera_name:
             logger.warning(f"Camera relay refused for {username}: username or camera name not usable as a relay path")
@@ -929,7 +983,22 @@ class RTMP2FLVController(SimpleRTMPController):
         self.session_registry.attach_forwarding(
             id(session), target_url=f"rtsp://{MEDIAMTX_RTSP_HOST}/{relay_path}", ffmpeg_pid=proc.pid
         )
+        if camera_device_id is not None:
+            session.camera_device_task = asyncio.create_task(self._watch_camera_device(session))
         logger.info(f"Camera relay for {username} via ffmpeg PID {proc.pid} to MediaMTX path {relay_path}")
+
+    async def _watch_camera_device(self, session):
+        # Backstop for Unlink in Cloud Studio: api.py also asks every stream server to drop the session right away.
+        try:
+            while not getattr(session, "closed", False):
+                await asyncio.sleep(CAMERA_DEVICE_RECHECK_SECONDS)
+                if await camera_device_active(session.camera_device_id) is False:
+                    logger.info(f"Camera device {session.camera_device_id} for {session.camera_username} was unlinked; closing the publisher.")
+                    if session.writer is not None and not session.writer.is_closing():
+                        session.writer.close()
+                    return
+        except asyncio.CancelledError:
+            return
 
     async def _watch_camera_relay(self, session):
         proc = session.ffmpeg_process
@@ -1150,6 +1219,9 @@ class RTMP2FLVController(SimpleRTMPController):
         monitor_task = getattr(session, "duration_monitor_task", None)
         if monitor_task is not None and not monitor_task.done():
             monitor_task.cancel()
+        device_task = getattr(session, "camera_device_task", None)
+        if device_task is not None and not device_task.done():
+            device_task.cancel()
         # Terminate FFmpeg process if it exists
         await self.terminate_ffmpeg(session)
         # Remove from the operator web UI registry
@@ -2214,6 +2286,7 @@ def _session_to_json(s: dict, now: datetime.datetime) -> dict:
         "publishing_name": s.get("publishing_name"),
         "username": s.get("username"),
         "camera": s.get("camera"),
+        "camera_device_id": s.get("camera_device_id"),
         "connected_at": s["connected_at"].isoformat(),
         "connected_seconds": int((now - s["connected_at"]).total_seconds()),
         "publish_started_at": publish_started.isoformat() if publish_started else None,
@@ -2613,6 +2686,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             cameras.append({
                 "username": user,
                 "name": cam,
+                "device_id": s.get("camera_device_id"),
                 "region": region,
                 "live": True,
                 "started_at": s["publish_started_at"].isoformat() if s.get("publish_started_at") else None,
@@ -2621,6 +2695,22 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             })
         cameras.sort(key=lambda c: (c["username"], c["name"]))
         return jsonify({"region": region, "cameras": cameras})
+
+    @app.post("/api/cameras/disconnect")
+    @_require_api_key
+    async def api_cameras_disconnect():
+        # Drop live publishes for an unlinked phone (used by api.py DELETE /camera/devices/{id}).
+        try:
+            device_id = int(request.args.get("device_id") or "")
+        except ValueError:
+            return jsonify({"error": "device_id required"}), 400
+        dropped = 0
+        for s in session_registry.snapshot():
+            if s.get("camera_device_id") == device_id and session_registry.force_disconnect(s["id"]):
+                dropped += 1
+        if dropped:
+            logger.info(f"Dropped {dropped} live camera session(s) for unlinked device {device_id}")
+        return jsonify({"device_id": device_id, "disconnected": dropped})
 
     @app.get("/api/recordings")
     @_require_api_key
