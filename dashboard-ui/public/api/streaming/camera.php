@@ -52,7 +52,7 @@ beta_cam_out(200, [
     'act_as' => $isActAsUser,
     'login' => $login,
     'ingest_url' => "rtmps://{$host}:1935/camera",
-    'srt_url' => "srt://{$host}:8890?streamid=read:camera/{$login}:{$login}:PASSWORD",
-    'web_url' => "https://{$host}:8889/camera/{$login}/",
+    'srt_url' => "srt://{$host}:8890?streamid=read:camera/{$login}/main:{$login}:PASSWORD",
+    'web_url' => "https://{$host}:8889/camera/{$login}/main/",
     'password_set' => $set,
 ]);

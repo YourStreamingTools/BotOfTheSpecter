@@ -187,6 +187,15 @@ CAMERA_AUTH_MAX_FAILURES = 10
 CAMERA_AUTH_FAILURE_WINDOW_SECONDS = 300
 _camera_auth_failures: dict[str, list[float]] = {}
 _CAMERA_USERNAME_RE = re.compile(r"^[a-z0-9_]{1,25}$")
+CAMERA_DEFAULT_NAME = "main"
+_CAMERA_NAME_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
+
+def split_camera_key(publishing_name: str) -> tuple[str, str | None]:
+    """'<API key>?cam=desk' -> (key, 'desk'); no cam means 'main'; an invalid name comes back as None."""
+    from urllib.parse import parse_qs
+    key, _, query = (publishing_name or "").partition("?")
+    cam = (parse_qs(query).get("cam") or [CAMERA_DEFAULT_NAME])[0].strip().lower()
+    return key, cam if _CAMERA_NAME_RE.match(cam) else None
 
 
 def _duration_probe_due(meta: dict) -> bool:
@@ -599,6 +608,7 @@ class SessionRegistry:
             "connected_at": datetime.datetime.now(),
             "publishing_name": None,
             "username": None,
+            "camera": None,
             "flv_file_path": None,
             "publish_started_at": None,
             "forwarding": None,
@@ -621,12 +631,13 @@ class SessionRegistry:
             logger.warning(f"force_disconnect callback raised: {e}")
         return True
 
-    def attach_publish(self, session_id: int, *, publishing_name: str, username: str, flv_file_path: str) -> None:
+    def attach_publish(self, session_id: int, *, publishing_name: str, username: str, flv_file_path: str, camera: str | None = None) -> None:
         s = self._sessions.get(session_id)
         if s is None:
             return
         s["publishing_name"] = publishing_name
         s["username"] = username
+        s["camera"] = camera
         s["flv_file_path"] = flv_file_path
         s["publish_started_at"] = datetime.datetime.now()
 
@@ -780,7 +791,12 @@ class RTMP2FLVController(SimpleRTMPController):
     async def on_ns_publish(self, session, message) -> None:
         # Validate API Key
         publishing_name = message.publishing_name
-        username = await validate_api_key(publishing_name)
+        is_camera = getattr(session, "rtmp_app", "") == CAMERA_APP_NAME
+        camera_name = None
+        lookup_key = publishing_name
+        if is_camera:
+            lookup_key, camera_name = split_camera_key(publishing_name)
+        username = await validate_api_key(lookup_key)
         if not username:
             logger.warning(f"Unauthorized API key: {publishing_name}")
             session.writer.close()
@@ -789,8 +805,8 @@ class RTMP2FLVController(SimpleRTMPController):
             except ssl.SSLError as e:
                 logger.warning(f"Ignored SSL error after close notify: {e}")
             return
-        if getattr(session, "rtmp_app", "") == CAMERA_APP_NAME:
-            await self._start_camera_relay(session, publishing_name, username)
+        if is_camera:
+            await self._start_camera_relay(session, publishing_name, username, camera_name)
             await super().on_ns_publish(session, message)
             return
         slot = await get_storage_slot(username)
@@ -844,21 +860,23 @@ class RTMP2FLVController(SimpleRTMPController):
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
         await super().on_ns_publish(session, message)
 
-    async def _start_camera_relay(self, session, publishing_name, username):
+    async def _start_camera_relay(self, session, publishing_name, username, camera_name):
         session.publishing_name = publishing_name
         session.camera_username = username.lower()
+        session.camera_name = camera_name
         session.flv_file_path = None
         session.twitch_key = None
         session.ffmpeg_process = None
         self.session_registry.attach_publish(
-            id(session), publishing_name=publishing_name, username=username, flv_file_path=None
+            id(session), publishing_name=publishing_name, username=username, flv_file_path=None,
+            camera=camera_name,
         )
-        if not _CAMERA_USERNAME_RE.match(session.camera_username):
-            logger.warning(f"Camera relay refused for {username}: username not usable as a relay path")
+        if not _CAMERA_USERNAME_RE.match(session.camera_username) or not camera_name:
+            logger.warning(f"Camera relay refused for {username}: username or camera name not usable as a relay path")
             session.state = PipeFLVWriter(None)
             session.writer.close()
             return
-        relay_path = f"{CAMERA_APP_NAME}/{session.camera_username}"
+        relay_path = f"{CAMERA_APP_NAME}/{session.camera_username}/{camera_name}"
         relay_url = f"{MEDIAMTX_RTMP_URL}/{relay_path}?user={CAMERA_RELAY_USER}&pass={CAMERA_RELAY_SECRET}"
         command = [
             "ffmpeg",
@@ -906,7 +924,7 @@ class RTMP2FLVController(SimpleRTMPController):
         if getattr(session, "closed", False):
             return
         # Relay died (MediaMTX down or rejected us): drop the phone so it reconnects instead of streaming into nothing.
-        logger.error(f"Camera relay ffmpeg for {session.camera_username} exited with code {rc}; closing the publisher.")
+        logger.error(f"Camera relay ffmpeg for {session.camera_username}/{session.camera_name} exited with code {rc}; closing the publisher.")
         try:
             if session.writer is not None and not session.writer.is_closing():
                 session.writer.close()
@@ -1121,7 +1139,7 @@ class RTMP2FLVController(SimpleRTMPController):
         # Close the FLV file after the stream ends
         session.state.close()
         if getattr(session, "camera_username", None):
-            logger.info(f"Camera relay for {session.camera_username} ended; nothing recorded.")
+            logger.info(f"Camera relay for {session.camera_username}/{getattr(session, 'camera_name', None)} ended; nothing recorded.")
             await super().on_stream_closed(session, exception)
             return
         # Convert FLV to MP4 using FFmpeg
@@ -2173,6 +2191,7 @@ def _session_to_json(s: dict, now: datetime.datetime) -> dict:
         "peer": s["peer"],
         "publishing_name": s.get("publishing_name"),
         "username": s.get("username"),
+        "camera": s.get("camera"),
         "connected_at": s["connected_at"].isoformat(),
         "connected_seconds": int((now - s["connected_at"]).total_seconds()),
         "publish_started_at": publish_started.isoformat() if publish_started else None,
@@ -2534,6 +2553,31 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             return jsonify({"error": "session not found", "session_id": session_id}), 404
         logger.info(f"Admin API force-disconnected session {session_id}")
         return jsonify({"disconnected": True, "session_id": session_id})
+
+    @app.get("/api/cameras")
+    @_require_api_key
+    async def api_cameras():
+        # Live phone/OBS cameras on this server, optionally for one user (used by api.py /camera/list).
+        want = (request.args.get("username") or "").strip().lower()
+        host = (os.getenv("STREAM_SSL_DOMAIN") or "").strip() or SSL_DOMAIN_MAPPING.get(region, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER])
+        cameras = []
+        for s in session_registry.snapshot():
+            cam = s.get("camera")
+            user = (s.get("username") or "").lower()
+            if not cam or not s.get("forwarding") or (want and user != want):
+                continue
+            path = f"{CAMERA_APP_NAME}/{user}/{cam}"
+            cameras.append({
+                "username": user,
+                "name": cam,
+                "region": region,
+                "live": True,
+                "started_at": s["publish_started_at"].isoformat() if s.get("publish_started_at") else None,
+                "srt_url": f"srt://{host}:{CAMERA_SRT_PORT}?streamid=read:{path}:{user}:PASSWORD",
+                "webrtc_url": f"https://{host}:{CAMERA_WEBRTC_PORT}/{path}/",
+            })
+        cameras.sort(key=lambda c: (c["username"], c["name"]))
+        return jsonify({"region": region, "cameras": cameras})
 
     @app.get("/api/recordings")
     @_require_api_key
@@ -2913,9 +2957,11 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         user = str(body.get("user") or "")
         password = str(body.get("password") or "")
         ip = str(body.get("ip") or "")
-        app_name, _, cam_user = path.partition("/")
-        if app_name != CAMERA_APP_NAME or not _CAMERA_USERNAME_RE.match(cam_user):
+        parts = path.split("/")
+        if (len(parts) != 3 or parts[0] != CAMERA_APP_NAME
+                or not _CAMERA_USERNAME_RE.match(parts[1]) or not _CAMERA_NAME_RE.match(parts[2])):
             return "", 401
+        cam_user = parts[1]
         if action == "publish":
             if (ip in ("127.0.0.1", "::1") and user == CAMERA_RELAY_USER
                     and secrets.compare_digest(password, CAMERA_RELAY_SECRET)):

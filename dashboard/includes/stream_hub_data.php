@@ -209,8 +209,8 @@ $canIngest = !empty($is_admin) || !empty($betaAccess) || (isset($betaPrograms) &
 $cameraHost = (string) (parse_url($rtmpsUrl, PHP_URL_HOST) ?: 'syd1.stream.botofthespecter.com');
 $cameraLogin = strtolower($recorderUsername);
 $cameraIngestUrl = "rtmps://{$cameraHost}:1935/camera";
-$cameraSrtUrl = "srt://{$cameraHost}:8890?streamid=read:camera/{$cameraLogin}:{$cameraLogin}:PASSWORD";
-$cameraWebUrl = "https://{$cameraHost}:8889/camera/{$cameraLogin}/";
+$cameraSrtUrl = "srt://{$cameraHost}:8890?streamid=read:camera/{$cameraLogin}/main:{$cameraLogin}:PASSWORD";
+$cameraWebUrl = "https://{$cameraHost}:8889/camera/{$cameraLogin}/main/";
 $cameraPasswordSet = false;
 if ($userId > 0 && isset($conn) && $conn instanceof mysqli) {
     try {

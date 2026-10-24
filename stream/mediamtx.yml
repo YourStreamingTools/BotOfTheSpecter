@@ -1,4 +1,4 @@
-# MediaMTX for the phone camera relay. stream.py pushes rtmps://<host>:1935/camera/<API key> here as camera/<username>.
+# MediaMTX for the phone camera relay. stream.py pushes rtmps://<host>:1935/camera with key <API key>?cam=<name> here as camera/<username>/<name>.
 # Viewers: SRT (OBS Media Source) on 8890/udp, WebRTC (browser) on 8889/tcp + 8189/udp.
 # setup.sh replaces STREAM_SSL_DOMAIN with this region's Let's Encrypt domain.
 
@@ -40,4 +40,4 @@ pathDefaults:
   overridePublisher: true
 
 paths:
-  "~^camera/[a-z0-9_]{1,25}$":
+  "~^camera/[a-z0-9_]{1,25}/[a-z0-9_-]{1,32}$":

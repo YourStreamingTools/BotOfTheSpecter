@@ -1029,6 +1029,7 @@ _V2_ONLY_PATHS = {
     "/camera/pair/create",
     "/camera/pair/status",
     "/camera/pair/redeem",
+    "/camera/list",
     "/channel/twitch/raids/start",
     "/channel/twitch/raids/cancel",
     "/channel/twitch/shoutout",
@@ -3034,6 +3035,12 @@ CAMERA_PAIR_REDEEM_LIMIT = 10
 CAMERA_PAIR_REDEEM_WINDOW_SECONDS = 60
 CAMERA_INGEST_REGION = os.getenv("CAMERA_INGEST_REGION") or "sydney"
 CAMERA_INGEST_URL = (os.getenv("CAMERA_INGEST_URL") or "rtmps://syd1.stream.botofthespecter.com:1935/camera").rstrip("/")
+CAMERA_DEFAULT_NAME = "main"
+_CAMERA_NAME_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
+# Stream servers asked by /camera/list; region -> operator API base (comma list in env as region=url).
+CAMERA_STREAM_SERVERS = dict(
+    item.split("=", 1) for item in (os.getenv("CAMERA_STREAM_SERVERS") or "sydney=https://syd1.stream.botofthespecter.com").split(",") if "=" in item
+)
 _camera_pair_redeem_hits: dict[str, list[float]] = {}
 _camera_pair_redeem_lock = asyncio.Lock()
 
@@ -3043,6 +3050,12 @@ def _camera_pair_normalize(code: str) -> str | None:
         return None
     return cleaned
 
+def _camera_slug(text: str | None) -> str | None:
+    # "Desk Cam" -> "desk-cam"; same rule as the Specter Camera app.
+    slug = re.sub(r"[^a-z0-9_-]+", "-", (text or "").strip().lower()).strip("-_")
+    slug = re.sub(r"-{2,}", "-", slug)[:32].strip("-_")
+    return slug or None
+
 def _camera_pair_hash(code: str) -> str:
     return hashlib.sha256(code.encode("ascii")).hexdigest()
 
@@ -3051,6 +3064,7 @@ def _camera_pair_error(status_code: int, error: str, message: str, headers: dict
 
 class CameraPairCreateBody(BaseModel):
     name: str | None = Field(None, max_length=50, description="Optional camera name shown in the app")
+    camera: str | None = Field(None, max_length=32, description="Camera slug for the stream key (a-z 0-9 _ -, default main)")
 
 class CameraPairRedeemBody(BaseModel):
     code: str = Field(..., max_length=20, description="Pairing code from the QR or typed in (dashes and spaces ignored)")
@@ -3072,6 +3086,10 @@ async def camera_pair_create(body: CameraPairCreateBody | None = None, api_key: 
     code = "".join(secrets.choice(CAMERA_PAIR_ALPHABET) for _ in range(8))
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=CAMERA_PAIR_TTL_SECONDS)
     camera_name = (body.name.strip() if body and body.name else None) or None
+    # Slug from an explicit camera, else the camera name; with neither, redeem uses the device name.
+    camera_slug = _camera_slug(body.camera if body and body.camera else camera_name)
+    if body and body.camera and not camera_slug:
+        return _camera_pair_error(400, "invalid_camera", "Camera must contain a-z, 0-9, _ or -")
     conn = await get_mysql_connection()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
@@ -3083,8 +3101,8 @@ async def camera_pair_create(body: CameraPairCreateBody | None = None, api_key: 
                 (username,),
             )
             await cur.execute(
-                "INSERT INTO camera_pair_codes (code_hash, username, camera_name, expires_at) VALUES (%s, %s, %s, %s)",
-                (_camera_pair_hash(code), username, camera_name, expires_at.replace(tzinfo=None)),
+                "INSERT INTO camera_pair_codes (code_hash, username, camera_name, camera, expires_at) VALUES (%s, %s, %s, %s, %s)",
+                (_camera_pair_hash(code), username, camera_name, camera_slug, expires_at.replace(tzinfo=None)),
             )
         await conn.commit()
     except Exception as e:
@@ -3096,6 +3114,7 @@ async def camera_pair_create(body: CameraPairCreateBody | None = None, api_key: 
         "code": f"{code[:4]}-{code[4:]}",
         "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
         "expires_in": CAMERA_PAIR_TTL_SECONDS,
+        "camera": camera_slug,
         "qr_uri": f"specter-cam://link?v=1&code={code}",
     })
 
@@ -3164,7 +3183,7 @@ async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
-                "SELECT id, username, camera_name, redeemed_at, expires_at < UTC_TIMESTAMP() AS expired "
+                "SELECT id, username, camera_name, camera, redeemed_at, expires_at < UTC_TIMESTAMP() AS expired "
                 "FROM camera_pair_codes WHERE code_hash = %s",
                 (_camera_pair_hash(code),),
             )
@@ -3189,6 +3208,13 @@ async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
                 (device_name, row["id"]),
             )
             claimed = cur.rowcount == 1
+            if claimed and not row["camera"]:
+                row["camera"] = _camera_slug(device_name) or CAMERA_DEFAULT_NAME
+                row["camera_name"] = row["camera_name"] or device_name
+                await cur.execute(
+                    "UPDATE camera_pair_codes SET camera = %s, camera_name = %s WHERE id = %s",
+                    (row["camera"], row["camera_name"], row["id"]),
+                )
         await conn.commit()
     except Exception as e:
         logging.error(f"Error redeeming camera pair code: {e}")
@@ -3204,8 +3230,45 @@ async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
         "username": row["username"],
         "region": CAMERA_INGEST_REGION,
         "ingest_url": CAMERA_INGEST_URL,
+        "camera": row["camera"] or CAMERA_DEFAULT_NAME,
+        "stream_key": f"{row['api_key']}?cam={row['camera'] or CAMERA_DEFAULT_NAME}",
         "camera_name": row["camera_name"],
     }
+
+@app.get(
+    "/camera/list",
+    summary="List live cameras",
+    description="Live phone/OBS cameras for this account across the stream servers, with SRT (OBS) and WebRTC (browser) viewing links. Replace PASSWORD with the API key or camera password.",
+    tags=["User Account"],
+    operation_id="camera_list",
+)
+async def camera_list(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel).lower()
+    stream_key = await _get_admin_key_for_service("rtmp-server") or await _get_admin_key_for_service("admin")
+    if not stream_key:
+        logging.error("camera_list: no rtmp-server or admin key in admin_api_keys")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    cameras, unreachable = [], []
+    timeout = aiohttp.ClientTimeout(total=5)
+    async with aiohttp.ClientSession(timeout=timeout) as http:
+        async def fetch(region, base):
+            try:
+                async with http.get(f"{base.rstrip('/')}/api/cameras", params={"username": username}, headers={"X-API-Key": stream_key}) as resp:
+                    if resp.status != 200:
+                        raise RuntimeError(f"HTTP {resp.status}")
+                    data = await resp.json()
+                    cameras.extend(data.get("cameras") or [])
+            except Exception as e:
+                logging.warning(f"camera_list: {region} unreachable: {e}")
+                unreachable.append(region)
+        await asyncio.gather(*(fetch(r, b) for r, b in CAMERA_STREAM_SERVERS.items()))
+    for cam in cameras:
+        cam.pop("username", None)
+    cameras.sort(key=lambda c: (c.get("name") or "", c.get("region") or ""))
+    return {"cameras": cameras, "unreachable_regions": sorted(unreachable)}
 
 # Quotes endpoint
 @app.get(
