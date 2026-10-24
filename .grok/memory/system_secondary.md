@@ -209,7 +209,7 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 
 **Phone Camera Relay** (RTMP app `camera`, for the Specter-Camera-Send app):
 - Phone/OBS publishes `rtmps://<region>.stream.botofthespecter.com:1935/camera` with stream key `<API key>?cam=<name>` (no `?cam` = `main`; name `[a-z0-9_-]{1,32}`, many cameras per user); `on_nc_connect` stores the app name, `on_ns_publish` branches to `_start_camera_relay`
-- Never recorded, no storage slot needed, never forwarded: FLV is piped (`PipeFLVWriter`) into ffmpeg `-c copy` → local MediaMTX `rtmp://127.0.0.1:1936/camera/<username>/<name>`
+- Never recorded, no storage slot needed, never forwarded: FLV is piped (`PipeFLVWriter`) into ffmpeg (video copy, audio AAC→Opus 128k) → local MediaMTX over RTSP `rtsp://127.0.0.1:8554/camera/<username>/<name>` (Opus so WebRTC viewers get sound)
 - MediaMTX (`stream/mediamtx.yml`, `mediamtx.service`) serves viewers: SRT `:8890/udp` (OBS Media Source, `streamid=read:camera/<user>/<name>:<user>:<secret>`) and WebRTC `:8889` + `:8189/udp` (browser)
 - MediaMTX `authMethod: http` calls `POST http://127.0.0.1:8091/internal/mediamtx/auth` (loopback bind only): publish = this process's ffmpeg (per-process secret); read = user's API key OR `website.users.camera_password_hash` (bcrypt from PHP `password_hash`, set on dashboard Streaming → Phone Camera); 10 failures / 5 min per IP → 429
 - If the relay ffmpeg dies (MediaMTX down), the phone's RTMPS session is closed so it reconnects
