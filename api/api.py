@@ -1031,6 +1031,7 @@ _V2_ONLY_PATHS = {
     "/camera/pair/redeem",
     "/camera/list",
     "/camera/view-token",
+    "/studio/output",
     "/channel/twitch/raids/start",
     "/channel/twitch/raids/cancel",
     "/channel/twitch/shoutout",
@@ -3261,6 +3262,76 @@ async def camera_view_token(api_key: str = Query(...), channel: str = Query(None
         "expires_at": datetime.fromtimestamp(exp, timezone.utc).isoformat().replace("+00:00", "Z"),
         "expires_in": CAMERA_VIEW_TOKEN_TTL_SECONDS,
     }
+
+SPECTER_INGEST_HOSTS = {"syd1", "use1", "usw1", "euc1"}
+TWITCH_INGEST_BY_HOST = {
+    "syd1": "rtmps://syd03.contribute.live-video.net/app/",
+    "usw1": "rtmps://sea02.contribute.live-video.net/app/",
+    "use1": "rtmps://atl.contribute.live-video.net/app/",
+    "euc1": "rtmps://fra05.contribute.live-video.net/app/",
+}
+TWITCH_INGEST_DEFAULT = "rtmps://ingest.global-contribute.live-video.net/app/"
+
+async def _specter_ingest_ok(host: str, username: str, stream_key: str) -> bool:
+    try:
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as http:
+            async with http.get(f"https://{host}.stream.botofthespecter.com/api/ingest-status",
+                                params={"username": username}, headers={"X-API-Key": stream_key}) as resp:
+                if resp.status != 200:
+                    return False
+                data = await resp.json()
+                return bool(data.get("has_slot") and data.get("quota_ok"))
+    except Exception as e:
+        logging.warning(f"studio_output: ingest-status on {host} failed: {e}")
+        return False
+
+@app.get(
+    "/studio/output",
+    summary="Cloud Studio output target",
+    description="Admin only (cloud-studio key + channel). Where Cloud Studio should send a user's mix: the Specter live ingest when Twitch forwarding is on and the user has storage, else Twitch directly. The URL contains stream keys and must stay server side.",
+    tags=["Admin Only"],
+    operation_id="studio_output",
+)
+async def studio_output(api_key: str = Query(...), channel: str = Query(...), region: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel).lower()
+    region_key = (region or "").strip().lower()
+    host = region_key if region_key in SPECTER_INGEST_HOSTS else "syd1"
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT username, api_key FROM users WHERE username = %s", (username,))
+            user = await cur.fetchone()
+    finally:
+        conn.close()
+    if not user:
+        return JSONResponse(status_code=404, content={"error": "user_not_found"})
+    twitch_key, forward = None, False
+    try:
+        uconn = await get_mysql_connection_user(user["username"])
+        try:
+            async with uconn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT twitch_key, forward_to_twitch FROM streaming_settings ORDER BY id ASC LIMIT 1")
+                row = await cur.fetchone()
+                if row:
+                    twitch_key = (row.get("twitch_key") or "").strip() or None
+                    forward = bool(row.get("forward_to_twitch"))
+        finally:
+            uconn.close()
+    except Exception as e:
+        logging.warning(f"studio_output: no streaming_settings for '{username}': {e}")
+    if forward and user.get("api_key"):
+        stream_key = await _get_admin_key_for_service("rtmp-server") or await _get_admin_key_for_service("admin")
+        if stream_key and await _specter_ingest_ok(host, user["username"], stream_key):
+            logging.info(f"studio_output: '{username}' -> Specter {host}")
+            return {"url": f"rtmps://{host}.stream.botofthespecter.com:1935/app/{user['api_key']}", "label": "Specter"}
+    if twitch_key:
+        logging.info(f"studio_output: '{username}' -> Twitch direct")
+        return {"url": f"{TWITCH_INGEST_BY_HOST.get(region_key or "syd1", TWITCH_INGEST_DEFAULT)}{twitch_key}", "label": "Twitch"}
+    return JSONResponse(status_code=409, content={"error": "no_stream_target"})
 
 @app.get(
     "/camera/list",
