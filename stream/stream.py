@@ -175,7 +175,8 @@ _duration_probes: set[str] = set()
 
 # Phone camera relay: RTMP app "camera" is never recorded or forwarded, only relayed through the local MediaMTX.
 CAMERA_APP_NAME = "camera"
-MEDIAMTX_RTMP_URL = (os.getenv("MEDIAMTX_RTMP_URL") or "rtmp://127.0.0.1:1936").rstrip("/")
+# RTSP, not RTMP: FLV can't carry Opus, and WebRTC viewers need Opus audio.
+MEDIAMTX_RTSP_HOST = os.getenv("MEDIAMTX_RTSP_HOST") or "127.0.0.1:8554"
 CAMERA_AUTH_HOST = "127.0.0.1"
 CAMERA_AUTH_PORT = int(os.getenv("CAMERA_AUTH_PORT") or "8091")
 CAMERA_SRT_PORT = int(os.getenv("CAMERA_SRT_PORT") or "8890")
@@ -896,15 +897,17 @@ class RTMP2FLVController(SimpleRTMPController):
             session.writer.close()
             return
         relay_path = f"{CAMERA_APP_NAME}/{session.camera_username}/{camera_name}"
-        relay_url = f"{MEDIAMTX_RTMP_URL}/{relay_path}?user={CAMERA_RELAY_USER}&pass={CAMERA_RELAY_SECRET}"
+        relay_url = f"rtsp://{CAMERA_RELAY_USER}:{CAMERA_RELAY_SECRET}@{MEDIAMTX_RTSP_HOST}/{relay_path}"
         command = [
             "ffmpeg",
             "-hide_banner",
             "-loglevel", "warning",
             "-f", "flv",
             "-i", "pipe:0",
-            "-c", "copy",
-            "-f", "flv",
+            "-c:v", "copy",
+            "-c:a", "libopus", "-b:a", "128k", "-ar", "48000",
+            "-f", "rtsp",
+            "-rtsp_transport", "tcp",
             relay_url,
         ]
         try:
@@ -924,7 +927,7 @@ class RTMP2FLVController(SimpleRTMPController):
         session.drain_task = asyncio.create_task(self._drain_ffmpeg_stdin(session))
         session.ffmpeg_watcher_task = asyncio.create_task(self._watch_camera_relay(session))
         self.session_registry.attach_forwarding(
-            id(session), target_url=f"{MEDIAMTX_RTMP_URL}/{relay_path}", ffmpeg_pid=proc.pid
+            id(session), target_url=f"rtsp://{MEDIAMTX_RTSP_HOST}/{relay_path}", ffmpeg_pid=proc.pid
         )
         logger.info(f"Camera relay for {username} via ffmpeg PID {proc.pid} to MediaMTX path {relay_path}")
 
@@ -2985,7 +2988,9 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             if (ip in ("127.0.0.1", "::1") and user == CAMERA_RELAY_USER
                     and secrets.compare_digest(password, CAMERA_RELAY_SECRET)):
                 return "", 200
-            logger.warning(f"MediaMTX publish refused for {path} from {ip}")
+            # RTSP clients first try without credentials; only log real refusals.
+            if password:
+                logger.warning(f"MediaMTX publish refused for {path} from {ip}")
             return "", 401
         if action != "read":
             return "", 401

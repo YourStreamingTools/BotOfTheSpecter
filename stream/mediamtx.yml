@@ -14,14 +14,15 @@ api: false
 metrics: false
 pprof: false
 playback: false
-rtsp: false
 hls: false
 moq: false
 
-# Loopback only: the public RTMPS ingest stays on stream.py port 1935.
-rtmp: true
-rtmpAddress: 127.0.0.1:1936
-rtmpEncryption: "no"
+# Loopback only: stream.py publishes here (video copied, audio AAC -> Opus for WebRTC). The public RTMPS ingest stays on stream.py port 1935.
+rtmp: false
+rtsp: true
+rtspTransports: [tcp]
+rtspEncryption: "no"
+rtspAddress: 127.0.0.1:8554
 
 srt: true
 srtAddress: :8890
