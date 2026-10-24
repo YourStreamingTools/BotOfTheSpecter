@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>BotOfTheSpecter Admin (Beta)</title>
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sp-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') {
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        var el = document.documentElement;
+        el.setAttribute('data-theme', t);
+        el.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+        el.style.colorScheme = t;
+      })();
+    </script>
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/admin/main.tsx"></script>
+  </body>
+</html>
