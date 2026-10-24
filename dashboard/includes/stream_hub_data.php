@@ -205,6 +205,27 @@ $vodsCdnBase = rtrim((string) ($vods_cdn_base ?? 'https://vods.botofthespecter.c
 $specterKey = $streamUserApiKey;
 $rtmpsUrl = rtrim((string) ($stream_rtmps_url ?? 'rtmps://syd1.stream.botofthespecter.com:1935/app'), '/');
 $canIngest = !empty($is_admin) || !empty($betaAccess) || (isset($betaPrograms) && is_array($betaPrograms) && in_array('streaming', $betaPrograms, true));
+// Phone camera relay (MediaMTX beside stream.py): same region host as the RTMPS ingest.
+$cameraHost = (string) (parse_url($rtmpsUrl, PHP_URL_HOST) ?: 'syd1.stream.botofthespecter.com');
+$cameraLogin = strtolower($recorderUsername);
+$cameraIngestUrl = "rtmps://{$cameraHost}:1935/camera";
+$cameraSrtUrl = "srt://{$cameraHost}:8890?streamid=read:camera/{$cameraLogin}:{$cameraLogin}:PASSWORD";
+$cameraWebUrl = "https://{$cameraHost}:8889/camera/{$cameraLogin}/";
+$cameraPasswordSet = false;
+if ($userId > 0 && isset($conn) && $conn instanceof mysqli) {
+    try {
+        $camStmt = $conn->prepare("SELECT camera_password_hash FROM users WHERE id = ? LIMIT 1");
+        if ($camStmt) {
+            $camStmt->bind_param("i", $userId);
+            $camStmt->execute();
+            $camRow = $camStmt->get_result()->fetch_assoc();
+            $cameraPasswordSet = !empty($camRow['camera_password_hash']);
+            $camStmt->close();
+        }
+    } catch (mysqli_sql_exception $e) {
+        // Column not migrated yet; the card still shows, saving reports the failure.
+    }
+}
 $canYoutube = function_exists('youtube_admin_testing') && youtube_admin_testing();
 $unlimitedStorage = in_array(strtolower($recorderUsername), ['botofthespecter', 'gfaundead'], true);
 
@@ -322,6 +343,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_forward_settings
         $fwdSaveOk ? t('recording_status_forward_saved') : t('recording_status_forward_save_failed'),
         $fwdSaveOk ? 'is-success' : 'is-danger'
     );
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_camera_password']) || isset($_POST['clear_camera_password']))) {
+    $camOk = false;
+    $camHash = null;
+    $camMessage = t('camera_password_save_failed');
+    if (isset($_POST['save_camera_password'])) {
+        $camPassword = (string) ($_POST['camera_password'] ?? '');
+        // Goes inside SRT stream IDs and URLs, so keep it to URL-safe characters.
+        if (!preg_match('/^[A-Za-z0-9_-]{8,64}$/', $camPassword)) {
+            stream_hub_redirect('camera', t('camera_password_invalid'), 'is-danger');
+        }
+        $camHash = password_hash($camPassword, PASSWORD_BCRYPT);
+    }
+    if ($userId > 0 && isset($conn) && $conn instanceof mysqli) {
+        try {
+            $camStmt = $conn->prepare("UPDATE users SET camera_password_hash = ? WHERE id = ?");
+            if ($camStmt) {
+                $camStmt->bind_param("si", $camHash, $userId);
+                $camOk = $camStmt->execute();
+                $camStmt->close();
+            }
+        } catch (mysqli_sql_exception $e) {
+            $camOk = false;
+        }
+    }
+    if ($camOk) {
+        $camMessage = $camHash === null ? t('camera_password_cleared') : t('camera_password_saved');
+    }
+    stream_hub_redirect('camera', $camMessage, $camOk ? 'is-success' : 'is-danger');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_streaming_settings'])) {

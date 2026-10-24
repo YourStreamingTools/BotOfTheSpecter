@@ -1009,6 +1009,53 @@ foreach ($s3Jobs as $job) {
         </form>
     </div>
 </div>
+
+<div class="sp-card" id="camera">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-mobile-alt"></i> <?php echo t('camera_card_title'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?php echo t('camera_card_desc'); ?></p>
+        <div class="sp-form-group">
+            <label class="sp-label" for="camera-ingest-url"><?php echo t('camera_ingest_label'); ?></label>
+            <div class="sp-field-row">
+                <input class="sp-input w-100" id="camera-ingest-url" type="text" value="<?php echo htmlspecialchars($cameraIngestUrl); ?>" readonly>
+                <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="camera-ingest-url"><?php echo t('streaming_copy'); ?></button>
+            </div>
+            <span class="sp-help"><?php echo t('streaming_api_key_note'); ?></span>
+        </div>
+        <div class="sp-form-group">
+            <label class="sp-label" for="camera-srt-url"><?php echo t('camera_obs_label'); ?></label>
+            <div class="sp-field-row">
+                <input class="sp-input w-100" id="camera-srt-url" type="text" value="<?php echo htmlspecialchars($cameraSrtUrl); ?>" readonly>
+                <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="camera-srt-url"><?php echo t('streaming_copy'); ?></button>
+            </div>
+            <span class="sp-help"><?php echo t('camera_obs_help'); ?></span>
+        </div>
+        <div class="sp-form-group">
+            <label class="sp-label" for="camera-web-url"><?php echo t('camera_web_label'); ?></label>
+            <div class="sp-field-row">
+                <input class="sp-input w-100" id="camera-web-url" type="text" value="<?php echo htmlspecialchars($cameraWebUrl); ?>" readonly>
+                <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="camera-web-url"><?php echo t('streaming_copy'); ?></button>
+            </div>
+            <span class="sp-help"><?php echo t('camera_web_help', [htmlspecialchars($cameraLogin)]); ?></span>
+        </div>
+        <form method="post" action="streaming.php#camera">
+            <div class="sp-form-group">
+                <label class="sp-label" for="camera_password_input"><?php echo t('camera_password_label'); ?></label>
+                <div class="sp-field-row">
+                    <input class="sp-input w-100" id="camera_password_input" name="camera_password" type="password" minlength="8" maxlength="64" pattern="[A-Za-z0-9_\-]{8,64}" autocomplete="new-password" placeholder="<?php echo htmlspecialchars($cameraPasswordSet ? t('camera_password_placeholder_set') : t('camera_password_placeholder_unset')); ?>">
+                    <button type="button" class="sp-btn sp-btn-secondary" data-toggle-password="camera_password_input"><i class="fas fa-eye"></i></button>
+                </div>
+                <span class="sp-help"><?php echo t('camera_password_help'); ?></span>
+            </div>
+            <button type="submit" name="save_camera_password" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('camera_password_save_btn'); ?></button>
+            <?php if ($cameraPasswordSet): ?>
+                <button type="submit" name="clear_camera_password" formnovalidate class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo t('camera_password_clear_btn'); ?></button>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
 </div>
 </div>
 
@@ -1262,7 +1309,7 @@ foreach ($s3Jobs as $job) {
 <?php endif; ?>
 <script>
 (function () {
-    var TAB_MAP = { library: 'library', import: 'import', reruns: 'reruns', setup: 'setup', record: 'setup', ingest: 'setup', forward: 'setup', youtube: 'setup', s3: 'setup' };
+    var TAB_MAP = { library: 'library', import: 'import', reruns: 'reruns', setup: 'setup', record: 'setup', ingest: 'setup', forward: 'setup', camera: 'setup', youtube: 'setup', s3: 'setup' };
     function activateTab(name, scrollId) {
         var tab = TAB_MAP[name] || 'library';
         if ((tab === 'import' || tab === 'reruns') && !document.querySelector('[data-stream-tab="' + tab + '"]')) tab = 'library';

@@ -33,6 +33,7 @@ $BOTS_SSO_TARGETS = [
     'rtmp-us-east'    => 'https://use1.stream.botofthespecter.com/sso/login',
     'rtmp-us-west'    => 'https://usw1.stream.botofthespecter.com/sso/login',
     'rtmp-eu-central' => 'https://euc1.stream.botofthespecter.com/sso/login',
+    'cloud-studio'    => 'https://studio.botofthespecter.com/sso/login',
 ];
 
 $target = isset($_GET['target']) ? (string)$_GET['target'] : '';
