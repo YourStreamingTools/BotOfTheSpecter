@@ -1003,6 +1003,7 @@ _V2_PUBLIC_PATHS = [
     "/extension/reward-counts",
     "/extension/watch-time",
     "/extension/todos",
+    "/camera/pair/redeem",
 ]
 _V2_PUBLIC_PATHS_SET = set(_V2_PUBLIC_PATHS)
 
@@ -1025,6 +1026,9 @@ _V2_DOCS_PATHS = {
 # Hidden from V1 OpenAPI; still served as /v2<PATH> via the rewrite middleware.
 _V2_ONLY_PATHS = {
     "/account/app-login",
+    "/camera/pair/create",
+    "/camera/pair/status",
+    "/camera/pair/redeem",
     "/channel/twitch/raids/start",
     "/channel/twitch/raids/cancel",
     "/channel/twitch/shoutout",
@@ -3022,6 +3026,186 @@ async def app_login(body: AppLoginBody, api_key: str = Query(...)):
     except Exception as e:
         logging.error(f"Error during app login for user '{username}': {e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
+
+# Camera pairing (Specter Camera app): Cloud Studio creates a one-time code, the phone redeems it for the API key.
+CAMERA_PAIR_TTL_SECONDS = 300
+CAMERA_PAIR_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32
+CAMERA_PAIR_REDEEM_LIMIT = 10
+CAMERA_PAIR_REDEEM_WINDOW_SECONDS = 60
+CAMERA_INGEST_REGION = os.getenv("CAMERA_INGEST_REGION") or "sydney"
+CAMERA_INGEST_URL = (os.getenv("CAMERA_INGEST_URL") or "rtmps://syd1.stream.botofthespecter.com:1935/camera").rstrip("/")
+_camera_pair_redeem_hits: dict[str, list[float]] = {}
+_camera_pair_redeem_lock = asyncio.Lock()
+
+def _camera_pair_normalize(code: str) -> str | None:
+    cleaned = re.sub(r"[\s-]", "", code or "").upper().translate(str.maketrans("OIL", "011"))
+    if len(cleaned) != 8 or any(ch not in CAMERA_PAIR_ALPHABET for ch in cleaned):
+        return None
+    return cleaned
+
+def _camera_pair_hash(code: str) -> str:
+    return hashlib.sha256(code.encode("ascii")).hexdigest()
+
+def _camera_pair_error(status_code: int, error: str, message: str, headers: dict | None = None) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"status": "error", "error": error, "message": message}, headers=headers)
+
+class CameraPairCreateBody(BaseModel):
+    name: str | None = Field(None, max_length=50, description="Optional camera name shown in the app")
+
+class CameraPairRedeemBody(BaseModel):
+    code: str = Field(..., max_length=20, description="Pairing code from the QR or typed in (dashes and spaces ignored)")
+    device_name: str | None = Field(None, max_length=50, description="Optional phone name shown on Cloud Studio")
+
+@app.post(
+    "/camera/pair/create",
+    summary="Create a camera pairing code",
+    description="Create a one-time code (valid 5 minutes) that the Specter Camera app redeems for this account's API key. Replaces any unused code for the user.",
+    tags=["User Account"],
+    operation_id="camera_pair_create",
+    status_code=201,
+)
+async def camera_pair_create(body: CameraPairCreateBody | None = None, api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    code = "".join(secrets.choice(CAMERA_PAIR_ALPHABET) for _ in range(8))
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=CAMERA_PAIR_TTL_SECONDS)
+    camera_name = (body.name.strip() if body and body.name else None) or None
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT username FROM users WHERE username = %s", (username,))
+            if not await cur.fetchone():
+                return _camera_pair_error(404, "user_not_found", "User not found")
+            await cur.execute(
+                "DELETE FROM camera_pair_codes WHERE username = %s AND (redeemed_at IS NULL OR expires_at < UTC_TIMESTAMP())",
+                (username,),
+            )
+            await cur.execute(
+                "INSERT INTO camera_pair_codes (code_hash, username, camera_name, expires_at) VALUES (%s, %s, %s, %s)",
+                (_camera_pair_hash(code), username, camera_name, expires_at.replace(tzinfo=None)),
+            )
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Error creating camera pair code for '{username}': {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    return JSONResponse(status_code=201, content={
+        "code": f"{code[:4]}-{code[4:]}",
+        "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
+        "expires_in": CAMERA_PAIR_TTL_SECONDS,
+        "qr_uri": f"specter-cam://link?v=1&code={code}",
+    })
+
+@app.get(
+    "/camera/pair/status",
+    summary="Check a camera pairing code",
+    description="Returns pending, redeemed or expired for a code this account created, so Cloud Studio can show when the phone has paired.",
+    tags=["User Account"],
+    operation_id="camera_pair_status",
+)
+async def camera_pair_status(code: str = Query(..., max_length=20), api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    normalized = _camera_pair_normalize(code)
+    if not normalized:
+        return _camera_pair_error(400, "invalid_code", "Code must be 8 letters or numbers")
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT device_name, redeemed_at, expires_at < UTC_TIMESTAMP() AS expired "
+                "FROM camera_pair_codes WHERE code_hash = %s AND username = %s",
+                (_camera_pair_hash(normalized), username),
+            )
+            row = await cur.fetchone()
+    except Exception as e:
+        logging.error(f"Error reading camera pair status for '{username}': {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    if not row:
+        return _camera_pair_error(404, "not_found", "Code not found")
+    if row["redeemed_at"] is not None:
+        state = "redeemed"
+    elif row["expired"]:
+        state = "expired"
+    else:
+        state = "pending"
+    return {"status": state, "device_name": row["device_name"]}
+
+@app.post(
+    "/camera/pair/redeem",
+    summary="Redeem a camera pairing code",
+    description="Called by the Specter Camera app with a code from Cloud Studio. Returns the API key (the RTMPS stream key) and camera ingest URL. Codes work once and expire after 5 minutes.",
+    tags=["Public"],
+    operation_id="camera_pair_redeem",
+)
+async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
+    ip = _client_ip(request)
+    now = _time.time()
+    async with _camera_pair_redeem_lock:
+        hits = [t for t in _camera_pair_redeem_hits.get(ip, []) if t > now - CAMERA_PAIR_REDEEM_WINDOW_SECONDS]
+        if len(hits) >= CAMERA_PAIR_REDEEM_LIMIT:
+            retry_after = max(1, int(hits[0] + CAMERA_PAIR_REDEEM_WINDOW_SECONDS - now) + 1)
+            _camera_pair_redeem_hits[ip] = hits
+            return _camera_pair_error(429, "rate_limited", "Too many attempts, try again shortly", {"Retry-After": str(retry_after)})
+        hits.append(now)
+        _camera_pair_redeem_hits[ip] = hits
+    code = _camera_pair_normalize(body.code)
+    if not code:
+        return _camera_pair_error(400, "invalid_code", "Code must be 8 letters or numbers")
+    device_name = (body.device_name.strip() if body.device_name else None) or None
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT id, username, camera_name, redeemed_at, expires_at < UTC_TIMESTAMP() AS expired "
+                "FROM camera_pair_codes WHERE code_hash = %s",
+                (_camera_pair_hash(code),),
+            )
+            row = await cur.fetchone()
+            # Separate lookup instead of a JOIN: users and camera_pair_codes may differ in collation.
+            if row:
+                await cur.execute("SELECT api_key FROM users WHERE username = %s", (row["username"],))
+                user_row = await cur.fetchone()
+                if not user_row or not user_row["api_key"]:
+                    return _camera_pair_error(404, "not_found", "Code not found")
+                row["api_key"] = user_row["api_key"]
+            if not row:
+                return _camera_pair_error(404, "not_found", "Code not found")
+            if row["redeemed_at"] is not None:
+                return _camera_pair_error(410, "used", "This code has already been used")
+            if row["expired"]:
+                return _camera_pair_error(410, "expired", "This code has expired")
+            # Single use: only the request that flips redeemed_at gets the key.
+            await cur.execute(
+                "UPDATE camera_pair_codes SET redeemed_at = UTC_TIMESTAMP(), device_name = %s "
+                "WHERE id = %s AND redeemed_at IS NULL",
+                (device_name, row["id"]),
+            )
+            claimed = cur.rowcount == 1
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Error redeeming camera pair code: {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    if not claimed:
+        return _camera_pair_error(410, "used", "This code has already been used")
+    logging.info(f"Camera paired for '{row['username']}' ({device_name or 'unnamed device'}) from {ip}")
+    return {
+        "status": "success",
+        "api_key": row["api_key"],
+        "username": row["username"],
+        "region": CAMERA_INGEST_REGION,
+        "ingest_url": CAMERA_INGEST_URL,
+        "camera_name": row["camera_name"],
+    }
 
 # Quotes endpoint
 @app.get(
