@@ -1030,6 +1030,7 @@ _V2_ONLY_PATHS = {
     "/camera/pair/status",
     "/camera/pair/redeem",
     "/camera/list",
+    "/camera/view-token",
     "/channel/twitch/raids/start",
     "/channel/twitch/raids/cancel",
     "/channel/twitch/shoutout",
@@ -3041,6 +3042,8 @@ _CAMERA_NAME_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
 CAMERA_STREAM_SERVERS = dict(
     item.split("=", 1) for item in (os.getenv("CAMERA_STREAM_SERVERS") or "sydney=https://syd1.stream.botofthespecter.com").split(",") if "=" in item
 )
+CAMERA_VIEW_TOKEN_SECRET = os.getenv("CAMERA_VIEW_TOKEN_SECRET") or ""
+CAMERA_VIEW_TOKEN_TTL_SECONDS = 3600
 _camera_pair_redeem_hits: dict[str, list[float]] = {}
 _camera_pair_redeem_lock = asyncio.Lock()
 
@@ -3233,6 +3236,30 @@ async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
         "camera": row["camera"] or CAMERA_DEFAULT_NAME,
         "stream_key": f"{row['api_key']}?cam={row['camera'] or CAMERA_DEFAULT_NAME}",
         "camera_name": row["camera_name"],
+    }
+
+@app.get(
+    "/camera/view-token",
+    summary="Create a camera view token",
+    description="Short-lived (1 hour) read-only token for watching this account's cameras over WebRTC/SRT, so browser pages never hold the API key. Use it as the password with the username as the user.",
+    tags=["User Account"],
+    operation_id="camera_view_token",
+)
+async def camera_view_token(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel).lower()
+    if not CAMERA_VIEW_TOKEN_SECRET:
+        logging.error("camera_view_token: CAMERA_VIEW_TOKEN_SECRET is not set")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    exp = int(_time.time()) + CAMERA_VIEW_TOKEN_TTL_SECONDS
+    sig = hmac.new(CAMERA_VIEW_TOKEN_SECRET.encode(), f"camera-view:{username}:{exp}".encode(), hashlib.sha256).hexdigest()
+    return {
+        "username": username,
+        "token": f"v1.{exp}.{sig}",
+        "expires_at": datetime.fromtimestamp(exp, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "expires_in": CAMERA_VIEW_TOKEN_TTL_SECONDS,
     }
 
 @app.get(

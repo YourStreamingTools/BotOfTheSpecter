@@ -183,6 +183,8 @@ CAMERA_WEBRTC_PORT = int(os.getenv("CAMERA_WEBRTC_PORT") or "8889")
 # Per-process secret so only this server's ffmpeg can publish into MediaMTX.
 CAMERA_RELAY_USER = "specter-relay"
 CAMERA_RELAY_SECRET = secrets.token_urlsafe(32)
+# Shared with api.py (/camera/view-token): HMAC key for short-lived read tokens used by Cloud Studio pages.
+CAMERA_VIEW_TOKEN_SECRET = os.getenv("CAMERA_VIEW_TOKEN_SECRET") or ""
 CAMERA_AUTH_MAX_FAILURES = 10
 CAMERA_AUTH_FAILURE_WINDOW_SECONDS = 300
 _camera_auth_failures: dict[str, list[float]] = {}
@@ -387,10 +389,27 @@ def _camera_password_matches(password: str, stored_hash: str) -> bool:
     except ValueError:
         return False
 
+def camera_view_token_valid(username: str, token: str) -> bool:
+    # Token format v1.<unix expiry>.<hex hmac of "camera-view:<username>:<expiry>">, minted by api.py.
+    import hmac, hashlib
+    if not CAMERA_VIEW_TOKEN_SECRET or not token.startswith("v1."):
+        return False
+    try:
+        _, exp_s, sig = token.split(".", 2)
+        exp = int(exp_s)
+    except ValueError:
+        return False
+    if exp < time.time():
+        return False
+    want = hmac.new(CAMERA_VIEW_TOKEN_SECRET.encode(), f"camera-view:{username}:{exp}".encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, want)
+
 async def camera_viewer_allowed(username: str, password: str) -> bool:
-    # The streamer views with their API key; anyone else needs the camera password from the dashboard.
+    # The streamer views with their API key; anyone else needs the camera password or a Cloud Studio view token.
     if not username or not password:
         return False
+    if camera_view_token_valid(username, password):
+        return True
     sqldb = None
     try:
         sqldb = await access_website_database()
