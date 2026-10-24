@@ -3330,7 +3330,7 @@ async def studio_output(api_key: str = Query(...), channel: str = Query(...), re
             return {"url": f"rtmps://{host}.stream.botofthespecter.com:1935/app/{user['api_key']}", "label": "Specter"}
     if twitch_key:
         logging.info(f"studio_output: '{username}' -> Twitch direct")
-        return {"url": f"{TWITCH_INGEST_BY_HOST.get(region_key or "syd1", TWITCH_INGEST_DEFAULT)}{twitch_key}", "label": "Twitch"}
+        return {"url": f"{TWITCH_INGEST_BY_HOST.get(region_key or 'syd1', TWITCH_INGEST_DEFAULT)}{twitch_key}", "label": "Twitch"}
     return JSONResponse(status_code=409, content={"error": "no_stream_target"})
 
 @app.get(
