@@ -2362,7 +2362,7 @@ def stream_openapi_spec() -> dict:
     }
 
 
-def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
+def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str, output_directory: str | None = None) -> Quart:
     app = Quart(__name__)
 
     # Quart session cookie is host-only on {syd1|use1|usw1|euc1}.stream.botofthespecter.com.
@@ -2575,6 +2575,27 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             return jsonify({"error": "session not found", "session_id": session_id}), 404
         logger.info(f"Admin API force-disconnected session {session_id}")
         return jsonify({"disconnected": True, "session_id": session_id})
+
+    @app.get("/api/ingest-status")
+    @_require_api_key
+    async def api_ingest_status():
+        # Would a publish to /app/<key> be accepted? Mirrors on_ns_publish's slot and quota checks (used by api.py /studio/output).
+        username = (request.args.get("username") or "").strip().lower()
+        if not username:
+            return jsonify({"error": "username required"}), 400
+        slot = await get_storage_slot(username)
+        if not slot:
+            return jsonify({"username": username, "has_slot": False, "quota_ok": False})
+        root = output_directory or recorder_storage_path
+        used = await asyncio.to_thread(directory_size_bytes, user_storage_dir(root, username))
+        quota = slot["quota_bytes"]
+        return jsonify({
+            "username": username,
+            "has_slot": True,
+            "quota_bytes": quota,
+            "used_bytes": used,
+            "quota_ok": quota <= 0 or used < quota,
+        })
 
     @app.get("/api/cameras")
     @_require_api_key
@@ -3145,7 +3166,7 @@ async def start_rtmp_server(
     logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL for domain: {domain}")
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
     server_title = SERVER_DISPLAY_NAMES.get(twitch_server, f"RTMP Server - {twitch_server}")
-    web_app = create_web_app(server_title, twitch_server, session_registry, recorder_storage_path)
+    web_app = create_web_app(server_title, twitch_server, session_registry, recorder_storage_path, output_directory)
     ui_url = f"https://{domain}/" if https_port == 443 else f"https://{domain}:{https_port}/"
     logger.info(f"Operator web UI: {ui_url} (HTTP port {web_port} redirects to HTTPS)")
     logger.info(f"API docs: https://{domain}/docs")
