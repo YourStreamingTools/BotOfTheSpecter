@@ -213,6 +213,7 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 - MediaMTX (`stream/mediamtx.yml`, `mediamtx.service`) serves viewers: SRT `:8890/udp` (OBS Media Source, `streamid=read:camera/<user>/<name>:<user>:<secret>`) and WebRTC `:8889` + `:8189/udp` (browser)
 - MediaMTX `authMethod: http` calls `POST http://127.0.0.1:8091/internal/mediamtx/auth` (loopback bind only): publish = this process's ffmpeg (per-process secret); read = user's API key OR `website.users.camera_password_hash` (bcrypt from PHP `password_hash`, set on dashboard Streaming → Phone Camera); 10 failures / 5 min per IP → 429
 - If the relay ffmpeg dies (MediaMTX down), the phone's RTMPS session is closed so it reconnects
+- Cloud Studio pages use `GET /v2/camera/view-token` (1h HMAC token `v1.<exp>.<sig>`, env `CAMERA_VIEW_TOKEN_SECRET` must match in api and stream .env) as the viewer password
 - `GET /api/cameras?username=` (admin key) lists live cameras; `api.py` `GET /v2/camera/list` aggregates it across `CAMERA_STREAM_SERVERS` using the `rtmp-server` admin key
 
 **Auxiliary Scripts** (in `/stream/`):
