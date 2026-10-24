@@ -7436,7 +7436,7 @@ return [
     'camera_card_desc' => '使用 Specter Camera 应用将手机摄像头发送到我们的服务器。摄像头流不会被录制或转发，只会实时中继，方便你在 OBS 中引入或在浏览器中观看。',
     'camera_ingest_label' => '摄像头 RTMPS 服务器（在应用中填写）',
     'camera_obs_label' => 'OBS 媒体源（SRT，延迟最低）',
-    'camera_obs_help' => '在 OBS 中添加媒体源，取消勾选“本地文件”，并将此地址粘贴为输入。把 PASSWORD 替换为你的 API 密钥或下方的摄像头密码。',
+    'camera_obs_help' => '在 OBS 中添加媒体源，取消勾选“本地文件”，并将此地址粘贴为输入。把 PASSWORD 替换为你的 API 密钥或下方的摄像头密码。 链接显示你的主摄像头；其他摄像头请把 main 换成它的名称（推流密钥：API 密钥?cam=名称）。',
     'camera_web_label' => '浏览器观看（WebRTC）',
     'camera_web_help' => '打开实时观看页面。要求登录时，用户名填写 %s，密码填写你的 API 密钥或摄像头密码。',
     'camera_password_label' => '摄像头观看密码',

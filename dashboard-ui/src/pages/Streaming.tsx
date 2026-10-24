@@ -379,7 +379,7 @@ function Camera({ ask, toast }: Pick<Ctx, 'ask' | 'toast'>) {
     {!c ? (err ? <div className="notice notice-err" role="alert"><i className="fas fa-triangle-exclamation" /> <span>{err}</span></div> : <span className="skel skel-line" />) : <>
       <div className="st-form">
         {url('cam-ingest', 'Camera RTMPS server (in the app)', c.ingest_url, 'Your API Key (found on your profile) serves as the stream key for our servers.')}
-        {url('cam-srt', 'OBS Media Source (SRT, lowest delay)', c.srt_url, 'In OBS add a Media Source, untick Local File and paste this as the input. Replace PASSWORD with your API key or the camera password below.')}
+        {url('cam-srt', 'OBS Media Source (SRT, lowest delay)', c.srt_url, 'In OBS add a Media Source, untick Local File and paste this as the input. Replace PASSWORD with your API key or the camera password below. These links show your main camera; for another camera use its name instead of main (stream key: API key?cam=name).')}
         {url('cam-web', 'Browser viewer (WebRTC)', c.web_url, <>Opens a live viewer. When it asks to sign in, use <b>{c.login}</b> as the username and your API key or the camera password.</>)}
         {!c.act_as && <div className="fld fld-wide"><label htmlFor="cam-pw">Camera viewer password</label><div className="st-secret">
           <input id="cam-pw" className="input mono" type={show ? 'text' : 'password'} autoComplete="new-password" maxLength={64} placeholder={c.password_set ? 'A camera password is set. Enter a new one to replace it.' : 'No camera password set.'} value={pw} onChange={(e) => setPw(e.target.value)} />
