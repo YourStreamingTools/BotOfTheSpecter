@@ -51,7 +51,7 @@ import uvicorn
 import aioping
 import asyncssh
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Request, status, Query, Form
+from fastapi import FastAPI, HTTPException, Request, status, Query, Form, Header
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -971,6 +971,20 @@ def _get_v2_api_key_required_paths() -> set:
     _v2_api_key_required_paths_cache = paths
     return paths
 
+_v2_templated_path_patterns_cache: list | None = None
+
+def _v2_api_key_required(legacy_path: str) -> bool:
+    # Literal paths match directly; routes with {params} (e.g. /camera/devices/{id}) match one path segment per param.
+    global _v2_templated_path_patterns_cache
+    paths = _get_v2_api_key_required_paths()
+    if legacy_path in paths:
+        return True
+    if _v2_templated_path_patterns_cache is None:
+        _v2_templated_path_patterns_cache = [
+            re.compile("^" + re.sub(r"\\\{[^/]+?\\\}", "[^/]+", re.escape(p)) + "$") for p in paths if "{" in p
+        ]
+    return any(rx.match(legacy_path) for rx in _v2_templated_path_patterns_cache)
+
 
 def _sanitize_user_command_name(command: str) -> str:
     lowered = (command or "").replace(" ", "").lower()
@@ -1004,6 +1018,7 @@ _V2_PUBLIC_PATHS = [
     "/extension/watch-time",
     "/extension/todos",
     "/camera/pair/redeem",
+    "/camera/device/me",
 ]
 _V2_PUBLIC_PATHS_SET = set(_V2_PUBLIC_PATHS)
 
@@ -1031,6 +1046,9 @@ _V2_ONLY_PATHS = {
     "/camera/pair/redeem",
     "/camera/list",
     "/camera/view-token",
+    "/camera/devices",
+    "/camera/devices/{id}",
+    "/camera/device/me",
     "/studio/output",
     "/channel/twitch/raids/start",
     "/channel/twitch/raids/cancel",
@@ -1072,7 +1090,7 @@ async def v2_api_key_header_middleware(request: Request, call_next):
     if legacy_path in _V2_PUBLIC_PATHS_SET:
         request.scope["path"] = legacy_path
         return await call_next(request)
-    if legacy_path not in _get_v2_api_key_required_paths():
+    if not _v2_api_key_required(legacy_path):
         return JSONResponse(
             status_code=404,
             content={"detail": "v2 endpoint not found"},
@@ -3030,7 +3048,7 @@ async def app_login(body: AppLoginBody, api_key: str = Query(...)):
         logging.error(f"Error during app login for user '{username}': {e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
 
-# Camera pairing (Specter Camera app): Cloud Studio creates a one-time code, the phone redeems it for the API key.
+# Camera pairing (Specter Camera app): Cloud Studio creates a one-time code, the phone redeems it for its own device token.
 CAMERA_PAIR_TTL_SECONDS = 300
 CAMERA_PAIR_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32
 CAMERA_PAIR_REDEEM_LIMIT = 10
@@ -3045,6 +3063,7 @@ CAMERA_STREAM_SERVERS = dict(
 )
 CAMERA_VIEW_TOKEN_SECRET = os.getenv("CAMERA_VIEW_TOKEN_SECRET") or ""
 CAMERA_VIEW_TOKEN_TTL_SECONDS = 3600
+CAMERA_DEVICE_TOKEN_PREFIX = "scd_"
 _camera_pair_redeem_hits: dict[str, list[float]] = {}
 _camera_pair_redeem_lock = asyncio.Lock()
 
@@ -3063,6 +3082,31 @@ def _camera_slug(text: str | None) -> str | None:
 def _camera_pair_hash(code: str) -> str:
     return hashlib.sha256(code.encode("ascii")).hexdigest()
 
+def _camera_utc_iso(value) -> str | None:
+    # camera_* DATETIME columns hold UTC.
+    return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z") if value else None
+
+async def _camera_stream_servers_call(method: str, route: str, params: dict) -> tuple[list[dict], list[str]]:
+    # Ask every stream server in CAMERA_STREAM_SERVERS; returns (JSON bodies, unreachable regions).
+    stream_key = await _get_admin_key_for_service("rtmp-server") or await _get_admin_key_for_service("admin")
+    if not stream_key:
+        logging.error("camera: no rtmp-server or admin key in admin_api_keys")
+        return [], sorted(CAMERA_STREAM_SERVERS)
+    results, unreachable = [], []
+    timeout = aiohttp.ClientTimeout(total=5)
+    async with aiohttp.ClientSession(timeout=timeout) as http:
+        async def call(region, base):
+            try:
+                async with http.request(method, f"{base.rstrip('/')}{route}", params=params, headers={"X-API-Key": stream_key}) as resp:
+                    if resp.status != 200:
+                        raise RuntimeError(f"HTTP {resp.status}")
+                    results.append(await resp.json())
+            except Exception as e:
+                logging.warning(f"camera: {route} on {region} failed: {e}")
+                unreachable.append(region)
+        await asyncio.gather(*(call(r, b) for r, b in CAMERA_STREAM_SERVERS.items()))
+    return results, sorted(unreachable)
+
 def _camera_pair_error(status_code: int, error: str, message: str, headers: dict | None = None) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"status": "error", "error": error, "message": message}, headers=headers)
 
@@ -3077,7 +3121,7 @@ class CameraPairRedeemBody(BaseModel):
 @app.post(
     "/camera/pair/create",
     summary="Create a camera pairing code",
-    description="Create a one-time code (valid 5 minutes) that the Specter Camera app redeems for this account's API key. Replaces any unused code for the user.",
+    description="Create a one-time code (valid 5 minutes) that the Specter Camera app redeems to link itself to this account. Replaces any unused code for the user.",
     tags=["User Account"],
     operation_id="camera_pair_create",
     status_code=201,
@@ -3164,7 +3208,7 @@ async def camera_pair_status(code: str = Query(..., max_length=20), api_key: str
 @app.post(
     "/camera/pair/redeem",
     summary="Redeem a camera pairing code",
-    description="Called by the Specter Camera app with a code from Cloud Studio. Returns the API key (the RTMPS stream key) and camera ingest URL. Codes work once and expire after 5 minutes.",
+    description="Called by the Specter Camera app with a code from Cloud Studio. Links the phone and returns its device token, which is the RTMPS stream key for ingest_url. The API key is never sent. Codes work once and expire after 5 minutes.",
     tags=["Public"],
     operation_id="camera_pair_redeem",
 )
@@ -3194,30 +3238,47 @@ async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
             row = await cur.fetchone()
             # Separate lookup instead of a JOIN: users and camera_pair_codes may differ in collation.
             if row:
-                await cur.execute("SELECT api_key FROM users WHERE username = %s", (row["username"],))
-                user_row = await cur.fetchone()
-                if not user_row or not user_row["api_key"]:
+                await cur.execute("SELECT username FROM users WHERE username = %s", (row["username"],))
+                if not await cur.fetchone():
                     return _camera_pair_error(404, "not_found", "Code not found")
-                row["api_key"] = user_row["api_key"]
             if not row:
                 return _camera_pair_error(404, "not_found", "Code not found")
             if row["redeemed_at"] is not None:
                 return _camera_pair_error(410, "used", "This code has already been used")
             if row["expired"]:
                 return _camera_pair_error(410, "expired", "This code has expired")
-            # Single use: only the request that flips redeemed_at gets the key.
+            # Single use: only the request that flips redeemed_at gets a device token.
             await cur.execute(
                 "UPDATE camera_pair_codes SET redeemed_at = UTC_TIMESTAMP(), device_name = %s "
                 "WHERE id = %s AND redeemed_at IS NULL",
                 (device_name, row["id"]),
             )
             claimed = cur.rowcount == 1
-            if claimed and not row["camera"]:
-                row["camera"] = _camera_slug(device_name) or CAMERA_DEFAULT_NAME
+            device_token = None
+            if claimed:
+                camera = row["camera"] or _camera_slug(device_name) or CAMERA_DEFAULT_NAME
                 row["camera_name"] = row["camera_name"] or device_name
+                # Each linked phone gets its own camera path: "desk" taken by another linked phone becomes "desk-2".
+                await cur.execute(
+                    "SELECT camera FROM camera_devices WHERE username = %s AND revoked_at IS NULL",
+                    (row["username"],),
+                )
+                taken = {r["camera"] for r in await cur.fetchall()}
+                base, n = camera, 2
+                while camera in taken:
+                    suffix = f"-{n}"
+                    camera = base[:32 - len(suffix)] + suffix
+                    n += 1
+                row["camera"] = camera
                 await cur.execute(
                     "UPDATE camera_pair_codes SET camera = %s, camera_name = %s WHERE id = %s",
                     (row["camera"], row["camera_name"], row["id"]),
+                )
+                device_token = CAMERA_DEVICE_TOKEN_PREFIX + secrets.token_urlsafe(32)
+                await cur.execute(
+                    "INSERT INTO camera_devices (username, token_hash, name, camera, created_at, last_seen_at) "
+                    "VALUES (%s, %s, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP())",
+                    (row["username"], hashlib.sha256(device_token.encode("ascii")).hexdigest(), row["camera_name"], row["camera"]),
                 )
         await conn.commit()
     except Exception as e:
@@ -3227,16 +3288,131 @@ async def camera_pair_redeem(body: CameraPairRedeemBody, request: Request):
         conn.close()
     if not claimed:
         return _camera_pair_error(410, "used", "This code has already been used")
-    logging.info(f"Camera paired for '{row['username']}' ({device_name or 'unnamed device'}) from {ip}")
+    logging.info(f"Camera paired for '{row['username']}' as {row['camera']} ({device_name or 'unnamed device'}) from {ip}")
     return {
         "status": "success",
-        "api_key": row["api_key"],
+        "device_token": device_token,
         "username": row["username"],
         "region": CAMERA_INGEST_REGION,
         "ingest_url": CAMERA_INGEST_URL,
-        "camera": row["camera"] or CAMERA_DEFAULT_NAME,
-        "stream_key": f"{row['api_key']}?cam={row['camera'] or CAMERA_DEFAULT_NAME}",
+        "camera": row["camera"],
         "camera_name": row["camera_name"],
+    }
+
+@app.get(
+    "/camera/devices",
+    summary="List linked cameras",
+    description="Phones linked to this account through Cloud Studio pairing, newest first, with whether each is live right now. Unlinked phones are not listed.",
+    tags=["User Account"],
+    operation_id="camera_devices_list",
+)
+async def camera_devices_list(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel).lower()
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT id, name, camera, created_at, last_seen_at FROM camera_devices "
+                "WHERE username = %s AND revoked_at IS NULL ORDER BY id DESC",
+                (username,),
+            )
+            rows = await cur.fetchall()
+    except Exception as e:
+        logging.error(f"Error listing camera devices for '{username}': {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    live_ids = set()
+    if rows:
+        results, _ = await _camera_stream_servers_call("GET", "/api/cameras", {"username": username})
+        live_ids = {c.get("device_id") for r in results for c in (r.get("cameras") or []) if c.get("device_id") is not None}
+    return {"devices": [{
+        "id": r["id"],
+        "name": r["name"],
+        "camera": r["camera"],
+        "created_at": _camera_utc_iso(r["created_at"]),
+        "last_seen_at": _camera_utc_iso(r["last_seen_at"]),
+        "live": r["id"] in live_ids,
+    } for r in rows]}
+
+@app.delete(
+    "/camera/devices/{id}",
+    summary="Unlink a camera",
+    description="Unlinks a phone: its device token stops working at once, any live stream from it is dropped, and the app has to be linked again with a new code.",
+    tags=["User Account"],
+    operation_id="camera_devices_unlink",
+)
+async def camera_devices_unlink(id: int, api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key, "cloud-studio")
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel).lower()
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "UPDATE camera_devices SET revoked_at = UTC_TIMESTAMP() WHERE id = %s AND username = %s AND revoked_at IS NULL",
+                (id, username),
+            )
+            revoked = cur.rowcount == 1
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Error unlinking camera device {id} for '{username}': {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    if not revoked:
+        return _camera_pair_error(404, "not_found", "Camera not found")
+    results, unreachable = await _camera_stream_servers_call("POST", "/api/cameras/disconnect", {"device_id": str(id)})
+    logging.info(f"Camera device {id} unlinked for '{username}'")
+    return {
+        "status": "success",
+        "id": id,
+        "disconnected": sum(int(r.get("disconnected") or 0) for r in results),
+        "unreachable_regions": unreachable,
+    }
+
+@app.get(
+    "/camera/device/me",
+    summary="Check a linked camera",
+    description="Called by the Specter Camera app with its device token in the X-Device-Token header. 200 while the phone is linked, 401 unlinked once it has been unlinked in Cloud Studio (link again with a new code).",
+    tags=["Public"],
+    operation_id="camera_device_me",
+)
+async def camera_device_me(x_device_token: str = Header(None, max_length=128)):
+    token = (x_device_token or "").strip()
+    if not token.startswith(CAMERA_DEVICE_TOKEN_PREFIX):
+        return _camera_pair_error(401, "unlinked", "This camera is not linked")
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT id, username, name, camera FROM camera_devices WHERE token_hash = %s AND revoked_at IS NULL",
+                (token_hash,),
+            )
+            row = await cur.fetchone()
+            if row:
+                await cur.execute("UPDATE camera_devices SET last_seen_at = UTC_TIMESTAMP() WHERE id = %s", (row["id"],))
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Error checking camera device: {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    if not row:
+        return _camera_pair_error(401, "unlinked", "This camera is not linked")
+    return {
+        "status": "linked",
+        "id": row["id"],
+        "username": row["username"],
+        "camera": row["camera"],
+        "name": row["name"],
+        "region": CAMERA_INGEST_REGION,
+        "ingest_url": CAMERA_INGEST_URL,
     }
 
 @app.get(
@@ -3345,28 +3521,12 @@ async def camera_list(api_key: str = Query(...), channel: str = Query(None)):
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel).lower()
-    stream_key = await _get_admin_key_for_service("rtmp-server") or await _get_admin_key_for_service("admin")
-    if not stream_key:
-        logging.error("camera_list: no rtmp-server or admin key in admin_api_keys")
-        return _camera_pair_error(500, "server_error", "Internal server error")
-    cameras, unreachable = [], []
-    timeout = aiohttp.ClientTimeout(total=5)
-    async with aiohttp.ClientSession(timeout=timeout) as http:
-        async def fetch(region, base):
-            try:
-                async with http.get(f"{base.rstrip('/')}/api/cameras", params={"username": username}, headers={"X-API-Key": stream_key}) as resp:
-                    if resp.status != 200:
-                        raise RuntimeError(f"HTTP {resp.status}")
-                    data = await resp.json()
-                    cameras.extend(data.get("cameras") or [])
-            except Exception as e:
-                logging.warning(f"camera_list: {region} unreachable: {e}")
-                unreachable.append(region)
-        await asyncio.gather(*(fetch(r, b) for r, b in CAMERA_STREAM_SERVERS.items()))
+    results, unreachable = await _camera_stream_servers_call("GET", "/api/cameras", {"username": username})
+    cameras = [c for r in results for c in (r.get("cameras") or [])]
     for cam in cameras:
         cam.pop("username", None)
     cameras.sort(key=lambda c: (c.get("name") or "", c.get("region") or ""))
-    return {"cameras": cameras, "unreachable_regions": sorted(unreachable)}
+    return {"cameras": cameras, "unreachable_regions": unreachable}
 
 # Quotes endpoint
 @app.get(
