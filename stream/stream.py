@@ -16,7 +16,7 @@ from urllib.parse import quote
 import aiomysql
 from dotenv import load_dotenv
 from pyrtmp import StreamClosedException
-from pyrtmp.flv import FLVFileWriter, FLVMediaType
+from pyrtmp.flv import FLVFileWriter, FLVMediaType, FLVWriter
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
 from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file, send_from_directory
@@ -172,6 +172,21 @@ RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "8
 DURATION_BACKFILL_PER_REQUEST = 3
 DURATION_PROBE_RETRY_SECONDS = 600
 _duration_probes: set[str] = set()
+
+# Phone camera relay: RTMP app "camera" is never recorded or forwarded, only relayed through the local MediaMTX.
+CAMERA_APP_NAME = "camera"
+MEDIAMTX_RTMP_URL = (os.getenv("MEDIAMTX_RTMP_URL") or "rtmp://127.0.0.1:1936").rstrip("/")
+CAMERA_AUTH_HOST = "127.0.0.1"
+CAMERA_AUTH_PORT = int(os.getenv("CAMERA_AUTH_PORT") or "8091")
+CAMERA_SRT_PORT = int(os.getenv("CAMERA_SRT_PORT") or "8890")
+CAMERA_WEBRTC_PORT = int(os.getenv("CAMERA_WEBRTC_PORT") or "8889")
+# Per-process secret so only this server's ffmpeg can publish into MediaMTX.
+CAMERA_RELAY_USER = "specter-relay"
+CAMERA_RELAY_SECRET = secrets.token_urlsafe(32)
+CAMERA_AUTH_MAX_FAILURES = 10
+CAMERA_AUTH_FAILURE_WINDOW_SECONDS = 300
+_camera_auth_failures: dict[str, list[float]] = {}
+_CAMERA_USERNAME_RE = re.compile(r"^[a-z0-9_]{1,25}$")
 
 
 def _duration_probe_due(meta: dict) -> bool:
@@ -350,6 +365,56 @@ async def get_username_from_api_key(api_key):
 
 async def validate_api_key(api_key):
     return await get_username_from_api_key(api_key)
+
+def _camera_password_matches(password: str, stored_hash: str) -> bool:
+    import bcrypt
+    if not password or not stored_hash:
+        return False
+    # PHP password_hash() writes $2y$; bcrypt reads the same hash as $2b$.
+    if stored_hash.startswith("$2y$"):
+        stored_hash = "$2b$" + stored_hash[4:]
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
+    except ValueError:
+        return False
+
+async def camera_viewer_allowed(username: str, password: str) -> bool:
+    # The streamer views with their API key; anyone else needs the camera password from the dashboard.
+    if not username or not password:
+        return False
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT api_key, camera_password_hash FROM users WHERE username = %s",
+                (username,),
+            )
+            row = await cursor.fetchone()
+    except Exception as e:
+        logger.error(f"Error checking camera viewer for {username}: {e}")
+        return False
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+    if not row:
+        return False
+    api_key = row.get("api_key") or ""
+    if api_key and secrets.compare_digest(password, api_key):
+        return True
+    return await asyncio.to_thread(_camera_password_matches, password, row.get("camera_password_hash") or "")
+
+def _camera_auth_blocked(ip: str) -> bool:
+    cutoff = time.time() - CAMERA_AUTH_FAILURE_WINDOW_SECONDS
+    recent = [t for t in _camera_auth_failures.get(ip, []) if t > cutoff]
+    if recent:
+        _camera_auth_failures[ip] = recent
+    else:
+        _camera_auth_failures.pop(ip, None)
+    return len(recent) >= CAMERA_AUTH_MAX_FAILURES
+
+def _camera_auth_failed(ip: str) -> None:
+    _camera_auth_failures.setdefault(ip, []).append(time.time())
 
 async def maybe_queue_youtube_vod(username, filename):
     # If the streamer opted in, queue this finished MP4 for YouTube upload.
@@ -637,6 +702,34 @@ class TeeFLVFileWriter(FLVFileWriter):
             logger.warning(f"Could not replay FLV header to ffmpeg: {e}")
         self.buffer = _StreamPipeSink(self.buffer, sink_stdin)
 
+class PipeFLVWriter:
+    """FLV straight into ffmpeg stdin with nothing on disk (camera relay)."""
+
+    def __init__(self, sink_stdin):
+        self._stdin = sink_stdin
+        self._writer = FLVWriter()
+        self._broken = False
+        self._send(self._writer.write_header())
+
+    def _send(self, data: bytes) -> None:
+        if self._broken or self._stdin is None or self._stdin.is_closing():
+            return
+        try:
+            self._stdin.write(data)
+        except Exception as e:
+            logger.warning(f"Camera relay stdin write failed; relay stopped: {e}")
+            self._broken = True
+
+    def write(self, timestamp: int, payload: bytes, media_type: FLVMediaType):
+        self._send(self._writer.write(timestamp, payload, media_type))
+
+    def close(self):
+        if self._stdin is not None and not self._stdin.is_closing():
+            try:
+                self._stdin.close()
+            except Exception:
+                pass
+
 class RTMP2FLVController(SimpleRTMPController):
     def __init__(self, output_directory: str, twitch_server: str, session_registry: SessionRegistry):
         self.output_directory = output_directory
@@ -644,14 +737,16 @@ class RTMP2FLVController(SimpleRTMPController):
         self.session_registry = session_registry
         super().__init__()
 
-    async def on_connect(self, session, message):
+    async def on_nc_connect(self, session, message) -> None:
+        # pyrtmp 0.3.x only dispatches on_nc_connect; there is no on_connect hook.
+        command_object = getattr(message, "command_object", None) or {}
+        session.rtmp_app = str(command_object.get("app") or "").strip("/").lower()
         # Record the connection start time
         session.connection_start_time = datetime.datetime.now()
         session.closed = False
         # Register with the operator web UI registry, with a callback the API can use to kick the session
         try:
-            host, port = session.peername
-            peer_str = f"{host}:{port}"
+            peer_str = session.peername
         except Exception:
             peer_str = "unknown"
         def _force_close():
@@ -662,8 +757,11 @@ class RTMP2FLVController(SimpleRTMPController):
                 pass
         self.session_registry.register_connection(id(session), peer_str, disconnect_callback=_force_close)
         # Schedule monitoring to disconnect after 48 hours; store so we can cancel on stream close
+        previous = getattr(session, "duration_monitor_task", None)
+        if previous is not None and not previous.done():
+            previous.cancel()
         session.duration_monitor_task = asyncio.create_task(self.monitor_connection_duration(session))
-        await super().on_connect(session, message)
+        await super().on_nc_connect(session, message)
 
     async def monitor_connection_duration(self, session):
         max_duration = 48 * 3600  # 48 hours in seconds
@@ -690,6 +788,10 @@ class RTMP2FLVController(SimpleRTMPController):
                 await session.writer.wait_closed()
             except ssl.SSLError as e:
                 logger.warning(f"Ignored SSL error after close notify: {e}")
+            return
+        if getattr(session, "rtmp_app", "") == CAMERA_APP_NAME:
+            await self._start_camera_relay(session, publishing_name, username)
+            await super().on_ns_publish(session, message)
             return
         slot = await get_storage_slot(username)
         if not slot:
@@ -741,6 +843,75 @@ class RTMP2FLVController(SimpleRTMPController):
             session.state = FLVFileWriter(output=file_path)
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
         await super().on_ns_publish(session, message)
+
+    async def _start_camera_relay(self, session, publishing_name, username):
+        session.publishing_name = publishing_name
+        session.camera_username = username.lower()
+        session.flv_file_path = None
+        session.twitch_key = None
+        session.ffmpeg_process = None
+        self.session_registry.attach_publish(
+            id(session), publishing_name=publishing_name, username=username, flv_file_path=None
+        )
+        if not _CAMERA_USERNAME_RE.match(session.camera_username):
+            logger.warning(f"Camera relay refused for {username}: username not usable as a relay path")
+            session.state = PipeFLVWriter(None)
+            session.writer.close()
+            return
+        relay_path = f"{CAMERA_APP_NAME}/{session.camera_username}"
+        relay_url = f"{MEDIAMTX_RTMP_URL}/{relay_path}?user={CAMERA_RELAY_USER}&pass={CAMERA_RELAY_SECRET}"
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel", "warning",
+            "-f", "flv",
+            "-i", "pipe:0",
+            "-c", "copy",
+            "-f", "flv",
+            relay_url,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except Exception as e:
+            logger.error(f"Failed to start camera relay for {username}: {e}", exc_info=True)
+            session.state = PipeFLVWriter(None)
+            session.writer.close()
+            return
+        session.state = PipeFLVWriter(proc.stdin)
+        session.ffmpeg_process = proc
+        session.drain_task = asyncio.create_task(self._drain_ffmpeg_stdin(session))
+        session.ffmpeg_watcher_task = asyncio.create_task(self._watch_camera_relay(session))
+        self.session_registry.attach_forwarding(
+            id(session), target_url=f"{MEDIAMTX_RTMP_URL}/{relay_path}", ffmpeg_pid=proc.pid
+        )
+        logger.info(f"Camera relay for {username} via ffmpeg PID {proc.pid} to MediaMTX path {relay_path}")
+
+    async def _watch_camera_relay(self, session):
+        proc = session.ffmpeg_process
+        stderr_task = asyncio.create_task(self._read_ffmpeg_stderr(session))
+        try:
+            rc = await proc.wait()
+        except asyncio.CancelledError:
+            stderr_task.cancel()
+            return
+        try:
+            await asyncio.wait_for(stderr_task, timeout=2.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            stderr_task.cancel()
+        if getattr(session, "closed", False):
+            return
+        # Relay died (MediaMTX down or rejected us): drop the phone so it reconnects instead of streaming into nothing.
+        logger.error(f"Camera relay ffmpeg for {session.camera_username} exited with code {rc}; closing the publisher.")
+        try:
+            if session.writer is not None and not session.writer.is_closing():
+                session.writer.close()
+        except Exception:
+            pass
 
     async def _spawn_ffmpeg_forwarder(self, twitch_url):
         command = [
@@ -941,10 +1112,18 @@ class RTMP2FLVController(SimpleRTMPController):
             monitor_task.cancel()
         # Terminate FFmpeg process if it exists
         await self.terminate_ffmpeg(session)
-        # Close the FLV file after the stream ends
-        session.state.close()
         # Remove from the operator web UI registry
         self.session_registry.deregister(id(session))
+        # Refused or never-published sessions still hold pyrtmp's default {} state and have no recording.
+        if not hasattr(session.state, "close"):
+            await super().on_stream_closed(session, exception)
+            return
+        # Close the FLV file after the stream ends
+        session.state.close()
+        if getattr(session, "camera_username", None):
+            logger.info(f"Camera relay for {session.camera_username} ended; nothing recorded.")
+            await super().on_stream_closed(session, exception)
+            return
         # Convert FLV to MP4 using FFmpeg
         flv_file_path = session.flv_file_path
         asyncio.create_task(self.convert_flv_to_mp4_background(session, flv_file_path))
@@ -987,6 +1166,15 @@ class RTMP2FLVController(SimpleRTMPController):
                 f"FFmpeg conversion failed (exit code {process.returncode}). "
                 f"Keeping FLV file: {flv_file_path}"
             )
+
+    async def cleanup(self, session) -> None:
+        # pyrtmp skips on_stream_closed when the read loop dies on a non-StreamClosed error (e.g. SSL after a kick).
+        if getattr(session, "closed", None) is False:
+            try:
+                await self.on_stream_closed(session, None)
+            except Exception as e:
+                logger.error(f"Stream close cleanup failed: {e}", exc_info=True)
+        await super().cleanup(session)
 
     async def on_command_message(self, session, message):
         if message.command in ["releaseStream", "FCPublish", "FCUnpublish"]:
@@ -2158,6 +2346,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
     async def enforce_https():
         if request.path.startswith("/.well-known/acme-challenge/"):
             return None
+        if request.path == "/internal/mediamtx/auth":
+            return None
         if request.scheme == "http":
             host = request.headers.get("Host", "").split(":")[0] or request.host.split(":")[0]
             qs = request.query_string.decode("utf-8") if request.query_string else ""
@@ -2711,6 +2901,42 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             mimetype="video/mp4",
         )
 
+    # MediaMTX authHTTPAddress hook; only reachable from this host over the loopback bind.
+    @app.post("/internal/mediamtx/auth")
+    async def mediamtx_auth():
+        server = request.scope.get("server") or ("", 0)
+        if request.remote_addr not in ("127.0.0.1", "::1") or int(server[1] or 0) != CAMERA_AUTH_PORT:
+            return "", 404
+        body = await request.get_json(silent=True) or {}
+        action = str(body.get("action") or "")
+        path = str(body.get("path") or "")
+        user = str(body.get("user") or "")
+        password = str(body.get("password") or "")
+        ip = str(body.get("ip") or "")
+        app_name, _, cam_user = path.partition("/")
+        if app_name != CAMERA_APP_NAME or not _CAMERA_USERNAME_RE.match(cam_user):
+            return "", 401
+        if action == "publish":
+            if (ip in ("127.0.0.1", "::1") and user == CAMERA_RELAY_USER
+                    and secrets.compare_digest(password, CAMERA_RELAY_SECRET)):
+                return "", 200
+            logger.warning(f"MediaMTX publish refused for {path} from {ip}")
+            return "", 401
+        if action != "read":
+            return "", 401
+        # Empty credentials are the WebRTC page's first try before it prompts; not a failure.
+        if not password:
+            return "", 401
+        if _camera_auth_blocked(ip):
+            logger.warning(f"Camera viewer {ip} throttled for {path}")
+            return "", 429
+        if await camera_viewer_allowed(cam_user, password):
+            logger.info(f"Camera viewer allowed for {path} from {ip} via {body.get('protocol')}")
+            return "", 200
+        _camera_auth_failed(ip)
+        logger.warning(f"Camera viewer refused for {path} from {ip}")
+        return "", 401
+
     @app.get("/api/server")
     @_require_api_key
     async def api_server():
@@ -2721,6 +2947,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "region_display_name": server_title,
             "hostname": socket.gethostname(),
             "rtmps_port": RTMPS_PORT,
+            "camera_srt_port": CAMERA_SRT_PORT,
+            "camera_webrtc_port": CAMERA_WEBRTC_PORT,
             "active_sessions": len(session_registry.snapshot()),
             "started_at": SERVER_START_TIME.isoformat(),
             "uptime_seconds": int(uptime.total_seconds()),
@@ -2802,6 +3030,9 @@ async def _serve_web(
             insecure.append(f"{host}:8080")
         except OSError:
             probe.close()
+
+    # Loopback-only plain HTTP for the MediaMTX auth hook.
+    insecure.append(f"{CAMERA_AUTH_HOST}:{CAMERA_AUTH_PORT}")
 
     cfg.insecure_bind = insecure
     logger.info(f"HTTPS bind(s): {', '.join(cfg.bind)}")

@@ -1,0 +1,43 @@
+# MediaMTX for the phone camera relay. stream.py pushes rtmps://<host>:1935/camera/<API key> here as camera/<username>.
+# Viewers: SRT (OBS Media Source) on 8890/udp, WebRTC (browser) on 8889/tcp + 8189/udp.
+# setup.sh replaces STREAM_SSL_DOMAIN with this region's Let's Encrypt domain.
+
+logLevel: info
+logDestinations: [stdout]
+
+# Every publish/read is checked by stream.py (publish: its own ffmpeg only; read: API key or camera password).
+authMethod: http
+authHTTPAddress: http://127.0.0.1:8091/internal/mediamtx/auth
+authHTTPExclude: []
+
+api: false
+metrics: false
+pprof: false
+playback: false
+rtsp: false
+hls: false
+moq: false
+
+# Loopback only: the public RTMPS ingest stays on stream.py port 1935.
+rtmp: true
+rtmpAddress: 127.0.0.1:1936
+rtmpEncryption: "no"
+
+srt: true
+srtAddress: :8890
+
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: true
+webrtcServerKey: /etc/letsencrypt/live/STREAM_SSL_DOMAIN/privkey.pem
+webrtcServerCert: /etc/letsencrypt/live/STREAM_SSL_DOMAIN/fullchain.pem
+webrtcAllowOrigins: ["*"]
+webrtcLocalUDPAddress: :8189
+webrtcIPsFromInterfaces: true
+
+pathDefaults:
+  source: publisher
+  overridePublisher: true
+
+paths:
+  "~^camera/[a-z0-9_]{1,25}$":

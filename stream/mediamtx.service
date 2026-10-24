@@ -1,0 +1,15 @@
+[Unit]
+Description=Specter MediaMTX camera relay (SRT + WebRTC)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/specter-stream
+ExecStart=/usr/local/bin/mediamtx /opt/specter-stream/mediamtx.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
