@@ -1,0 +1,254 @@
+<?php
+require_once dirname(__DIR__) . '/_live.php';
+session_write_close();
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+include_once '/var/www/dashboard/lang/i18n.php';
+include_once '/var/www/config/ssh.php';
+ob_start();
+
+// auth: handled by ../_live.php
+
+// Get the service to check
+$service = $_GET['service'] ?? '';
+
+// Helper function to check if a PID process is running via SSH
+function checkPIDExists($host, $username, $password, $pid, $timeout = 3) {
+    if (!$pid || !is_numeric($pid)) { return false; }
+    // Check if SSH2 extension is available
+    if (!extension_loaded('ssh2')) { return false; }
+    try {
+        $connection = @ssh2_connect($host, 22);
+        if (!$connection) { return false; }
+        if (!@ssh2_auth_password($connection, $username, $password)) { 
+            @ssh2_disconnect($connection);
+            return false; 
+        }
+        // Execute ps command to check if PID exists
+        $stream = ssh2_exec($connection, "ps -p " . intval($pid));
+        if (!$stream) { 
+            @ssh2_disconnect($connection);
+            return false; 
+        }
+        stream_set_blocking($stream, true);
+        stream_set_timeout($stream, $timeout);
+        $output = stream_get_contents($stream);
+        @fclose($stream);
+        @ssh2_disconnect($connection);
+        // If ps output contains the PID, the process is running
+        return !empty($output) && strpos($output, (string)$pid) !== false;
+    } catch (Exception $e) { return false; }
+}
+
+// Helper function to check TCP port
+function checkPort($host, $port, $timeout = 2) {
+    $start = microtime(true);
+    $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
+    $latency = round((microtime(true) - $start) * 1000); // ms
+    if ($fp) { 
+        fclose($fp); 
+        return ['status' => 'OK', 'latency_ms' => $latency];
+    } else { 
+        return ['status' => 'ERROR', 'message' => "Connection failed: $errstr ($errno)"]; 
+    }
+}
+
+// Helper function to check service status via SSH
+function checkSSHService($host, $username, $password, $serviceName, $timeout = 3) {
+    $start = microtime(true);
+    // Check if SSH2 extension is available
+    if (!extension_loaded('ssh2')) { 
+        $latency = round((microtime(true) - $start) * 1000);
+        return ['status' => 'ERROR', 'message' => 'SSH2 PHP extension not available', 'output' => '', 'latency_ms' => $latency]; 
+    }
+    // Set a stream context with timeout
+    $connection = @ssh2_connect($host, 22);
+    if (!$connection) { 
+        $latency = round((microtime(true) - $start) * 1000);
+        return ['status' => 'ERROR', 'message' => 'SSH connection failed', 'output' => '', 'latency_ms' => $latency]; 
+    }
+    if (!@ssh2_auth_password($connection, $username, $password)) { 
+        $latency = round((microtime(true) - $start) * 1000);
+        @ssh2_disconnect($connection);
+        return ['status' => 'ERROR', 'message' => 'SSH authentication failed', 'output' => '', 'latency_ms' => $latency]; 
+    }
+    // Execute systemctl status command to get detailed status
+    $stream = ssh2_exec($connection, "systemctl status $serviceName");
+    if (!$stream) { 
+        $latency = round((microtime(true) - $start) * 1000);
+        @ssh2_disconnect($connection);
+        return ['status' => 'ERROR', 'message' => 'Failed to execute SSH command', 'output' => '', 'latency_ms' => $latency]; 
+    }
+    stream_set_blocking($stream, true);
+    stream_set_timeout($stream, $timeout);
+    $output = stream_get_contents($stream);
+    @fclose($stream);
+    @ssh2_disconnect($connection);
+    $latency = round((microtime(true) - $start) * 1000);
+    // Parse the systemctl status output
+    if (strpos($output, 'Active: active (running)') !== false) {
+        return ['status' => 'OK', 'latency_ms' => $latency, 'output' => $output];
+    } else if (strpos($output, 'Active: activating') !== false) {
+        return ['status' => 'OK', 'latency_ms' => $latency, 'output' => $output];
+    } else if (strpos($output, 'Active: inactive (dead)') !== false) {
+        return ['status' => 'ERROR', 'message' => 'Service is stopped (inactive/dead)', 'latency_ms' => $latency, 'output' => $output];
+    } else if (strpos($output, 'Active: failed') !== false) {
+        return ['status' => 'ERROR', 'message' => 'Service has failed', 'latency_ms' => $latency, 'output' => $output];
+    } else {
+        // Extract the Active line for detailed error message
+        $lines = explode("\n", $output);
+        $activeLine = '';
+        foreach ($lines as $line) {
+            if (strpos(trim($line), 'Active:') === 0) {
+                $activeLine = trim($line);
+                break;
+            }
+        }
+        return ['status' => 'ERROR', 'message' => $activeLine ?: 'Unknown service status', 'latency_ms' => $latency, 'output' => $output];
+    }
+}
+
+// Map services to host/port
+$serviceMap = [
+    'api' => [
+        'name' => 'API Service',
+        'host' => 'api.botofthespecter.com',
+        'port' => 443,
+        'disabled' => false
+    ],
+    'database' => [
+        'name' => 'Database Service',
+        'host' => 'sql.botofthespecter.com',
+        'port' => 3306,
+        'disabled' => false
+    ],
+    'websocket' => [
+        'name' => 'Notification Service',
+        'host' => 'websocket.botofthespecter.com',
+        'port' => 443,
+        'disabled' => false
+    ],
+    'bots' => [
+        'name' => 'Bots Service',
+        'host' => 'bots.botofthespecter.com',
+        'port' => 22,
+        'disabled' => false
+    ],
+    'discordbot' => [
+        'name' => 'Discord Bot Service',
+        'type' => 'ssh_service',
+        'service_name' => 'discordbot',
+        'ssh_host' => $bots_ssh_host,
+        'ssh_username' => $bots_ssh_username,
+        'ssh_password' => $bots_ssh_password,
+        'disabled' => false
+    ],
+    'streamingService' => [
+        'name' => 'SYD1 Streaming Service',
+        'host' => 'syd1.stream.botofthespecter.com',
+        'port' => 1935,
+        'disabled' => false
+    ],
+    'streamingServiceWest' => [
+        'name' => 'US-WEST-1 Streaming Service',
+        'host' => 'usw1.stream.botofthespecter.com',
+        'port' => 1935,
+        'disabled' => true
+    ],
+    'streamingServiceEast' => [
+        'name' => 'US-EAST-1 Streaming Service',
+        'host' => 'use1.stream.botofthespecter.com',
+        'port' => 1935,
+        'disabled' => true
+    ]
+];
+
+// Discord bot global status/version
+$discordVersionFilePath = '/var/www/logs/version/discord_version_control.txt';
+$discordVersion = file_exists($discordVersionFilePath) ? trim(file_get_contents($discordVersionFilePath)) : '';
+
+// Check status
+if (isset($serviceMap[$service])) {
+    $svc = $serviceMap[$service];
+    if (isset($svc['disabled']) && $svc['disabled']) {
+        $serviceData = [
+            'name' => $svc['name'],
+            'status' => 'DISABLED',
+            'message' => 'Service is disabled',
+            'timestamp' => date('c'),
+            'checked_at' => time()
+        ];
+    } else {
+        // Check if this is an SSH service or regular port check
+        if (isset($svc['type']) && $svc['type'] === 'ssh_service') {
+            // SSH service check
+            $result = checkSSHService($svc['ssh_host'], $svc['ssh_username'], $svc['ssh_password'], $svc['service_name']);
+            // Special handling for Discord bot service - use Bots service latency when running
+            $latency_to_show = $result['latency_ms'];
+            if ($service === 'discordbot' && $result['status'] === 'OK') {
+                // Get the Bots service latency to show instead of SSH latency
+                $botsResult = checkPort($serviceMap['bots']['host'], $serviceMap['bots']['port']);
+                if ($botsResult['status'] === 'OK') {
+                    $latency_to_show = $botsResult['latency_ms'];
+                }
+            }
+            // Extract PID for Discord bot service only
+            $pid = null;
+            $pidIsRunning = false;
+            if ($service === 'discordbot' && isset($result['output'])) {
+                if (preg_match('/Main PID:\s*(\d+)/', $result['output'], $matches)) {
+                    $pid = $matches[1];
+                    // Verify the PID is actually running
+                    $pidIsRunning = checkPIDExists($svc['ssh_host'], $svc['ssh_username'], $svc['ssh_password'], $pid);
+                }
+            }
+            $serviceData = [
+                'name' => $svc['name'],
+                'status' => $result['status'],
+                'latency_ms' => $result['status'] === 'OK' ? $latency_to_show : null,
+                'host' => $svc['ssh_host'],
+                'service' => $svc['service_name'],
+                'timestamp' => date('c'),
+                'checked_at' => time(),
+                'message' => $result['status'] === 'OK' ? '' : $result['message'],
+                'version' => $discordVersion
+            ];
+            if ($pid !== null) {
+                $serviceData['pid'] = $pid;
+                $serviceData['pid_running'] = $pidIsRunning;
+            }
+        } else {
+            // Regular port check
+            $result = checkPort($svc['host'], $svc['port']);
+            $serviceData = [
+                'name' => $svc['name'],
+                'status' => $result['status'],
+                'latency_ms' => $result['status'] === 'OK' ? $result['latency_ms'] : null,
+                'host' => $svc['host'],
+                'port' => $svc['port'],
+                'host_port' => $svc['host'] . ':' . $svc['port'],
+                'timestamp' => date('c'),
+                'checked_at' => time(),
+                'message' => $result['status'] === 'OK' ? '' : $result['message']
+            ];
+        }
+    }
+} elseif ($service === 'ping') {
+    $serviceData = [
+        'pong' => true,
+        'timestamp' => date('c'),
+        'checked_at' => time()
+    ];
+} else {
+    $serviceData = [
+        'error' => t('bot_status_unknown'),
+        'timestamp' => date('c'),
+        'checked_at' => time()
+    ];
+}
+
+// Return data as JSON
+ob_clean(); // Clear any accidental output
+header('Content-Type: application/json');
+echo json_encode($serviceData);
+exit();
+?>

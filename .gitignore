@@ -140,3 +140,8 @@ websocket/tts-engine/__pycache__/
 *.pyw
 *.pyz
 AGENTS.md
+
+# Beta React dashboard build output and deps
+dashboard-ui/node_modules/
+beta-dashboard/
+beta-admin/

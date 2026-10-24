@@ -1,0 +1,325 @@
+<?php
+// Beta admin guard. Include first in every admin endpoint (not me-less files
+// like login.php/logout.php). Mirrors dashboard/admin/admin_access.php:
+//  - restores the admin's own identity if an Act As session is active
+//  - 401 JSON when not signed in, 403 JSON when not an admin
+//  - re-reads users.is_admin from the database on every request
+//  - writes the same admin_audit_log rows as the old panel
+require_once __DIR__ . '/_session.php';
+badm_session_start();
+
+if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true
+    && isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original'])) {
+    $orig = $_SESSION['admin_act_as_original'];
+    foreach (['access_token', 'user_id', 'username', 'is_admin', 'beta_access', 'api_key'] as $k) {
+        if (isset($orig[$k]) && ($k !== 'access_token' || $orig[$k] !== '')) {
+            $_SESSION[$k] = $orig[$k];
+        }
+    }
+}
+
+if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
+    badm_json(401, ['ok' => false, 'error' => 'not_signed_in']);
+}
+
+mysqli_report(MYSQLI_REPORT_OFF);
+try {
+    require_once '/var/www/config/db_connect.php';
+} catch (Throwable $e) {
+    error_log('[beta admin] db_connect failed: ' . $e->getMessage());
+    badm_json(503, ['ok' => false, 'error' => 'database_unavailable']);
+}
+if (!isset($conn) || !($conn instanceof mysqli) || $conn->connect_error) {
+    badm_json(503, ['ok' => false, 'error' => 'database_unavailable']);
+}
+$GLOBALS['conn'] = $conn;
+
+function admin_audit_is_sensitive_key($key) {
+    if (!is_string($key) || $key === '') {
+        return false;
+    }
+    $key = strtolower($key);
+    $sensitiveKeys = [
+        'password', 'pass', 'secret', 'token', 'access_token', 'refresh_token',
+        'api_key', 'apikey', 'authorization', 'cookie', 'client_secret', 'oauth'
+    ];
+    foreach ($sensitiveKeys as $sensitiveKey) {
+        if (strpos($key, $sensitiveKey) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function admin_audit_sanitize_value($value, $key = null) {
+    if ($key !== null && admin_audit_is_sensitive_key((string) $key)) {
+        return '[REDACTED]';
+    }
+
+    if (is_array($value)) {
+        $sanitized = [];
+        foreach ($value as $childKey => $childValue) {
+            $sanitized[$childKey] = admin_audit_sanitize_value($childValue, (string) $childKey);
+        }
+        return $sanitized;
+    }
+
+    if (is_object($value)) {
+        $sanitized = [];
+        foreach (get_object_vars($value) as $childKey => $childValue) {
+            $sanitized[$childKey] = admin_audit_sanitize_value($childValue, (string) $childKey);
+        }
+        return $sanitized;
+    }
+
+    if (is_string($value)) {
+        $value = trim($value);
+        if (preg_match('/^Bearer\s+/i', $value)) {
+            return 'Bearer [REDACTED]';
+        }
+        if (strlen($value) > 500) {
+            return mb_substr($value, 0, 500) . '...';
+        }
+    }
+
+    return $value;
+}
+
+function admin_audit_get_actor_context() {
+    $actorId = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
+    $actorUsername = isset($_SESSION['username']) ? trim((string) $_SESSION['username']) : '';
+    $ipAddress = isset($_SERVER['HTTP_CF_CONNECTING_IP']) && $_SERVER['HTTP_CF_CONNECTING_IP'] !== ''
+        ? $_SERVER['HTTP_CF_CONNECTING_IP']
+        : (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown');
+    $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? mb_substr((string) $_SERVER['HTTP_USER_AGENT'], 0, 255) : '';
+    $requestMethod = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+    $requestPath = isset($_SERVER['REQUEST_URI'])
+        ? (string) parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH)
+        : (isset($_SERVER['PHP_SELF']) ? (string) $_SERVER['PHP_SELF'] : 'unknown');
+
+    return [
+        'actor_id' => $actorId,
+        'actor_username' => $actorUsername,
+        'ip_address' => mb_substr((string) $ipAddress, 0, 45),
+        'user_agent' => $userAgent,
+        'request_method' => mb_substr($requestMethod, 0, 10),
+        'request_path' => mb_substr((string) $requestPath, 0, 255),
+    ];
+}
+
+function admin_audit_ensure_table() {
+    static $tableChecked = false;
+    global $conn;
+
+    if ($tableChecked) {
+        return true;
+    }
+
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return false;
+    }
+
+    $sql = "CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        actor_user_id INT NULL,
+        actor_username VARCHAR(255) NOT NULL DEFAULT '',
+        action VARCHAR(128) NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'info',
+        target_type VARCHAR(64) NULL,
+        target_value VARCHAR(255) NULL,
+        details_json LONGTEXT NULL,
+        request_method VARCHAR(10) NOT NULL DEFAULT 'GET',
+        request_path VARCHAR(255) NOT NULL DEFAULT '',
+        ip_address VARCHAR(45) NOT NULL DEFAULT '',
+        user_agent VARCHAR(255) NOT NULL DEFAULT '',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_created_at (created_at),
+        INDEX idx_actor_username (actor_username),
+        INDEX idx_action (action),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    $tableChecked = ($conn->query($sql) === true);
+    return $tableChecked;
+}
+
+function admin_audit_log($action, $status = 'info', $details = [], $targetType = null, $targetValue = null) {
+    global $conn;
+
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return false;
+    }
+    if (!admin_audit_ensure_table()) {
+        return false;
+    }
+
+    $action = trim((string) $action);
+    if ($action === '') {
+        $action = 'unknown_action';
+    }
+    $status = trim((string) $status);
+    if ($status === '') {
+        $status = 'info';
+    }
+
+    if (!is_array($details)) {
+        $details = ['value' => $details];
+    }
+    $detailsJson = json_encode(admin_audit_sanitize_value($details), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($detailsJson === false) {
+        $detailsJson = null;
+    }
+
+    $context = admin_audit_get_actor_context();
+
+    $stmt = $conn->prepare("INSERT INTO admin_audit_log (actor_user_id, actor_username, action, status, target_type, target_value, details_json, request_method, request_path, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    if (!$stmt) {
+        return false;
+    }
+
+    $action = mb_substr($action, 0, 128);
+    $status = mb_substr($status, 0, 32);
+    $targetType = $targetType !== null ? mb_substr((string) $targetType, 0, 64) : null;
+    $targetValue = $targetValue !== null ? mb_substr((string) $targetValue, 0, 255) : null;
+    $actorUsername = mb_substr((string) $context['actor_username'], 0, 255);
+
+    $stmt->bind_param(
+        'issssssssss',
+        $context['actor_id'],
+        $actorUsername,
+        $action,
+        $status,
+        $targetType,
+        $targetValue,
+        $detailsJson,
+        $context['request_method'],
+        $context['request_path'],
+        $context['ip_address'],
+        $context['user_agent']
+    );
+
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
+}
+
+function admin_audit_auto_log_request() {
+    $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+    $scriptName = basename((string) ($_SERVER['PHP_SELF'] ?? ''));
+
+    if ($method === 'GET' && $scriptName === 'logs.php') {
+        $logViewerFetchKeys = ['admin_log_user', 'admin_system_log_type', 'admin_token_log_type', 'admin_audit_log'];
+        foreach ($logViewerFetchKeys as $logKey) {
+            if (isset($_GET[$logKey])) {
+                return;
+            }
+        }
+    }
+
+    $postKeys = array_keys($_POST ?? []);
+    $queryKeys = array_keys($_GET ?? []);
+    $action = '';
+
+    if ($method !== 'GET') {
+        if (isset($_POST['action']) && $_POST['action'] !== '') {
+            $action = 'post_' . preg_replace('/[^a-z0-9_\-.]/i', '', (string) $_POST['action']);
+        } elseif (!empty($postKeys)) {
+            $action = 'post_' . preg_replace('/[^a-z0-9_\-.]/i', '', (string) $postKeys[0]);
+        } else {
+            $action = 'post_request';
+        }
+    } else {
+        $getActionCandidates = [
+            'action',
+            'ajax',
+            'refresh_data',
+            'get_running_bots',
+            'get_user_clients',
+            'load_token_cache',
+            'service',
+            'script',
+            'admin_log_user',
+            'admin_system_log_type',
+            'admin_token_log_type',
+            'admin_audit_log'
+        ];
+
+        foreach ($getActionCandidates as $candidate) {
+            if (isset($_GET[$candidate])) {
+                $value = is_scalar($_GET[$candidate]) ? (string) $_GET[$candidate] : '1';
+                $value = preg_replace('/[^a-z0-9_\-.]/i', '', $value);
+                if ($value === '') {
+                    $value = '1';
+                }
+                $action = 'get_' . $candidate . '_' . mb_substr($value, 0, 64);
+                break;
+            }
+        }
+
+        if ($action === '') {
+            return;
+        }
+    }
+
+    $details = [
+        'post_keys' => $postKeys,
+        'query_keys' => $queryKeys,
+    ];
+    if (isset($_POST['username'])) {
+        $details['username'] = (string) $_POST['username'];
+    }
+    if (isset($_POST['service'])) {
+        $details['service'] = (string) $_POST['service'];
+    }
+    if (isset($_GET['ajax'])) {
+        $details['ajax'] = (string) $_GET['ajax'];
+    }
+    if (isset($_GET['service'])) {
+        $details['service'] = (string) $_GET['service'];
+    }
+    if (isset($_GET['script'])) {
+        $details['script'] = (string) $_GET['script'];
+    }
+
+    admin_audit_log($action, 'request', $details, 'page', $scriptName !== '' ? $scriptName : 'unknown');
+}
+
+// Resolve the admin by stable identity (twitch user id, then user id), never
+// by the access token, and re-check is_admin on every request.
+$adminRow = null;
+$badmTid = (string) ($_SESSION['twitchUserId'] ?? '');
+$st = $conn->prepare('SELECT id, username, is_admin FROM users WHERE twitch_user_id = ? LIMIT 1');
+if ($st) {
+    $st->bind_param('s', $badmTid);
+    $st->execute();
+    $adminRow = $st->get_result()->fetch_assoc() ?: null;
+    $st->close();
+}
+if (!$adminRow && (int) ($_SESSION['user_id'] ?? 0) > 0) {
+    $badmUid = (int) $_SESSION['user_id'];
+    $st = $conn->prepare('SELECT id, username, is_admin FROM users WHERE id = ? LIMIT 1');
+    if ($st) {
+        $st->bind_param('i', $badmUid);
+        $st->execute();
+        $adminRow = $st->get_result()->fetch_assoc() ?: null;
+        $st->close();
+    }
+}
+$is_admin = $adminRow !== null && (int) ($adminRow['is_admin'] ?? 0) === 1;
+if ($adminRow) {
+    $_SESSION['user_id'] = (int) $adminRow['id'];
+    $_SESSION['username'] = $adminRow['username'] ?? ($_SESSION['username'] ?? '');
+}
+$_SESSION['is_admin'] = $is_admin ? 1 : 0;
+if (!$is_admin) {
+    admin_audit_log('beta_admin_access_denied', 'denied', ['twitch_user_id' => $badmTid], 'page', basename((string) ($_SERVER['PHP_SELF'] ?? '')));
+    badm_json(403, ['ok' => false, 'error' => 'not_admin']);
+}
+
+if (!defined('ADMIN_AUDIT_REQUEST_LOGGED')) {
+    define('ADMIN_AUDIT_REQUEST_LOGGED', true);
+    admin_audit_auto_log_request();
+}
+if (!defined('ADMIN_PANEL_CONTEXT')) {
+    define('ADMIN_PANEL_CONTEXT', true);
+}
