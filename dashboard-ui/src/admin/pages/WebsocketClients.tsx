@@ -87,14 +87,14 @@ export default function WebsocketClients() {
             </tr>))}</tbody>
         </table></div>
       </section>}
-      {user && <Modal title={`${l('modal_title')} ${user.twitch_display_name}`} icon="fas fa-users" onClose={() => setUser(null)}>
+      {user && <Modal title={`${l('modal_title')} ${user.twitch_display_name}`} icon="fas fa-users" xl onClose={() => setUser(null)}>
         <div className="adm-modal-scroll">
           <div className="adm-box adm-gap"><strong>{l('modal_api_key_label')}</strong> {keyBox(user.ref, 32, user.twitch_display_name)}<p className="muted">{user.client_count} {l('modal_connected_clients_suffix')}</p></div>
           <div className="bp-table adm-left"><table>
             <thead><tr><th>{l('th_client_name')}</th><th>{l('th_socket_id')}</th><th>{l('th_admin')}</th><th>{l('th_connected_at')}</th><th>{l('th_last_activity')}</th><th>{l('th_actions')}</th></tr></thead>
             <tbody>{user.clients.map((c) => (
-              <tr key={c.sid}><td>{c.name}</td><td className="adm-code">{c.sid}</td><td>{badge(c)}</td><td>{c.connected_at || l('not_available')}</td><td>{c.last_activity || l('not_available')}</td>
-                <td><button type="button" className="btn btn-danger" onClick={() => disconnect(c.sid)}><i className="fas fa-times" /> {l('disconnect')}</button></td></tr>))}</tbody>
+              <tr key={c.sid}><td>{c.name}</td><td className="adm-code adm-nowrap">{c.sid}</td><td>{badge(c)}</td><td className="adm-nowrap">{c.connected_at || l('not_available')}</td><td className="adm-nowrap">{c.last_activity || l('not_available')}</td>
+                <td className="adm-nowrap"><button type="button" className="btn btn-danger" onClick={() => disconnect(c.sid)}><i className="fas fa-times" /> {l('disconnect')}</button></td></tr>))}</tbody>
           </table></div>
         </div>
         <div className="modal-acts"><button type="button" className="btn btn-ghost" data-autofocus onClick={() => setUser(null)}>{l('close')}</button></div>

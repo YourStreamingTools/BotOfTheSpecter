@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 const stack: object[] = []
 
 // Portal dialog with a focus trap, Esc to close and focus returned on close.
-export default function Modal({ title, icon, onClose, children, wide }: { title: string; icon?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export default function Modal({ title, icon, onClose, children, wide, xl }: { title: string; icon?: string; onClose: () => void; children: ReactNode; wide?: boolean; xl?: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
   close.current = onClose
@@ -30,7 +30,7 @@ export default function Modal({ title, icon, onClose, children, wide }: { title:
   }, [])
   return createPortal(
     <div className="modal-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div ref={box} className={`modal card${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={box} className={`modal card${wide ? ' modal-wide' : ''}${xl ? ' modal-xl' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head"><h3>{icon && <i className={icon} />} {title}</h3>
           <button type="button" className="combo-x" aria-label="Close" onClick={onClose}><i className="fa-solid fa-xmark" /></button></div>
         {children}
