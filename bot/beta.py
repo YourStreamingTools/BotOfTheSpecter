@@ -196,7 +196,7 @@ class TaskCursorWrapper:
             query = query.replace("user_tasks", "streamer_tasks")
         return await self.cursor.execute(query, params)
 
-VERSION = "5.9.3"
+VERSION = "5.9.4"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
@@ -5545,6 +5545,21 @@ class TwitchBot(commands.Bot):
                             target_user_id = str(user_info[0].id)
                             target_user_name = user_info[0].name.lower()
                             is_self_lookup = (target_user_id == str(ctx.author.id))
+                        # The broadcaster has unlimited points
+                        if target_user_id == str(CHANNEL_ID):
+                            await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("points",))
+                            points_options = parse_command_options_json(await cursor.fetchone())
+                            if is_self_lookup:
+                                await send_chat_message(resolve_builtin_chat_message(
+                                    points_options, "points", "message",
+                                    {"(user)": target_user_name, "(points)": "unlimited"},
+                                ))
+                            else:
+                                await send_chat_message(resolve_builtin_chat_message(
+                                    points_options, "points", "message_other",
+                                    {"(target)": target_user_name, "(points)": "unlimited"},
+                                ))
+                            return
                         settings = await get_point_settings()
                         if settings and 'excluded_users' in settings:
                             excluded_users = set(u.strip().lower() for u in settings['excluded_users'].split(',')) | await get_known_bots()
@@ -11290,8 +11305,10 @@ class TwitchBot(commands.Bot):
                     message = f"{ctx.author.name}, {''.join(result)} Better luck next time. You lost {loss_penalty} points."
                 # Update user's points in the database
                 # Apply only this game's change, so points earned from chat in the meantime aren't overwritten
-                await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
-                await connection.commit()
+                # The broadcaster has unlimited points, so nothing is saved
+                if str(user_id) != str(CHANNEL_ID):
+                    await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
+                    await connection.commit()
                 await send_chat_message(message)
         except GeneratorExit:
             # Handle generator exit gracefully without attempting further async operations
@@ -11428,11 +11445,14 @@ class TwitchBot(commands.Bot):
                 if "gets shot" in result:
                     penalty = 100
                     user_points = max(0, user_points - penalty)
-                    message += f" Lost {penalty} points for hospital bills. Current points: {user_points}"
+                    # The broadcaster has unlimited points, so nothing is saved
+                    is_broadcaster = str(user_id) == str(CHANNEL_ID)
+                    message += f" Lost {penalty} points for hospital bills. Current points: {'unlimited' if is_broadcaster else user_points}"
                     # Update user's points in the database
                     # Apply only this game's change, so points earned from chat in the meantime aren't overwritten
-                    await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
-                    await connection.commit()
+                    if not is_broadcaster:
+                        await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
+                        await connection.commit()
                 await send_chat_message(message)
         except Exception as e:
             chat_logger.error(f"[ROULETTE] An error occurred during the execution of the roulette command: {e}")
@@ -11526,34 +11546,27 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(f"{ctx.author.name}, please specify a game type. Try !gamble coinflip 100, !gamble blackjack 100, or !gamble roulette red 100")
                     return
                 game_type = parts[1].lower()
-                try:
-                    bet_amount = int(parts[2]) if len(parts) > 2 else 100
-                except ValueError:
-                    bet_amount = 100
+                # Work out the bet and, for roulette, the colour (either order)
+                choice = None
+                bet_token = None
                 if game_type == "roulette":
-                    if len(parts) > 2:
-                        if parts[2].lower() in ["red", "black"]:
-                            choice = parts[2].lower()
-                            try:
-                                bet_amount = int(parts[3]) if len(parts) > 3 else 100
-                            except ValueError:
-                                bet_amount = 100
-                        else:
-                            try:
-                                bet_amount = int(parts[2])
-                                choice = parts[3].lower() if len(parts) > 3 else None
-                            except ValueError:
-                                choice = parts[2].lower() if parts[2].lower() in ["red", "black"] else None
-                                bet_amount = 100
-                    else:
-                        choice = None
-                    if not choice or choice not in ["red", "black"]:
+                    for token in parts[2:4]:
+                        if token.lower() in ["red", "black"] and choice is None:
+                            choice = token.lower()
+                        elif bet_token is None:
+                            bet_token = token.lower()
+                    if not choice:
                         await send_chat_message(f"{ctx.author.name}, please specify red or black for roulette. Usage: !gamble roulette red 100 or !gamble roulette 100 red")
                         return
-                # A zero or negative bet would add points on a loss
-                if bet_amount < 1:
-                    await send_chat_message(f"{ctx.author.name}, please bet at least 1 point.")
-                    return
+                elif len(parts) > 2:
+                    bet_token = parts[2].lower()
+                bet_all = bet_token == "all"
+                bet_amount = 100
+                if bet_token and not bet_all:
+                    try:
+                        bet_amount = int(bet_token)
+                    except ValueError:
+                        bet_amount = 100
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
@@ -11567,49 +11580,62 @@ class TwitchBot(commands.Bot):
                 else:
                     user_points = user_data.get("points")
                 starting_points = user_points
-                # Check if user has enough points (broadcaster has unlimited points)
+                # The broadcaster has unlimited points: bets are never refused or saved
                 is_broadcaster = ctx.author.is_broadcaster
+                # 'all' bets the whole saved balance (the broadcaster has no balance, so it uses the default bet)
+                if bet_all:
+                    bet_amount = 100 if is_broadcaster else user_points
+                # A zero or negative bet would add points on a loss
+                if bet_amount < 1:
+                    await send_chat_message(f"{ctx.author.name}, please bet at least 1 point.")
+                    return
+                # Check if user has enough points (broadcaster has unlimited points)
                 if not is_broadcaster and user_points < bet_amount:
                     await send_chat_message(f"{ctx.author.name}, you don't have enough points to gamble {bet_amount}. You have {user_points} points.")
                     return
                 # Handle game types
                 if game_type == "coinflip":
-                    # Coin flip: 50% chance to win double, 50% to lose all
+                    # Coin flip: 50% chance to win the bet, 50% to lose it
                     if random.random() < 0.5:  # Win
-                        winnings = bet_amount * 2
+                        winnings = bet_amount
                         user_points += winnings
-                        message = f"{ctx.author.name}, you flipped heads and won {winnings} points! Total points: {user_points}"
+                        message = f"{ctx.author.name}, you flipped heads and won {winnings} points! Total points: {{total}}"
                     else:  # Lose
                         user_points -= bet_amount
-                        message = f"{ctx.author.name}, you flipped tails and lost {bet_amount} points. Total points: {user_points}"
+                        message = f"{ctx.author.name}, you flipped tails and lost {bet_amount} points. Total points: {{total}}"
                 elif game_type == "blackjack":
                     # Blackjack
                     roll = random.randint(1, 21)
                     if roll == 21:
-                        winnings = bet_amount * 2
+                        winnings = bet_amount
                         user_points += winnings
-                        message = f"{ctx.author.name}, you rolled 21 in blackjack and won {winnings} points! Total points: {user_points}"
+                        message = f"{ctx.author.name}, you rolled 21 in blackjack and won {winnings} points! Total points: {{total}}"
                     else:
                         user_points -= bet_amount
-                        message = f"{ctx.author.name}, you rolled {roll} in blackjack and lost {bet_amount} points. Total points: {user_points}"
+                        message = f"{ctx.author.name}, you rolled {roll} in blackjack and lost {bet_amount} points. Total points: {{total}}"
                 elif game_type == "roulette":
                     bot_choice = random.choice(["red", "black"])
                     if choice == bot_choice:
-                        winnings = bet_amount * 2
+                        winnings = bet_amount
                         user_points += winnings
-                        message = f"{ctx.author.name}, roulette landed on {bot_choice}, you won {winnings} points! Total points: {user_points}"
+                        message = f"{ctx.author.name}, roulette landed on {bot_choice}, you won {winnings} points! Total points: {{total}}"
                     else:
                         user_points -= bet_amount
-                        message = f"{ctx.author.name}, roulette landed on {bot_choice}, you lost {bet_amount} points. Total points: {user_points}"
+                        message = f"{ctx.author.name}, roulette landed on {bot_choice}, you lost {bet_amount} points. Total points: {{total}}"
                 else:
                     await send_chat_message(f"{ctx.author.name}, invalid game type. Try !gamble coinflip {bet_amount}, !gamble blackjack {bet_amount}, or !gamble roulette red {bet_amount}")
                     return
-                # Update user's points in the database (skip for broadcaster)
-                if not is_broadcaster:
-                    # Apply only this game's change, so points earned from chat in the meantime aren't overwritten
+                if is_broadcaster:
+                    # Broadcaster has unlimited points, so nothing is saved
+                    total = "unlimited"
+                else:
+                    # Save only this game's change, so points earned from chat in the meantime aren't overwritten, then show the saved balance
                     await cursor.execute("UPDATE bot_points SET points = GREATEST(points + %s, 0) WHERE user_id = %s", (user_points - starting_points, user_id))
                     await connection.commit()
-                await send_chat_message(message)
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                    saved = await cursor.fetchone()
+                    total = saved.get("points") if saved else max(user_points, 0)
+                await send_chat_message(message.replace("{total}", str(total)))
         except Exception as e:
             chat_logger.error(f"[GAMBLE] An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -20249,21 +20275,26 @@ async def point_store_checkout(connection, cursor, *, settings, item, user_id, u
                 if cursor.rowcount != 1:
                     raise RuntimeError("This item is out of stock.")
 
-            # Atomic debit (must have enough points)
-            await cursor.execute(
-                "UPDATE bot_points SET points = points - %s, user_name = %s WHERE user_id = %s AND points >= %s",
-                (cost, user_name, user_id, cost),
-            )
-            if cursor.rowcount != 1:
+            # The broadcaster has unlimited points, so the purchase is not charged
+            is_broadcaster = str(user_id) == str(CHANNEL_ID)
+            if is_broadcaster:
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
+            else:
+                # Atomic debit (must have enough points)
                 await cursor.execute(
-                    "UPDATE bot_points SET points = points - %s WHERE user_name = %s AND points >= %s",
-                    (cost, user_name, cost),
+                    "UPDATE bot_points SET points = points - %s, user_name = %s WHERE user_id = %s AND points >= %s",
+                    (cost, user_name, user_id, cost),
                 )
                 if cursor.rowcount != 1:
-                    raise RuntimeError(f"Not enough {point_name}.")
-                await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s LIMIT 1", (user_name,))
-            else:
-                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
+                    await cursor.execute(
+                        "UPDATE bot_points SET points = points - %s WHERE user_name = %s AND points >= %s",
+                        (cost, user_name, cost),
+                    )
+                    if cursor.rowcount != 1:
+                        raise RuntimeError(f"Not enough {point_name}.")
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s LIMIT 1", (user_name,))
+                else:
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
             bal_row = await cursor.fetchone()
             balance_after = int(bal_row["points"]) if bal_row else 0
 
@@ -20287,7 +20318,7 @@ async def point_store_checkout(connection, cursor, *, settings, item, user_id, u
             await connection.commit()
             return {
                 "cost": cost,
-                "balance_after": balance_after,
+                "balance_after": "unlimited" if is_broadcaster else balance_after,
                 "payload": payload,
                 "point_name": point_name,
             }
