@@ -42,20 +42,7 @@ $target = preg_replace('/\D/', '', (string) ($_GET['user_id'] ?? ''));
 if ($target === '') mca_go('not_found');
 
 // Use the original actor when already acting as someone else.
-$actor = (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original'])) ? $_SESSION['admin_act_as_original'] : [
-    'user_id' => $_SESSION['user_id'] ?? null,
-    'username' => $_SESSION['username'] ?? '',
-    'twitchUserId' => $_SESSION['twitchUserId'] ?? '',
-    'access_token' => $_SESSION['access_token'] ?? null,
-    'refresh_token' => $_SESSION['refresh_token'] ?? null,
-    'api_key' => $_SESSION['api_key'] ?? null,
-    'is_admin' => $_SESSION['is_admin'] ?? false,
-    'beta_access' => $_SESSION['beta_access'] ?? false,
-    'use_custom' => $_SESSION['use_custom'] ?? 0,
-    'use_self' => $_SESSION['use_self'] ?? 0,
-    'use_custom_module' => $_SESSION['use_custom_module'] ?? 0,
-    'user_data' => $_SESSION['user_data'] ?? null,
-];
+$actor = (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original'])) ? $_SESSION['admin_act_as_original'] : beta_act_as_snapshot();
 $actorName = strtolower(trim((string) ($actor['username'] ?? '')));
 $actorIsAdmin = !empty($actor['is_admin']);
 $ok = $actorIsAdmin || $actorName === 'botofthespecter';
@@ -78,7 +65,8 @@ unset(
     $_SESSION['editing_user'], $_SESSION['editing_username'], $_SESSION['editing_display_name'], $_SESSION['editing_profile_image'],
     $_SESSION['editing_access_token'], $_SESSION['editing_refresh_token'], $_SESSION['editing_api_key'],
     $_SESSION['mod_act_as_active'], $_SESSION['mod_act_as_started_at'], $_SESSION['mod_act_as_actor_username'],
-    $_SESSION['mod_act_as_target_user_id'], $_SESSION['mod_act_as_target_username'], $_SESSION['mod_act_as_target_display_name']
+    $_SESSION['mod_act_as_target_user_id'], $_SESSION['mod_act_as_target_username'], $_SESSION['mod_act_as_target_display_name'],
+    $_SESSION['admin_act_as_applied']
 );
 $_SESSION['user_data'] = null;
 $_SESSION['admin_act_as_active'] = true;
@@ -89,6 +77,7 @@ $_SESSION['admin_act_as_actor_role'] = $actorIsAdmin ? 'admin' : 'moderator';
 $_SESSION['admin_act_as_target_user_id'] = (int) $row['id'];
 $_SESSION['admin_act_as_target_username'] = (string) $row['username'];
 $_SESSION['admin_act_as_target_display_name'] = (string) ($row['twitch_display_name'] ?? '');
+beta_act_as_apply();
 session_write_close();
 header('Cache-Control: no-store');
 header('Location: /');

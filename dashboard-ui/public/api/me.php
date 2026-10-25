@@ -4,13 +4,14 @@ beta_session_start();
 if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
     beta_json(401, ['ok' => false, 'logged_in' => false]);
 }
-// Same admin check as the old menu: users.is_admin == 1 (dashboard/includes/userdata.php)
+// Same admin check as the old menu: users.is_admin == 1 (dashboard/includes/userdata.php).
+// Checked for the signed-in person, so the Admin Panel link stays while acting as someone.
 $isAdmin = false;
 require_once '/var/www/config/db_connect.php';
 if (isset($conn) && $conn instanceof mysqli) {
     $stmt = mysqli_prepare($conn, 'SELECT is_admin FROM users WHERE twitch_user_id = ? LIMIT 1');
     if ($stmt) {
-        $tid = (string)$_SESSION['twitchUserId'];
+        $tid = (string)beta_actor('twitchUserId');
         mysqli_stmt_bind_param($stmt, 's', $tid);
         mysqli_stmt_execute($stmt);
         $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));

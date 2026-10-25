@@ -18,7 +18,8 @@ $op = (string) ($_GET['op'] ?? '');
 if ($_SERVER['REQUEST_METHOD'] !== 'GET' || !in_array($op, ['ping', 'check'], true)) beta_json(400, ['success' => false, 'message' => 'Unknown action.']);
 if ($op === 'ping') { session_write_close(); beta_json(200, ['success' => true]); }
 
-$uid = (string) ($_SESSION['twitchUserId'] ?? '');
+// The token is always the signed-in person's, also while acting as another channel.
+$uid = (string) (beta_actor('twitchUserId') ?? '');
 $at = (string) ($_SESSION['access_token'] ?? '');
 $rt = (string) ($_SESSION['refresh_token'] ?? '');
 // Don't hold the session lock over the Twitch calls; the relay shares it.
@@ -34,6 +35,11 @@ function beta_tw_store(string $at, string $rt, int $expiresIn): void {
     beta_session_start();
     if ($at !== '') $_SESSION['access_token'] = $at;
     if ($rt !== '') $_SESSION['refresh_token'] = $rt;
+    // Keep the copy Stop Acting As restores in step.
+    if (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original'])) {
+        if ($at !== '') $_SESSION['admin_act_as_original']['access_token'] = $at;
+        if ($rt !== '') $_SESSION['admin_act_as_original']['refresh_token'] = $rt;
+    }
     $_SESSION['twitch_expires_at'] = time() + $expiresIn;
     $_SESSION['last_validated_at'] = time();
     beta_ws_register();
