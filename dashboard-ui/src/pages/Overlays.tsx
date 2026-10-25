@@ -7,6 +7,8 @@ import { Switch, ToastBar, send, type Toast } from './commands/shared'
 
 // Port of dashboard/overlays.php via public/api/overlays/ (scripts/sync-live-api.sh). Retired cards are left out.
 const API = '/api/overlays/overlays.php'
+// Same endpoint the Alerts page uses: OVERLAY_REFRESH reloads every overlay open on this channel's key.
+const NOTIFY = '/api/alerts/notify.php'
 type Credits = { scroll_speed: number; text_color: string; font_family: string; looping: boolean }
 type Page = { success: boolean; has_key: boolean; fonts: string[]; counters?: { name: string; count: number }[]; credits: Credits }
 type Group = 'alerts' | 'screen' | 'characters'
@@ -44,6 +46,13 @@ export default function Overlays() {
   const [toast, setToast] = useState<Toast>(null)
   const [fq, setFq] = useState(''), [fg, setFg] = useState<Group | 'all'>('all')
   const [credits, setCredits] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  async function refreshAll() {
+    setRefreshing(true)
+    try { const r = await send<{ success: boolean; message?: string }>(NOTIFY, { event: 'OVERLAY_REFRESH' }); setToast(r.success ? { kind: 'ok', text: 'Refresh sent. Every open overlay will reload in OBS shortly.' } : { kind: 'err', text: r.message || 'Could not reach your overlays.' }) }
+    catch { setToast({ kind: 'err', text: 'Could not reach your overlays.' }) }
+    setRefreshing(false)
+  }
   useEffect(() => { get<Page>(API).then((r) => { if (!r.success) throw new Error(); setPage(r) }).catch(() => setErr('The overlays page could not load. Refresh to try again.')) }, [])
   const needle = fq.trim().toLowerCase()
   const rows = OVERLAYS.filter((o) => (fg === 'all' || o.group === fg) && (!needle || o.name.toLowerCase().includes(needle) || (typeof o.desc === 'string' && o.desc.toLowerCase().includes(needle))))
@@ -51,7 +60,8 @@ export default function Overlays() {
   return (
     <div className="page cmds mp ov">
       <section className="card mp-lists ov-list" aria-label="Overlay links">
-        <div className="card-title-row"><h3 className="card-h"><i className="fas fa-layer-group" /> Overlays <span className="pill pill-ok">{OVERLAYS.length} available</span></h3></div>
+        <div className="card-title-row"><h3 className="card-h"><i className="fas fa-layer-group" /> Overlays <span className="pill pill-ok">{OVERLAYS.length} available</span></h3>
+          <button type="button" className="btn btn-ghost" disabled={refreshing || !page || !!noKey} title="Reload every overlay you have open in OBS" onClick={refreshAll}><i className={`fas fa-rotate${refreshing ? ' fa-spin' : ''}`} /> Refresh overlays</button></div>
         <p className="mp-lhelp muted">Add a link as a browser source in OBS, Streamlabs or XSplit. Links contain your channel key, so keep them out of screen shares.</p>
         <p className="mp-lhelp muted ov-retired"><span className="pill pill-off">Retired</span> The separate alert, sound, video, walk-on, TTS, death, weather, Discord, Ko-fi, Patreon and Fourthwall overlays no longer play anything. Remove them from OBS and use Specter Alerts.</p>
         {noKey && <div className="notice notice-err"><i className="fas fa-key" /> <span>Your account has no channel key yet, so overlay links cannot be made. Open your Profile to create one.</span></div>}

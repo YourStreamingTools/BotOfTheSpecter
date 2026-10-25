@@ -42,6 +42,24 @@ header('Content-Type: application/json');
 $data = fetchWebsocketClients($conn);
 $byRef = [];
 foreach ($data['registered_clients'] as $k => $u) { $byRef[sha1((string) $k)] = $u; }
+// Refresh Overlays: OVERLAY_REFRESH on that user's key reloads every overlay page they have open.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refresh_overlays'])) {
+    $u = $byRef[(string) ($_POST['ref'] ?? '')] ?? null;
+    if (!$u) { echo json_encode(['success' => false, 'message' => t('admin_websocket_clients_user_not_found')]); exit; }
+    $ch = curl_init('https://websocket.botofthespecter.com/notify?event=OVERLAY_REFRESH');
+    curl_setopt_array($ch, [
+        CURLOPT_HTTPHEADER => ['X-API-KEY: ' . str_replace(["\r", "\n"], '', (string) $u['api_key']), 'User-Agent: BotOfTheSpecter Admin Panel'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+    ]);
+    $out = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $ok = $out !== false && $status === 200;
+    admin_audit_log('admin_ws_overlay_refresh', $ok ? 'info' : 'warning', ['display_name' => $u['twitch_display_name']], 'websocket_client', $u['twitch_display_name']);
+    echo json_encode(['success' => $ok, 'message' => $ok ? 'Refresh sent. Their overlays will reload shortly.' : 'Could not reach the websocket server.']);
+    exit;
+}
 if (isset($_GET['reveal']) || isset($_GET['user'])) {
     $ref = (string) ($_GET['reveal'] ?? $_GET['user']);
     $u = $byRef[$ref] ?? null;
