@@ -139,6 +139,7 @@ $platformInfo = [
             }
 
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: code,
                 channel: 'Overlay',
                 name: 'Social Roller',

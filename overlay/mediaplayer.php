@@ -118,6 +118,7 @@ if (!empty($api_key) && !$conn->connect_error) {
                 showOverlayError('Invalid code provided in the URL', 'danger');
             } else {
                 const session = SpecterOverlayWS.create({
+                    multiInstance: true,
                     code: code,
                     channel: 'Overlay',
                     name: 'Media Player',

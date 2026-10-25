@@ -1136,6 +1136,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
             };
 
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: overlayApiKey,
                 channel: 'Overlay',
                 name: 'Pet Overlay',

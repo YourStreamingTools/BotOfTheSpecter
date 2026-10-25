@@ -381,6 +381,7 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
             }, { once: true });
             const code = urlParams.get('code');
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: code,
                 channel: 'Overlay',
                 name: 'DMCA',

@@ -225,6 +225,7 @@ ob_end_flush();
 
     // Specter bus: helper owns reconnect (dispose + progressive backoff); ready only after SUCCESS
     SpecterOverlayWS.create({
+        multiInstance: true,
         code: code,
         channel: 'Overlay',
         name: 'Todo List',
