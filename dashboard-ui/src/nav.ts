@@ -43,6 +43,7 @@ export const NAV: NavItem[] = [
     { label: "Channel Rewards", icon: "fas fa-gift", path: "/channel-rewards" },
     { divider: true },
     { label: "Raffles", icon: "fas fa-ticket-alt", path: "/raffles" },
+    { label: "Twitch Polls", icon: "fas fa-poll", path: "/polls" },
     { label: "Stream Bingo", icon: "fas fa-trophy", path: "/bingo" },
     { label: "Tanggle", icon: "fas fa-shapes", path: "/tanggle" },
     { divider: true },
