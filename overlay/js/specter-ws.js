@@ -52,6 +52,7 @@
         var disposing = false;
         var registered = false;
         var stopped = false;
+        var replaced = false;
 
         function status(text, state) {
             if (onStatus) {
@@ -167,11 +168,14 @@
                 }
                 // Duplicate-session targets the *old* SID; do not tear down if we are registered
                 var text = String(msg || '').toLowerCase();
-                if (text.indexOf('duplicate') !== -1 && registered) return;
+                // This page was replaced by a newer copy of the same overlay: stay down instead of
+                // reconnecting and kicking the other copy (that ping-pong is the connecting/connected loop).
+                if (text.indexOf('duplicate') !== -1) { replaced = true; status('Replaced by another copy of this overlay', 'error'); }
             });
 
             socket.on('disconnect', function (reason) {
                 if (disposing || stopped) return;
+                if (replaced) { stopped = true; return; }
                 registered = false;
                 status('Disconnected', 'error');
                 if (onDisconnect) {

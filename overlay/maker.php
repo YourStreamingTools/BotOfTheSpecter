@@ -433,6 +433,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // SpecterOverlayWS: SUCCESS-gated ready, dispose + progressive backoff reconnect.
     var session = SpecterOverlayWS.create({
+        multiInstance: true,
         code: code,
         channel: 'Overlay',
         name: 'Makers',

@@ -420,6 +420,7 @@ ob_end_clean();
                 connectionStatus.dataset.state = state;
             };
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: overlayApiKey,
                 channel: 'Overlay',
                 name: 'Closed Captions',

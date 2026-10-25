@@ -151,6 +151,7 @@ if (!empty($api_key) && !$conn->connect_error) {
 
             // SpecterOverlayWS: SUCCESS-gated ready, dispose + progressive backoff on drop.
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: code,
                 channel: 'Overlay',
                 name: 'Subathon',

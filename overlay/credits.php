@@ -390,6 +390,7 @@ function setConnectionStatus(text, state) {
         return;
     }
     SpecterOverlayWS.create({
+        multiInstance: true,
         code: code,
         channel: 'Overlay',
         name: 'Credits',

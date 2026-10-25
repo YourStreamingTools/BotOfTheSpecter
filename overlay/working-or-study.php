@@ -1585,6 +1585,7 @@ ob_end_clean();
             };
             // SpecterOverlayWS: SUCCESS-gated ready, dispose + progressive backoff reconnect
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: overlayApiKey,
                 channel: 'Overlay',
                 name: getOverlayConnectionName,

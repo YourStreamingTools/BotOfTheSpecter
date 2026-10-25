@@ -1489,6 +1489,7 @@ if ($username) {
             })();
             // Specter bus: helper owns reconnect (SUCCESS-gated ready, dispose + progressive backoff)
             SpecterOverlayWS.create({
+                multiInstance: true,
                 code: code,
                 channel: 'Overlay',
                 name: 'Twitch Alerts',

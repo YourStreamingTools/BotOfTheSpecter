@@ -490,6 +490,7 @@ $badgeCacheJson = json_encode(
         });
         // WebSocket via SpecterOverlayWS (SUCCESS-gated ready + progressive backoff)
         SpecterOverlayWS.create({
+            multiInstance: true,
             code: code,
             channel: 'Overlay',
             name: 'Chat Overlay ' + instanceId,

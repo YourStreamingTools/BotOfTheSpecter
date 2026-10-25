@@ -396,6 +396,7 @@ ob_end_clean();
 
             // Specter bus: helper owns reconnect (dispose + progressive backoff); ready only after SUCCESS.
             const session = SpecterOverlayWS.create({
+                multiInstance: true,
                 code: overlayApiKey,
                 channel: 'Overlay',
                 name: 'Avatar',

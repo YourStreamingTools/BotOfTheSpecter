@@ -342,6 +342,7 @@ $apiUrl = '?' . http_build_query([
     // WebSocket - SpecterOverlayWS; OVERLAY_REFRESH reloads page from dashboard
     if (code) {
         SpecterOverlayWS.create({
+            multiInstance: true,
             code: code,
             channel: 'Overlay',
             name: 'Counter',
