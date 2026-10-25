@@ -160,11 +160,12 @@ function OverlayControl({ page, setPage, toast }: { page: Page; setPage: (p: Pag
         </div>
         <div className="ws-col">
           <h4 className="ws-h"><i className="fas fa-play" /> Timer Controls</h4>
-          {big('start', 'ws-b-accent', 'fas fa-play', 'Start', () => act('start', { action: 'timer_command', command: 'start' }, 'Timer started.'))}
-          {big('pause', 'ws-b-recharge', 'fas fa-pause', 'Pause', () => act('pause', { action: 'timer_command', command: 'pause' }, 'Timer paused.'))}
-          {big('resume', 'ws-b-green', 'fas fa-rotate-right', 'Resume', () => act('resume', { action: 'timer_command', command: 'resume' }, 'Timer resumed.'))}
+          {/* Only the buttons that fit the timer: running = pause, paused = resume, otherwise start (overlay closed counts as not running). */}
+          {state !== 'running' && state !== 'paused' && big('start', 'ws-b-accent', 'fas fa-play', 'Start', () => act('start', { action: 'timer_command', command: 'start' }, 'Timer started.'))}
+          {state === 'running' && big('pause', 'ws-b-recharge', 'fas fa-pause', 'Pause', () => act('pause', { action: 'timer_command', command: 'pause' }, 'Timer paused.'))}
+          {state === 'paused' && big('resume', 'ws-b-green', 'fas fa-rotate-right', 'Resume', () => act('resume', { action: 'timer_command', command: 'resume' }, 'Timer resumed.'))}
           {big('reset', 'ws-b-micro', 'fas fa-arrows-rotate', 'Reset', () => act('reset', { action: 'timer_command', command: 'reset' }, 'Timer reset.'))}
-          {big('stop', 'ws-b-focus', 'fas fa-stop', 'Stop', () => act('stop', { action: 'timer_command', command: 'stop' }, 'Timer stopped.'))}
+          {(state === 'running' || state === 'paused') && big('stop', 'ws-b-focus', 'fas fa-stop', 'Stop', () => act('stop', { action: 'timer_command', command: 'stop' }, 'Timer stopped.'))}
         </div>
       </div>
       <div className="ws-h-row"><h4 className="ws-h"><i className="fas fa-hourglass" /> Live Timer</h4>
