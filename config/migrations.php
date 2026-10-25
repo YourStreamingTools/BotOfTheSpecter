@@ -7,4 +7,5 @@ return [
     'specterdiscordbot' => ['label' => 'Discord Bot'],
     'roadmap'      => ['label' => 'Roadmap'],
     'spam_pattern' => ['label' => 'Spam Patterns'],
+    'cloud_studio' => ['label' => 'Cloud Studio'],
 ];
