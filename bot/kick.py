@@ -57,7 +57,7 @@ REFRESH_TOKEN       = args.refresh_token
 CLIENT_ID           = args.client_id
 CLIENT_SECRET       = args.client_secret
 API_TOKEN           = args.api_token
-VERSION             = "1.0.2"
+VERSION             = "1.0.3"
 SYSTEM              = "KICK"
 BOT_USERNAME        = "botofthespecter"
 BOT_OWNER           = "gfaundead"
@@ -1354,12 +1354,19 @@ async def cmd_gamble(ctx: _Ctx):
     if not ctx.args:
         await send_chat_message("Usage: !gamble <amount>")
         return
+    bet_all = ctx.args[0].lower() == "all"
     try:
-        amount = int(ctx.args[0])
+        amount = 0 if bet_all else int(ctx.args[0])
     except ValueError:
         await send_chat_message("Amount must be a number.")
         return
     info = await manage_user_points(ctx.user_id, ctx.user_name, "get")
+    if info["success"] and bet_all:
+        amount = info["points"]
+    # A zero or negative bet would add points on a loss
+    if amount < 1:
+        await send_chat_message(f"@{ctx.user_name}, please bet at least 1 point.")
+        return
     if not info["success"] or info["points"] < amount:
         await send_chat_message(f"@{ctx.user_name}, you don't have enough points.")
         return
