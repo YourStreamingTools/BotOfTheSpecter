@@ -4,7 +4,8 @@
 // 5 minutes) holding the admin's Twitch id and the target users.id; this
 // consumes it. The browser must already hold a beta dashboard session for that
 // same admin, and users.is_admin is re-checked. Then the same session keys as
-// dashboard/admin/act_as_user.php are set; includes/userdata.php reads them.
+// dashboard/admin/act_as_user.php are set, and beta_act_as_apply() swaps the
+// session identity to the target the way includes/userdata.php does.
 require __DIR__ . '/_session.php';
 
 function aa_go(string $q): never
@@ -50,23 +51,9 @@ $q->close();
 if (!$target) aa_go('not_found');
 
 if (!isset($_SESSION['admin_act_as_original']) || !is_array($_SESSION['admin_act_as_original'])) {
-    $_SESSION['admin_act_as_original'] = [
-        'user_id' => $_SESSION['user_id'] ?? null,
-        'username' => $_SESSION['username'] ?? null,
-        'twitchUserId' => $_SESSION['twitchUserId'] ?? null,
-        'access_token' => $_SESSION['access_token'] ?? null,
-        'refresh_token' => $_SESSION['refresh_token'] ?? null,
-        'api_key' => $_SESSION['api_key'] ?? null,
-        'is_admin' => $_SESSION['is_admin'] ?? true,
-        'beta_access' => $_SESSION['beta_access'] ?? false,
-        'use_custom' => $_SESSION['use_custom'] ?? 0,
-        'use_self' => $_SESSION['use_self'] ?? 0,
-        'use_custom_module' => $_SESSION['use_custom_module'] ?? 0,
-        'user_data' => $_SESSION['user_data'] ?? null,
-    ];
+    $_SESSION['admin_act_as_original'] = beta_act_as_snapshot();
 }
-unset($_SESSION['mod_act_as_active'], $_SESSION['mod_act_as_started_at'], $_SESSION['mod_act_as_actor_username'], $_SESSION['mod_act_as_target_user_id'], $_SESSION['mod_act_as_target_username'], $_SESSION['mod_act_as_target_display_name']);
-$_SESSION['user_data'] = null;
+unset($_SESSION['mod_act_as_active'], $_SESSION['mod_act_as_started_at'], $_SESSION['mod_act_as_actor_username'], $_SESSION['mod_act_as_target_user_id'], $_SESSION['mod_act_as_target_username'], $_SESSION['mod_act_as_target_display_name'], $_SESSION['admin_act_as_applied']);
 $_SESSION['admin_act_as_active'] = true;
 $_SESSION['admin_act_as_started_at'] = time();
 $_SESSION['admin_act_as_actor_user_id'] = (int) $actor['id'];
@@ -75,6 +62,8 @@ $_SESSION['admin_act_as_actor_role'] = 'admin';
 $_SESSION['admin_act_as_target_user_id'] = (int) $target['id'];
 $_SESSION['admin_act_as_target_username'] = (string) $target['username'];
 $_SESSION['admin_act_as_target_display_name'] = (string) ($target['twitch_display_name'] ?? '');
+// Load the target's identity into the session now (see beta_act_as_apply).
+beta_act_as_apply();
 
 // Same audit row as the live act_as_user.php.
 $details = json_encode(['actor_user_id' => (int) $actor['id'], 'actor_username' => $actor['username'], 'target_user_id' => (int) $target['id'], 'target_username' => $target['username'], 'surface' => 'beta-dashboard'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -75,6 +75,8 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $oldSid = session_id();
 session_regenerate_id(true);
 unset($_SESSION['ws_row']);
+// A fresh sign-in ends any Act As left in this browser's session.
+beta_act_as_clear();
 $_SESSION['access_token'] = $accessToken;
 $_SESSION['refresh_token'] = $refreshToken;
 $_SESSION['username'] = $twitchUsername;

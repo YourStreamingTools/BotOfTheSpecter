@@ -32,6 +32,7 @@ function beta_session_start(): void
     // SSO Active Sessions: keep this login's 'beta:' row in website.web_sessions
     // current, and end the beta session when the row was removed.
     if (!beta_ws_check()) return;
+    beta_act_as_apply();
     // PHP only sends the cookie when a session is created, so refresh it on
     // each request to keep the browser's 4 hours sliding with the file's.
     if (!headers_sent() && session_id() !== '') {
@@ -65,6 +66,93 @@ function beta_ws_db(): ?mysqli
     return $db;
 }
 
+// Act As (admin from beta.admin Users, or a moderator from Mod Channels).
+// While it is active the session's identity keys hold the viewed channel, the
+// same keys dashboard/includes/userdata.php sets on the live dashboard, so every
+// endpoint loads that channel's data. The signed-in person is kept in
+// admin_act_as_original, their own Twitch token stays in access_token, and this
+// session's web_sessions row stays theirs.
+function beta_act_as_snapshot(): array
+{
+    return [
+        'user_id' => $_SESSION['user_id'] ?? null,
+        'username' => $_SESSION['username'] ?? null,
+        'display_name' => $_SESSION['display_name'] ?? null,
+        'profile_image' => $_SESSION['profile_image'] ?? null,
+        'twitchUserId' => $_SESSION['twitchUserId'] ?? null,
+        'access_token' => $_SESSION['access_token'] ?? null,
+        'refresh_token' => $_SESSION['refresh_token'] ?? null,
+        'api_key' => $_SESSION['api_key'] ?? null,
+        'is_admin' => $_SESSION['is_admin'] ?? false,
+        'beta_access' => $_SESSION['beta_access'] ?? false,
+        'beta_programs' => $_SESSION['beta_programs'] ?? [],
+        'use_custom' => $_SESSION['use_custom'] ?? 0,
+        'use_self' => $_SESSION['use_self'] ?? 0,
+        'use_custom_module' => $_SESSION['use_custom_module'] ?? 0,
+        'user_data' => $_SESSION['user_data'] ?? null,
+    ];
+}
+
+// The signed-in person's own value for a session key, also while acting as someone.
+function beta_actor(string $key): mixed
+{
+    $o = $_SESSION['admin_act_as_original'] ?? null;
+    return is_array($o) ? ($o[$key] ?? null) : ($_SESSION[$key] ?? null);
+}
+
+// Puts the viewed channel's users row into the session once per target.
+function beta_act_as_apply(): void
+{
+    if (empty($_SESSION['admin_act_as_active'])) return;
+    $target = (int) ($_SESSION['admin_act_as_target_user_id'] ?? 0);
+    if ($target <= 0 || (int) ($_SESSION['admin_act_as_applied'] ?? 0) === $target) return;
+    $db = beta_ws_db();
+    if (!$db) return;
+    $st = $db->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+    if (!$st) return;
+    $st->bind_param('i', $target);
+    $st->execute();
+    $u = $st->get_result()->fetch_assoc();
+    $st->close();
+    if (!$u) return;
+    // Act As started before display_name/profile_image were saved: keep them
+    // now, while the session still holds the signed-in person's.
+    if (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original'])) {
+        foreach (['display_name', 'profile_image'] as $k) {
+            if (!array_key_exists($k, $_SESSION['admin_act_as_original'])) $_SESSION['admin_act_as_original'][$k] = $_SESSION[$k] ?? null;
+        }
+    }
+    $_SESSION['user_id'] = $u['id'];
+    $_SESSION['username'] = $u['username'];
+    $_SESSION['display_name'] = $u['twitch_display_name'] ?: $u['username'];
+    $_SESSION['profile_image'] = $u['profile_image'];
+    $_SESSION['twitchUserId'] = $u['twitch_user_id'];
+    $_SESSION['api_key'] = $u['api_key'];
+    $_SESSION['is_admin'] = ((int) $u['is_admin'] === 1);
+    $_SESSION['beta_access'] = ((int) $u['beta_access'] === 1);
+    $_SESSION['beta_programs'] = json_decode($u['beta_programs'] ?? '[]', true) ?? [];
+    $_SESSION['use_custom'] = $u['use_custom'];
+    $_SESSION['use_self'] = $u['use_self'];
+    $_SESSION['use_custom_module'] = (int) ($u['use_custom_module'] ?? 0);
+    $_SESSION['user_data'] = $u;
+    $_SESSION['admin_act_as_applied'] = $target;
+}
+
+// Drops every Act As key (the identity keys are left as they are).
+function beta_act_as_clear(): void
+{
+    unset(
+        $_SESSION['admin_act_as_active'], $_SESSION['admin_act_as_started_at'], $_SESSION['admin_act_as_actor_user_id'],
+        $_SESSION['admin_act_as_actor_username'], $_SESSION['admin_act_as_actor_role'], $_SESSION['admin_act_as_target_user_id'],
+        $_SESSION['admin_act_as_target_username'], $_SESSION['admin_act_as_target_display_name'], $_SESSION['admin_act_as_original'],
+        $_SESSION['admin_act_as_applied'],
+        $_SESSION['editing_user'], $_SESSION['editing_username'], $_SESSION['editing_display_name'], $_SESSION['editing_profile_image'],
+        $_SESSION['editing_access_token'], $_SESSION['editing_refresh_token'], $_SESSION['editing_api_key'],
+        $_SESSION['mod_act_as_active'], $_SESSION['mod_act_as_started_at'], $_SESSION['mod_act_as_actor_username'],
+        $_SESSION['mod_act_as_target_user_id'], $_SESSION['mod_act_as_target_username'], $_SESSION['mod_act_as_target_display_name']
+    );
+}
+
 function beta_ws_id(?string $sid = null): string
 {
     return 'beta:' . ($sid ?? session_id());
@@ -73,14 +161,15 @@ function beta_ws_id(?string $sid = null): string
 // Insert or refresh this session's row (login and legacy sessions).
 function beta_ws_register(): bool
 {
+    // Always the signed-in person's row, also while acting as another channel.
     $db = beta_ws_db();
-    if (!$db || empty($_SESSION['twitchUserId'])) return false;
+    if (!$db || empty(beta_actor('twitchUserId'))) return false;
     $id = beta_ws_id();
-    $uid = (string) $_SESSION['twitchUserId'];
-    $user = (string) ($_SESSION['username'] ?? '');
-    $name = (string) ($_SESSION['display_name'] ?? '');
-    $img = (string) ($_SESSION['profile_image'] ?? '');
-    $admin = (int) ($_SESSION['is_admin'] ?? 0);
+    $uid = (string) beta_actor('twitchUserId');
+    $user = (string) (beta_actor('username') ?? '');
+    $name = (string) (beta_actor('display_name') ?? '');
+    $img = (string) (beta_actor('profile_image') ?? '');
+    $admin = (int) (beta_actor('is_admin') ?? 0);
     $at = (string) ($_SESSION['access_token'] ?? '');
     $rt = (string) ($_SESSION['refresh_token'] ?? '');
     $exp = !empty($_SESSION['twitch_expires_at']) ? date('Y-m-d H:i:s', (int) $_SESSION['twitch_expires_at']) : null;
@@ -132,7 +221,7 @@ function beta_ws_check(): bool
     $db = beta_ws_db();
     if (!$db) return true;
     $id = beta_ws_id();
-    $uid = (string) $_SESSION['twitchUserId'];
+    $uid = (string) beta_actor('twitchUserId');
     $life = 4 * 60 * 60;
     $st = $db->prepare('SELECT TIMESTAMPDIFF(SECOND, last_seen_at, NOW()) FROM web_sessions WHERE session_id = ? AND twitch_user_id = ? AND last_seen_at > NOW() - INTERVAL ? SECOND LIMIT 1');
     if (!$st) {
