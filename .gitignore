@@ -145,3 +145,4 @@ AGENTS.md
 dashboard-ui/node_modules/
 beta-dashboard/
 beta-admin/
+/cdn/app-builds
