@@ -43,6 +43,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_channel_rewards'), 'icon' => 'fas fa-gift', 'href' => 'channel_rewards.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_raffles'), 'icon' => 'fas fa-ticket-alt', 'href' => 'raffles.php' ],
+            [ 'label' => t('navbar_polls'), 'icon' => 'fas fa-poll', 'href' => 'polls.php' ],
             [ 'label' => t('navbar_stream_bingo'), 'icon' => 'fas fa-trophy', 'href' => 'bingo.php' ],
             [ 'label' => t('navbar_tanggle'), 'icon' => 'fas fa-shapes', 'href' => 'tanggle.php' ],
             [ 'divider' => true ],

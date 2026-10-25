@@ -1744,6 +1744,14 @@ span.vault-art { cursor: default; }
 .rf-follow > :last-child { min-width: 150px; }
 .rf-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .rf-prize { max-width: 260px; overflow-wrap: anywhere; text-align: left !important; }
+.pl-choices { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.pl-choice { display: flex; gap: 8px; align-items: center; }
+.pl-choice .input { flex: 1; }
+.pl-res { display: flex; flex-direction: column; gap: 6px; min-width: 220px; margin: 6px 0; }
+.pl-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; text-align: left; }
+.pl-name { overflow-wrap: anywhere; }
+.pl-votes { white-space: nowrap; font-size: 12px; }
+.pl-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--accent); min-width: 2px; }
 .rf-win { color: var(--ok-ink); overflow-wrap: anywhere; }
 .rf-row { justify-content: center; flex-wrap: wrap; }
 @media (max-width: 760px) {
