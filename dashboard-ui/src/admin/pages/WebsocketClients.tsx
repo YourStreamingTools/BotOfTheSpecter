@@ -15,7 +15,7 @@ const isAdmin = (c: { key_type?: string; is_admin?: boolean }) => c.key_type ===
 
 export default function WebsocketClients() {
   const { data, err, reload } = useLoad<Data>(API)
-  const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false)
+  const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false), [ovBusy, setOvBusy] = useState(false)
   const [q, setQ] = useState(''), [dq, setDq] = useState('')
   const [toast, setToast] = useState<Toast | null>(null), [ask, setAsk] = useState<Ask>(null)
   const [user, setUser] = useState<UserClients | null>(null), [listener, setListener] = useState<Client | null>(null)
@@ -37,6 +37,12 @@ export default function WebsocketClients() {
     try { const r = await post<Res>(API, { disconnect_client: 1, sid }); setToast({ kind: r.success ? 'ok' : 'err', text: r.success ? `${l('swal_disconnected_title')}: ${r.message}` : (r.message || l('swal_disconnect_failed')) }); if (r.success) { setUser(null); await reload() } }
     catch { setToast({ kind: 'err', text: l('swal_disconnect_failed') }) }
   } })
+  const refreshOverlays = async (u: UserClients) => {
+    setOvBusy(true)
+    try { const r = await post<Res>(API, { refresh_overlays: 1, ref: u.ref }); setToast({ kind: r.success ? 'ok' : 'err', text: r.message || (r.success ? 'Refresh sent.' : 'Refresh failed.') }) }
+    catch (e) { setToast({ kind: 'err', text: (e as Error).message || 'Refresh failed.' }) }
+    finally { setOvBusy(false) }
+  }
   const stats: [string, number, string][] = [['stat_total', regTotal + data.global_listeners.length, 'info'], ['stat_registered', regTotal, 'accent'], ['stat_codes', data.registered.length, 'warn'], ['stat_listeners', data.global_listeners.length, 'ok']]
 
   return (
@@ -97,7 +103,10 @@ export default function WebsocketClients() {
                 <td className="adm-nowrap"><button type="button" className="btn btn-danger" onClick={() => disconnect(c.sid)}><i className="fas fa-times" /> {l('disconnect')}</button></td></tr>))}</tbody>
           </table></div>
         </div>
-        <div className="modal-acts"><button type="button" className="btn btn-ghost" data-autofocus onClick={() => setUser(null)}>{l('close')}</button></div>
+        <div className="modal-acts">
+          <button type="button" className="btn" disabled={ovBusy} onClick={() => refreshOverlays(user)}><i className={`fas fa-sync-alt${ovBusy ? ' fa-spin' : ''}`} /> Refresh overlays</button>
+          <button type="button" className="btn btn-ghost" data-autofocus onClick={() => setUser(null)}>{l('close')}</button>
+        </div>
       </Modal>}
       {listener && <Modal title={l('swal_listener_title')} icon="fas fa-info-circle" onClose={() => setListener(null)}>
         <table className="adm-kv"><tbody>
