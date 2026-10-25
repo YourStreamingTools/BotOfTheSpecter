@@ -62,11 +62,24 @@ if (empty($data['registered_clients']) && empty($data['global_listeners'])) {
     $headers = @get_headers('https://websocket.botofthespecter.com/clients', 1);
     if (!$headers || strpos($headers[0], '200') === false) { $apiError = true; }
 }
+// Registered users are listed by their users.id (same order as the Users page); keys with no user row go last.
+$idStmt = $conn->prepare("SELECT id FROM users WHERE api_key = ? LIMIT 1");
 $rows = [];
 foreach ($data['registered_clients'] as $k => $u) {
     $first = $u['clients'][0] ?? [];
+    $uid = PHP_INT_MAX;
+    if ($idStmt) {
+        $key = (string) $k;
+        $idStmt->bind_param('s', $key);
+        $idStmt->execute();
+        $res = $idStmt->get_result();
+        if ($res && ($row = $res->fetch_assoc())) { $uid = (int) $row['id']; }
+    }
     $rows[] = ['ref' => sha1((string) $k), 'key_len' => min(strlen((string) $k), 32), 'twitch_display_name' => $u['twitch_display_name'], 'client_count' => $u['client_count'],
-        'key_type' => (string) ($first['key_type'] ?? ''), 'is_admin' => !empty($first['is_admin']), 'service' => (string) ($first['service'] ?? '')];
+        'key_type' => (string) ($first['key_type'] ?? ''), 'is_admin' => !empty($first['is_admin']), 'service' => (string) ($first['service'] ?? ''), 'uid' => $uid];
 }
+usort($rows, fn($a, $b) => $a['uid'] <=> $b['uid']);
+foreach ($rows as &$r) { unset($r['uid']); }
+unset($r);
 echo json_encode(['success' => true, 'api_error' => $apiError, 'last_updated' => date('c'), 'registered' => $rows, 'global_listeners' => $data['global_listeners'], 'L' => badm_lang('admin_websocket_clients_')], JSON_UNESCAPED_UNICODE);
 exit;
