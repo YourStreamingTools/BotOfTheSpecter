@@ -17,6 +17,7 @@ function beta_stream_rows(): array
         $tid = recordingTwitchId($file);
         $durRaw = (string) ($helixDurations[$tid] ?? '');
         $dur = youtube_parse_duration_seconds($durRaw);
+        if (isset($file['duration_seconds']) && $file['duration_seconds'] !== null) $dur = max((int) $file['duration_seconds'], (int) ($dur ?? 0));
         $size = (int) ($file['size'] ?? 0);
         $yt = ['state' => 'none'];
         if ($canUpload && !$isActAsUser && $canDl) {
@@ -47,7 +48,7 @@ function beta_stream_rows(): array
             'in_progress' => $inProgress, 'upload_hold' => !empty($file['upload_hold']), 'expires_unix' => (int) ($file['expires_unix'] ?? 0),
             'rerun_hold' => !empty($file['rerun_hold']),
             'actions' => $canDl && $url !== '' && empty($file['rerun_hold']),
-            'url' => $url, 'tid' => $tid, 'duration_raw' => $durRaw,
+            'url' => $url, 'tid' => $tid, 'duration_raw' => $dur !== null ? (string) $dur : $durRaw,
             'restore' => $restore, 'restore_percent' => (float) ($file['restore_percent'] ?? 0), 's3_key' => (string) ($file['s3_key'] ?? ''),
             'can_extend' => !$isUserS3 && !empty($file['can_extend']), 'can_delete' => !$isUserS3,
             'yt' => $yt, 's3' => $s3,
@@ -89,7 +90,7 @@ function beta_stream_stats(): array
 // With no list (the 5s poll) it covers every VOD id the jobs and files know.
 function beta_vod_states(?array $videos = null): array
 {
-    global $libraryFiles, $pullJobs, $youtubeJobs, $s3Jobs, $canUpload, $isActAsUser, $canS3;
+    global $libraryFiles, $pullJobs, $youtubeJobs, $s3Jobs, $canUpload, $isActAsUser, $canS3, $helixDurations;
     $stored = [];
     foreach ((array) $libraryFiles as $f) { if (!is_array($f)) continue; $tid = recordingTwitchId($f); if ($tid !== '') $stored[$tid] = $f; }
     foreach ((array) $pullJobs as $j) { $tid = (string) ($j['vod_id'] ?? ''); if ($tid !== '' && !isset($stored[$tid])) $stored[$tid] = ['is_partial' => ($j['status'] ?? '') === 'pulling']; }
@@ -116,9 +117,12 @@ function beta_vod_states(?array $videos = null): array
             $s = is_array($job) ? (string) ($job['status'] ?? '') : '';
             $live = is_array($job) && (!function_exists('youtube_job_is_live') || youtube_job_is_live($job));
             $size = $ready ? (int) ($st['size'] ?? 0) : 0;
+            // The 5s poll has no Twitch list, so fall back to the stored file's own length.
+            $secs = youtube_parse_duration_seconds((string) ($v['duration'] ?? '')) ?? youtube_parse_duration_seconds((string) ($helixDurations[$vid] ?? ''));
+            if (is_array($st) && isset($st['duration_seconds']) && $st['duration_seconds'] !== null) $secs = max((int) $st['duration_seconds'], (int) ($secs ?? 0));
             if ($s === 'done') $yt = ['state' => 'done'];
             elseif ($s === 'queued' || ($live && in_array($s, ['uploading', 'pulling'], true))) $yt = ['state' => 'busy', 'status' => $s, 'percent' => $s !== 'queued' ? max(0, min(100, (float) youtube_job_client_row($job)['percent'])) : 0];
-            elseif (($lim = youtube_upload_limit_reason(youtube_parse_duration_seconds((string) ($v['duration'] ?? '')), $size > 0 ? $size : null)) !== null) $yt = ['state' => 'limit', 'reason' => $lim];
+            elseif (($lim = youtube_upload_limit_reason($secs, $size > 0 ? $size : null)) !== null) $yt = ['state' => 'limit', 'reason' => $lim];
             else $yt = ['state' => $s === 'failed' ? 'retry' : 'send'];
         }
         $s3 = ['state' => 'none'];
@@ -333,6 +337,27 @@ $vodsCdnBase = rtrim((string) ($vods_cdn_base ?? 'https://vods.botofthespecter.c
 $specterKey = $streamUserApiKey;
 $rtmpsUrl = rtrim((string) ($stream_rtmps_url ?? 'rtmps://syd1.stream.botofthespecter.com:1935/app'), '/');
 $canIngest = !empty($is_admin) || !empty($betaAccess) || (isset($betaPrograms) && is_array($betaPrograms) && in_array('streaming', $betaPrograms, true));
+// Phone camera relay (MediaMTX beside stream.py): same region host as the RTMPS ingest.
+$cameraHost = (string) (parse_url($rtmpsUrl, PHP_URL_HOST) ?: 'syd1.stream.botofthespecter.com');
+$cameraLogin = strtolower($recorderUsername);
+$cameraIngestUrl = "rtmps://{$cameraHost}:1935/camera";
+$cameraSrtUrl = "srt://{$cameraHost}:8890?streamid=read:camera/{$cameraLogin}/main:{$cameraLogin}:PASSWORD";
+$cameraWebUrl = "https://{$cameraHost}:8889/camera/{$cameraLogin}/main/";
+$cameraPasswordSet = false;
+if ($userId > 0 && isset($conn) && $conn instanceof mysqli) {
+    try {
+        $camStmt = $conn->prepare("SELECT camera_password_hash FROM users WHERE id = ? LIMIT 1");
+        if ($camStmt) {
+            $camStmt->bind_param("i", $userId);
+            $camStmt->execute();
+            $camRow = $camStmt->get_result()->fetch_assoc();
+            $cameraPasswordSet = !empty($camRow['camera_password_hash']);
+            $camStmt->close();
+        }
+    } catch (mysqli_sql_exception $e) {
+        // Column not migrated yet; the card still shows, saving reports the failure.
+    }
+}
 $canYoutube = function_exists('youtube_admin_testing') && youtube_admin_testing();
 $unlimitedStorage = in_array(strtolower($recorderUsername), ['botofthespecter', 'gfaundead'], true);
 
@@ -450,6 +475,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_forward_settings
         $fwdSaveOk ? t('recording_status_forward_saved') : t('recording_status_forward_save_failed'),
         $fwdSaveOk ? 'is-success' : 'is-danger'
     );
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_camera_password']) || isset($_POST['clear_camera_password']))) {
+    $camOk = false;
+    $camHash = null;
+    $camMessage = t('camera_password_save_failed');
+    if (isset($_POST['save_camera_password'])) {
+        $camPassword = (string) ($_POST['camera_password'] ?? '');
+        // Goes inside SRT stream IDs and URLs, so keep it to URL-safe characters.
+        if (!preg_match('/^[A-Za-z0-9_-]{8,64}$/', $camPassword)) {
+            stream_hub_redirect('camera', t('camera_password_invalid'), 'is-danger');
+        }
+        $camHash = password_hash($camPassword, PASSWORD_BCRYPT);
+    }
+    if ($userId > 0 && isset($conn) && $conn instanceof mysqli) {
+        try {
+            $camStmt = $conn->prepare("UPDATE users SET camera_password_hash = ? WHERE id = ?");
+            if ($camStmt) {
+                $camStmt->bind_param("si", $camHash, $userId);
+                $camOk = $camStmt->execute();
+                $camStmt->close();
+            }
+        } catch (mysqli_sql_exception $e) {
+            $camOk = false;
+        }
+    }
+    if ($camOk) {
+        $camMessage = $camHash === null ? t('camera_password_cleared') : t('camera_password_saved');
+    }
+    stream_hub_redirect('camera', $camMessage, $camOk ? 'is-success' : 'is-danger');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_streaming_settings'])) {
@@ -769,6 +824,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 stream_hub_json(['ok' => false, 'message' => t('youtube_vod_youtube_failed')], 400);
             }
             stream_hub_redirect('library', t('youtube_vod_youtube_failed'), 'is-danger');
+        }
+        // Trust the stored file's own length over the posted one: recorded
+        // files have no Twitch ID, so the posted duration is often empty.
+        $listCheck = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
+        $listRows = $listCheck['ok'] ? json_decode((string) $listCheck['body'], true) : null;
+        foreach ((is_array($listRows) && is_array($listRows['files'] ?? null)) ? $listRows['files'] : [] as $listRow) {
+            if (is_array($listRow) && (string) ($listRow['name'] ?? '') === $filename) {
+                if (isset($listRow['duration_seconds']) && $listRow['duration_seconds'] !== null) {
+                    $durationSeconds = max((int) $listRow['duration_seconds'], (int) ($durationSeconds ?? 0));
+                }
+                $listSize = (int) ($listRow['size_bytes'] ?? $listRow['size'] ?? 0);
+                if ($listSize > 0) {
+                    $sizeBytes = $listSize;
+                }
+                break;
+            }
         }
         if ($twitchId === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4$/i', $filename, $m)) {
             $twitchId = $m[1];
