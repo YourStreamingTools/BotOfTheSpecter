@@ -55,6 +55,8 @@ PET_ALERT_DEFAULT_MESSAGES = {
 _pet_alert_state = {}
 # A Specter VOD rerun replays an old stream, so the pet sits it out. Once a rerun is seen it holds until the stream goes offline.
 _pet_rerun = {"live": False, "checked_at": 0.0}
+# Set the moment a new stream is seen, cleared once the stats are reset, so low stat alerts never read last stream's values
+_pet_new_stream = {"pending": False}
 PET_RERUN_CHECK_SECONDS = 60
 _PET_TOKEN_STRIP = ".,!?;:\"'`~()[]{}<>*_-\x01"
 _PET_INTERACTION_FALLBACKS = {
@@ -447,7 +449,38 @@ async def pet_freeze_for_stream_offline():
                 await _bot.close_connection(connection)
 
 # Function to reset happiness/hunger/energy to dashboard start values at the beginning of a new stream
+def pet_mark_new_stream():
+    _pet_new_stream["pending"] = True
+    _pet_alert_state.clear()
+
 async def pet_reset_for_new_stream():
+    try:
+        await _pet_reset_for_new_stream()
+    finally:
+        _pet_new_stream["pending"] = False
+
+# Function to reset the stats when the bot starts during a stream it never saw begin (last change is older than the stream start)
+async def pet_reset_if_stale(stream_started_ts):
+    try:
+        cache = await pet_get_cache()
+        if not cache.get("configured"):
+            return
+        connection = await _bot.open_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT last_interaction_at FROM pet_state WHERE id = 1")
+                row = await cursor.fetchone()
+        finally:
+            await _bot.close_connection(connection)
+        last_dt = pet_parse_interaction_time((row or {}).get("last_interaction_at"))
+        if last_dt is None or last_dt.timestamp() < float(stream_started_ts or 0):
+            pet_mark_new_stream()
+            await pet_reset_for_new_stream()
+    except Exception as e:
+        _pet_new_stream["pending"] = False
+        _bot.logger.error(f"[PET] Failed to check pet stats on startup: {e}")
+
+async def _pet_reset_for_new_stream():
     cache = await pet_get_cache()
     if not cache.get("configured"):
         return
@@ -620,6 +653,8 @@ def pet_alert_message_lines(raw):
 # Function to post a chat alert for each pet stat that has dropped to the configured threshold
 async def pet_check_low_stats(stats=None):
     try:
+        if _pet_new_stream["pending"]:
+            return
         cache = await pet_get_cache()
         if not (cache.get("enabled") and cache.get("alert_enabled")) or not _bot.is_stream_online() or await pet_refresh_rerun():
             _pet_alert_state.clear()
