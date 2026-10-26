@@ -693,6 +693,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             stream_hub_redirect('library', t('youtube_vod_youtube_failed'), 'is-danger');
         }
+        // Trust the stored file's own length over the posted one: recorded
+        // files have no Twitch ID, so the posted duration is often empty.
+        $listCheck = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
+        $listRows = $listCheck['ok'] ? json_decode((string) $listCheck['body'], true) : null;
+        foreach ((is_array($listRows) && is_array($listRows['files'] ?? null)) ? $listRows['files'] : [] as $listRow) {
+            if (is_array($listRow) && (string) ($listRow['name'] ?? '') === $filename) {
+                if (isset($listRow['duration_seconds']) && $listRow['duration_seconds'] !== null) {
+                    $durationSeconds = max((int) $listRow['duration_seconds'], (int) ($durationSeconds ?? 0));
+                }
+                $listSize = (int) ($listRow['size_bytes'] ?? $listRow['size'] ?? 0);
+                if ($listSize > 0) {
+                    $sizeBytes = $listSize;
+                }
+                break;
+            }
+        }
         if ($twitchId === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4$/i', $filename, $m)) {
             $twitchId = $m[1];
         }

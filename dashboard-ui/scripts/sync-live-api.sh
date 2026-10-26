@@ -3154,6 +3154,7 @@ function beta_stream_rows(): array
         $tid = recordingTwitchId($file);
         $durRaw = (string) ($helixDurations[$tid] ?? '');
         $dur = youtube_parse_duration_seconds($durRaw);
+        if (isset($file['duration_seconds']) && $file['duration_seconds'] !== null) $dur = max((int) $file['duration_seconds'], (int) ($dur ?? 0));
         $size = (int) ($file['size'] ?? 0);
         $yt = ['state' => 'none'];
         if ($canUpload && !$isActAsUser && $canDl) {
@@ -3184,7 +3185,7 @@ function beta_stream_rows(): array
             'in_progress' => $inProgress, 'upload_hold' => !empty($file['upload_hold']), 'expires_unix' => (int) ($file['expires_unix'] ?? 0),
             'rerun_hold' => !empty($file['rerun_hold']),
             'actions' => $canDl && $url !== '' && empty($file['rerun_hold']),
-            'url' => $url, 'tid' => $tid, 'duration_raw' => $durRaw,
+            'url' => $url, 'tid' => $tid, 'duration_raw' => $dur !== null ? (string) $dur : $durRaw,
             'restore' => $restore, 'restore_percent' => (float) ($file['restore_percent'] ?? 0), 's3_key' => (string) ($file['s3_key'] ?? ''),
             'can_extend' => !$isUserS3 && !empty($file['can_extend']), 'can_delete' => !$isUserS3,
             'yt' => $yt, 's3' => $s3,
@@ -3226,7 +3227,7 @@ function beta_stream_stats(): array
 // With no list (the 5s poll) it covers every VOD id the jobs and files know.
 function beta_vod_states(?array $videos = null): array
 {
-    global $libraryFiles, $pullJobs, $youtubeJobs, $s3Jobs, $canUpload, $isActAsUser, $canS3;
+    global $libraryFiles, $pullJobs, $youtubeJobs, $s3Jobs, $canUpload, $isActAsUser, $canS3, $helixDurations;
     $stored = [];
     foreach ((array) $libraryFiles as $f) { if (!is_array($f)) continue; $tid = recordingTwitchId($f); if ($tid !== '') $stored[$tid] = $f; }
     foreach ((array) $pullJobs as $j) { $tid = (string) ($j['vod_id'] ?? ''); if ($tid !== '' && !isset($stored[$tid])) $stored[$tid] = ['is_partial' => ($j['status'] ?? '') === 'pulling']; }
@@ -3253,9 +3254,12 @@ function beta_vod_states(?array $videos = null): array
             $s = is_array($job) ? (string) ($job['status'] ?? '') : '';
             $live = is_array($job) && (!function_exists('youtube_job_is_live') || youtube_job_is_live($job));
             $size = $ready ? (int) ($st['size'] ?? 0) : 0;
+            // The 5s poll has no Twitch list, so fall back to the stored file's own length.
+            $secs = youtube_parse_duration_seconds((string) ($v['duration'] ?? '')) ?? youtube_parse_duration_seconds((string) ($helixDurations[$vid] ?? ''));
+            if (is_array($st) && isset($st['duration_seconds']) && $st['duration_seconds'] !== null) $secs = max((int) $st['duration_seconds'], (int) ($secs ?? 0));
             if ($s === 'done') $yt = ['state' => 'done'];
             elseif ($s === 'queued' || ($live && in_array($s, ['uploading', 'pulling'], true))) $yt = ['state' => 'busy', 'status' => $s, 'percent' => $s !== 'queued' ? max(0, min(100, (float) youtube_job_client_row($job)['percent'])) : 0];
-            elseif (($lim = youtube_upload_limit_reason(youtube_parse_duration_seconds((string) ($v['duration'] ?? '')), $size > 0 ? $size : null)) !== null) $yt = ['state' => 'limit', 'reason' => $lim];
+            elseif (($lim = youtube_upload_limit_reason($secs, $size > 0 ? $size : null)) !== null) $yt = ['state' => 'limit', 'reason' => $lim];
             else $yt = ['state' => $s === 'failed' ? 'retry' : 'send'];
         }
         $s3 = ['state' => 'none'];

@@ -293,6 +293,9 @@ foreach ($s3Jobs as $job) {
                                 $ytJob = $youtubeJobs[$file['name']] ?? null;
                                 $ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
                                 $durSeconds = youtube_parse_duration_seconds($helixDurations[$tid] ?? '');
+                                if (isset($file['duration_seconds']) && $file['duration_seconds'] !== null) {
+                                    $durSeconds = max((int) $file['duration_seconds'], (int) ($durSeconds ?? 0));
+                                }
                                 $fileSize = (int) ($file['size'] ?? 0);
                                 $ytLimit = youtube_upload_limit_reason($durSeconds, $fileSize > 0 ? $fileSize : null);
                                 $showYoutube = $canUpload && !$isActAsUser && $canDl;
@@ -395,7 +398,7 @@ foreach ($s3Jobs as $job) {
                                                         <input type="hidden" name="file_title" value="<?php echo htmlspecialchars($displayTitle); ?>">
                                                         <input type="hidden" name="twitch_video_id" value="<?php echo htmlspecialchars($tid); ?>">
                                                         <input type="hidden" name="file_size" value="<?php echo (int) $file['size']; ?>">
-                                                        <input type="hidden" name="file_duration" value="<?php echo htmlspecialchars($helixDurations[$tid] ?? ''); ?>">
+                                                        <input type="hidden" name="file_duration" value="<?php echo htmlspecialchars($durSeconds !== null ? (string) $durSeconds : ''); ?>">
                                                         <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo $ytStatus === 'failed' ? t('youtube_btn_retry') : t('videos_send_to_youtube'); ?></button>
                                                     </form>
                                                 <?php endif; ?>
