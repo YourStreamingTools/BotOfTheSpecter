@@ -128,52 +128,33 @@ function OverlayControl({ page, setPage, toast }: { page: Page; setPage: (p: Pag
     ['Total Sessions', 'fas fa-hourglass-half', 'ws-c-focus', String(Number(stx?.totalSessions ?? stx?.sessionsCompleted) || 0)],
     ['Total Focus Time', 'fas fa-clock', 'ws-c-micro', hm(Number(stx?.totalTimeLogged) || 0)]]
   return (
+    <>
     <section className="card ws-card" aria-label="Working / Study Overlay Control">
       <div className="card-title-row"><h3 className="card-h">Working / Study Overlay Control</h3>
         <button type="button" className="btn" disabled={!page.has_key} onClick={() => copyLink('timer', 'Timer overlay link', toast)}><i className="fas fa-copy" /> Copy Timer Overlay Link</button></div>
       <div className="ws-url"><UrlReveal mask="https://overlay.botofthespecter.com/working-or-study.php?code=••••••••••••&timer" disabled={!page.has_key} toast={toast} label="Timer overlay URL" fetchUrl={() => urlOf('timer')} /></div>
-      <div className="ws-cols">
-        <div className="ws-col">
-          <h4 className="ws-h">Duration Settings</h4>
-          {DUR.map(([k, l, icon, help, max]) => { const m = bad(k); return (
-            <div key={k} className="ws-fld"><label htmlFor={`ws-${k}`} className="ws-lbl"><i className={icon} /> {l}</label>
-              <span className={`mp-numbox ws-num${m ? ' is-bad' : ''}`}><input id={`ws-${k}`} type="number" inputMode="numeric" min={1} max={max} aria-invalid={!!m} aria-describedby={`ws-${k}-h`} value={raw[k]} onChange={(e) => setRaw({ ...raw, [k]: e.target.value })} onBlur={() => blurSave(k)} />{k !== 'cycle_count' && <span className="mp-unit">min</span>}</span>
-              <span id={`ws-${k}-h`} className={`small ${m ? 'mp-bad' : 'muted'}`}>{m || help}</span></div>) })}
-          <div className="ws-fld"><div className="ws-check"><Switch on={!!s.show_cycle_badge} label="Show cycle badge on overlay" onChange={(v) => save({ ...s, show_cycle_badge: v ? 1 : 0 })} /><span>Show cycle badge on overlay</span></div>
-            <span className="small muted">Displays an "N / M" badge next to the timer phase, advancing each time a focus sprint completes.</span></div>
-          <div className="ws-fld"><div className="ws-check"><Switch on={!!s.auto_cycle_enabled} label="Auto-Pilot (Auto phase transition)" onChange={(v) => save({ ...s, auto_cycle_enabled: v ? 1 : 0 })} /><span>Auto-Pilot (Auto phase transition)</span></div></div>
-          <div className="ws-fld"><button type="button" className="btn btn-ghost ws-fit" disabled={dis} onClick={async () => { setBusy('cyc'); try { await post({ action: 'reset_cycle' }); toast({ kind: 'ok', text: 'Cycle counter reset.' }) } catch (e) { toast({ kind: 'err', text: (e as Error).message }) } setBusy('') }}><i className={busy === 'cyc' ? 'fas fa-spinner fa-spin' : 'fas fa-arrow-rotate-left'} /> Reset Cycle Counter</button></div>
-          <div className="ws-fld"><span className="ws-lbl"><i className="fas fa-palette" /> Overlay theme</span><Combobox label="Overlay theme" searchable={false} value={s.theme} onChange={(v) => save({ ...s, theme: v })} options={THEMES} />
-            <span className="small muted">Pick the visual style for the working/study overlay. Changes apply to the overlay live, no reload needed.</span></div>
-          <div className="ws-fld"><span className="ws-lbl"><i className="fas fa-table-columns" /> Task list view</span><Combobox label="Task list view" searchable={false} value={s.list_view_mode} onChange={(v) => save({ ...s, list_view_mode: v })} options={VIEWS} />
-            <span className="small muted">Split shows separate streamer and viewer panels; Unified merges them into one "username: task" list. Changes apply to the overlay live, no reload needed.</span></div>
-          <p className="small muted">Adjust durations here. Use Overlay Control to apply or reset the overlay.</p>
+      <div className="ws-panel ws-now">
+        <div className="ws-h-row"><h4 className="ws-h"><i className="fas fa-hourglass" /> Live Timer</h4>
+          <button type="button" className="btn btn-ghost mp-x" aria-label="Check the overlay again" disabled={!!busy} onClick={check}><i className="fas fa-rotate" /></button></div>
+        <div className="ws-live" aria-live="polite">
+          <p className="muted">{known ? `${st!.timer?.phaseLabel || PHASES[phase]} · ${st!.timer?.phaseStatus || 'Waiting to start'}` : `${PHASES.focus} · ${st ? 'Overlay not open in OBS' : 'Checking the overlay'}`}</p>
+          <b className={`ws-clock ws-c-${phase}`}>{mmss(known ? left : 0)}</b>
+          <p className="small muted">{state === 'running' ? 'Running' : state === 'paused' ? 'Paused' : 'Not Running'}</p>
         </div>
-        <div className="ws-col">
-          <h4 className="ws-h"><i className="fas fa-bolt" /> Phase Controls</h4>
-          {big('focus', 'ws-b-focus', 'fas fa-hourglass-start', 'Start Focus Sprint', () => act('focus', { action: 'timer_phase', phase: 'focus' }, 'Focus sprint started.'))}
-          {big('micro', 'ws-b-micro', 'fas fa-mug-hot', 'Start Micro Break', () => act('micro', { action: 'timer_phase', phase: 'micro' }, 'Micro break started.'))}
-          {big('recharge', 'ws-b-recharge', 'fas fa-leaf', 'Start Recharge Stretch', () => act('recharge', { action: 'timer_phase', phase: 'recharge' }, 'Recharge stretch started.'))}
-          <h4 className="ws-h"><i className="fas fa-sliders" /> Overlay Control</h4>
-          {big('upd', 'ws-b-accent', 'fas fa-cloud-arrow-up', 'Update Overlay', update)}
-          {big('reset_all', 'btn-ghost ws-b-outline', 'fas fa-rotate-left', 'Reset Overlay', () => setReset(true))}
-        </div>
-        <div className="ws-col">
-          <h4 className="ws-h"><i className="fas fa-play" /> Timer Controls</h4>
-          {/* Only the buttons that fit the timer: running = pause, paused = resume, otherwise start (overlay closed counts as not running). */}
+        {/* Only the buttons that fit the timer: running = pause, paused = resume, otherwise start (overlay closed counts as not running). */}
+        <div className="ws-tbtns">
           {state !== 'running' && state !== 'paused' && big('start', 'ws-b-accent', 'fas fa-play', 'Start', () => act('start', { action: 'timer_command', command: 'start' }, 'Timer started.'))}
           {state === 'running' && big('pause', 'ws-b-recharge', 'fas fa-pause', 'Pause', () => act('pause', { action: 'timer_command', command: 'pause' }, 'Timer paused.'))}
           {state === 'paused' && big('resume', 'ws-b-green', 'fas fa-rotate-right', 'Resume', () => act('resume', { action: 'timer_command', command: 'resume' }, 'Timer resumed.'))}
-          {big('reset', 'ws-b-micro', 'fas fa-arrows-rotate', 'Reset', () => act('reset', { action: 'timer_command', command: 'reset' }, 'Timer reset.'))}
+          {big('reset', 'btn-ghost ws-b-outline', 'fas fa-arrows-rotate', 'Reset', () => act('reset', { action: 'timer_command', command: 'reset' }, 'Timer reset.'))}
           {(state === 'running' || state === 'paused') && big('stop', 'ws-b-focus', 'fas fa-stop', 'Stop', () => act('stop', { action: 'timer_command', command: 'stop' }, 'Timer stopped.'))}
         </div>
-      </div>
-      <div className="ws-h-row"><h4 className="ws-h"><i className="fas fa-hourglass" /> Live Timer</h4>
-        <button type="button" className="btn btn-ghost mp-x" aria-label="Check the overlay again" disabled={!!busy} onClick={check}><i className="fas fa-rotate" /></button></div>
-      <div className="ws-panel ws-live" aria-live="polite">
-        <p className="muted">{known ? `${st!.timer?.phaseLabel || PHASES[phase]} · ${st!.timer?.phaseStatus || 'Waiting to start'}` : `${PHASES.focus} · ${st ? 'Overlay not open in OBS' : 'Checking the overlay'}`}</p>
-        <b className={`ws-clock ws-c-${phase}`}>{mmss(known ? left : 0)}</b>
-        <p className="small muted">{state === 'running' ? 'Running' : state === 'paused' ? 'Paused' : 'Not Running'}</p>
+        <span className="ws-lbl ws-jump"><i className="fas fa-bolt" /> Jump to phase</span>
+        <div className="ws-pbtns">
+          {big('focus', 'ws-b-focus', 'fas fa-hourglass-start', 'Focus Sprint', () => act('focus', { action: 'timer_phase', phase: 'focus' }, 'Focus sprint started.'))}
+          {big('micro', 'ws-b-micro', 'fas fa-mug-hot', 'Micro Break', () => act('micro', { action: 'timer_phase', phase: 'micro' }, 'Micro break started.'))}
+          {big('recharge', 'ws-b-recharge', 'fas fa-leaf', 'Recharge Stretch', () => act('recharge', { action: 'timer_phase', phase: 'recharge' }, 'Recharge stretch started.'))}
+        </div>
       </div>
       <h4 className="ws-h"><i className="fas fa-chart-line" /> Live Session Stats</h4>
       <div className="ws-panel ws-tiles">
@@ -183,6 +164,39 @@ function OverlayControl({ page, setPage, toast }: { page: Page; setPage: (p: Pag
         <p>The durations go back to 60, 5 and 30 minutes and the timer on your live overlay resets.</p>
         <div className="modal-acts"><button type="button" className="btn btn-ghost" data-autofocus onClick={() => setReset(false)}>Cancel</button><button type="button" className="btn btn-danger" onClick={resetAll}><i className="fas fa-rotate-left" /> Reset Overlay</button></div></Modal>}
     </section>
+    <section className="card ws-card" aria-label="Overlay Settings">
+      <h3 className="card-h">Overlay Settings</h3>
+      <div className="ws-cols ws-cols2">
+        <div className="ws-col">
+          <h4 className="ws-h"><i className="fas fa-clock" /> Durations</h4>
+          <div className="ws-durs">
+            {DUR.map(([k, l, icon, help, max]) => { const m = bad(k); return (
+              <div key={k} className="ws-fld"><label htmlFor={`ws-${k}`} className="ws-lbl"><i className={icon} /> {l}</label>
+                <span className={`mp-numbox ws-num${m ? ' is-bad' : ''}`}><input id={`ws-${k}`} type="number" inputMode="numeric" min={1} max={max} aria-invalid={!!m} aria-describedby={`ws-${k}-h`} value={raw[k]} onChange={(e) => setRaw({ ...raw, [k]: e.target.value })} onBlur={() => blurSave(k)} />{k !== 'cycle_count' && <span className="mp-unit">min</span>}</span>
+                <span id={`ws-${k}-h`} className={`small ${m ? 'mp-bad' : 'muted'}`}>{m || help}</span></div>) })}
+          </div>
+          <div className="ws-fld"><button type="button" className="btn btn-ghost ws-fit" disabled={dis} onClick={async () => { setBusy('cyc'); try { await post({ action: 'reset_cycle' }); toast({ kind: 'ok', text: 'Cycle counter reset.' }) } catch (e) { toast({ kind: 'err', text: (e as Error).message }) } setBusy('') }}><i className={busy === 'cyc' ? 'fas fa-spinner fa-spin' : 'fas fa-arrow-rotate-left'} /> Reset Cycle Counter</button></div>
+        </div>
+        <div className="ws-col">
+          <h4 className="ws-h"><i className="fas fa-display" /> Overlay</h4>
+          <div className="ws-fld"><span className="ws-lbl"><i className="fas fa-palette" /> Overlay theme</span><Combobox label="Overlay theme" searchable={false} value={s.theme} onChange={(v) => save({ ...s, theme: v })} options={THEMES} />
+            <span className="small muted">Pick the visual style for the working/study overlay. Changes apply to the overlay live, no reload needed.</span></div>
+          <div className="ws-fld"><span className="ws-lbl"><i className="fas fa-table-columns" /> Task list view</span><Combobox label="Task list view" searchable={false} value={s.list_view_mode} onChange={(v) => save({ ...s, list_view_mode: v })} options={VIEWS} />
+            <span className="small muted">Split shows separate streamer and viewer panels; Unified merges them into one "username: task" list. Changes apply to the overlay live, no reload needed.</span></div>
+          <div className="ws-fld"><div className="ws-check"><Switch on={!!s.show_cycle_badge} label="Show cycle badge on overlay" onChange={(v) => save({ ...s, show_cycle_badge: v ? 1 : 0 })} /><span>Show cycle badge on overlay</span></div>
+            <span className="small muted">Displays an "N / M" badge next to the timer phase, advancing each time a focus sprint completes.</span></div>
+          <div className="ws-fld"><div className="ws-check"><Switch on={!!s.auto_cycle_enabled} label="Auto-Pilot (Auto phase transition)" onChange={(v) => save({ ...s, auto_cycle_enabled: v ? 1 : 0 })} /><span>Auto-Pilot (Auto phase transition)</span></div></div>
+        </div>
+      </div>
+      <div className="ws-foot">
+        <p className="small muted">Changes save on their own. Update Overlay re-sends the durations to the overlay; Reset Overlay puts them back to 60, 5 and 30 minutes.</p>
+        <div className="ws-hbtns">
+          <button type="button" className="btn btn-ghost" disabled={dis} onClick={() => setReset(true)}><i className={busy === 'reset_all' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-left'} /> Reset Overlay</button>
+          <button type="button" className="btn" disabled={dis} onClick={update}><i className={busy === 'upd' ? 'fas fa-spinner fa-spin' : 'fas fa-cloud-arrow-up'} /> Update Overlay</button>
+        </div>
+      </div>
+    </section>
+    </>
   )
 }
 
