@@ -2491,3 +2491,18 @@ span.vault-art { cursor: default; }
 .md-table td { overflow-wrap: anywhere; min-width: 0; }
 .md-page .card-h { flex-wrap: wrap; min-width: 0; }
 .md-page a, .md-page .md-help, .md-page p, .md-page .small { overflow-wrap: anywhere; }
+.ws-now { display: flex; flex-direction: column; gap: 12px; }
+.ws-now .ws-h-row { margin-top: 0; }
+.ws-now .ws-clock { font-size: 72px; }
+.ws-tbtns, .ws-pbtns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.ws-tbtns .ws-big { width: auto; flex: 0 1 180px; min-height: 46px; font-size: 15px; }
+.ws-pbtns .ws-big { width: auto; flex: 1 1 0; min-height: 36px; }
+.ws-jump { justify-content: center; margin-top: 4px; }
+.ws-durs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.ws-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line, rgba(127,127,127,.2)); }
+.ws-foot p { margin: 0; flex: 1 1 280px; }
+@media (max-width: 720px) {
+  .ws-now .ws-clock { font-size: 52px; }
+  .ws-tbtns .ws-big, .ws-pbtns .ws-big { flex: 1 1 100%; }
+  .ws-durs { grid-template-columns: 1fr; }
+}
