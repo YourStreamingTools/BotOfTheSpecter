@@ -62,7 +62,7 @@ def format_convert_quantity(magnitude, units):
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
 from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, consume_song_permit, has_song_permit, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, same_song_block_message, sync_song_request_cache, viewer_limit_message, add_stream_request, get_stream_request_count, is_song_limit_exempt, reset_stream_requests, stream_cap_message
-from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
+from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_mark_new_stream, pet_reset_for_new_stream, pet_reset_if_stale, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from openai import AsyncOpenAI
 
 # Load environment variables from .env file
@@ -16006,8 +16006,11 @@ async def process_stream_online_websocket():
     global stream_online, current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
     global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, stream_session_started_at, ad_1min_last_notified_next_ad_at, ad_1min_last_notified_ts
     was_offline = not stream_online
+    if was_offline:
+        pet_mark_new_stream()
     stream_online = True
     if was_offline:
+        await pet_reset_for_new_stream()
         stream_session_started_at = datetime.now(timezone.utc).timestamp()
         # New stream, so per-stream song request counts start again
         try:
@@ -16094,8 +16097,6 @@ async def process_stream_online_websocket():
     # Start looped tasks after DB/session update (beta ordering)
     start_looped_task("timed_message", timed_message)
     start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
-    if was_offline:
-        await pet_reset_for_new_stream()
     if current_game and str(current_game).strip().lower() != "unknown":
         safe_create_task(tracked_game_sync(current_game_id, current_game, True))
 
@@ -18558,6 +18559,7 @@ async def check_stream_online():
                                 stream_session_started_at = parse_ad_break_started_at(started_at_str)
                             else:
                                 stream_session_started_at = datetime.now(timezone.utc).timestamp()
+                            safe_create_task(pet_reset_if_stale(stream_session_started_at))
                             ad_upcoming_notified = False
                             ad_upcoming_last_notified_next_ad_at = None
                             ad_1min_last_notified_next_ad_at = None
