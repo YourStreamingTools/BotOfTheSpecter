@@ -16,7 +16,7 @@ const SET = '/api/discord/server-settings.php'
 const INVITE = 'https://discord.com/oauth2/authorize?client_id=1170683250797187132&permissions=581651049737302&integration_type=0&scope=bot'
 type Ch = { id: string; name: string; type?: number }
 type V = Record<string, string | number | boolean | null>
-type Page = { success: boolean; message: string; error: string | null; act_as: boolean; is_linked: boolean; needs_relink: boolean; needs_reauth: boolean; expires_str: string; auth_url: string; use_manual_ids: boolean; has_guild: boolean; guilds: { id: string; name: string }[]; channels: Ch[]; voice_channels: Ch[]; roles: Ch[]; streamers: { username: string; stream_url: string }[]; features: Record<string, boolean | number>; values: V }
+type Page = { success: boolean; message: string; error: string | null; act_as: boolean; act_as_edit?: boolean; is_linked: boolean; needs_relink: boolean; needs_reauth: boolean; expires_str: string; auth_url: string; use_manual_ids: boolean; has_guild: boolean; guilds: { id: string; name: string }[]; channels: Ch[]; voice_channels: Ch[]; roles: Ch[]; streamers: { username: string; stream_url: string }[]; features: Record<string, boolean | number>; values: V }
 type Embed = { id: number; embed_name: string; title?: string | null; description?: string | null; color?: string | null; url?: string | null; thumbnail_url?: string | null; image_url?: string | null; footer_text?: string | null; footer_icon_url?: string | null; author_name?: string | null; author_url?: string | null; author_icon_url?: string | null; timestamp_enabled?: number | boolean; fields?: string | null }
 type Field = { name: string; value: string; inline: boolean }
 const FEATURES: [string, string][] = [['welcomeMessage', 'Welcome Message'], ['autoRole', 'Auto Role on Join'], ['roleHistory', 'Role History'], ['messageTracking', 'Message Tracking'], ['roleTracking', 'Role Tracking'], ['serverRoleManagement', 'Server Role Management'], ['userTracking', 'User Tracking'], ['reactionRoles', 'Reaction Roles'], ['rulesConfiguration', 'Rules Configuration'], ['streamSchedule', 'Stream Schedule'], ['embedBuilder', 'Embed Builder'], ['freeGames', 'Free Games']]
@@ -116,7 +116,7 @@ export default function DiscordBot() {
     } catch (e) { setP((x) => x && { ...x, features: { ...x.features, [name]: !value } }); setToast({ kind: 'err', text: errText(e) }) }
   }
   if (!p) return <div className="page cmds dc">{err ? <div className="notice notice-err" role="alert"><i className="fas fa-triangle-exclamation" /> <span>{err}</span></div> : <section className="card" aria-busy="true">{[0, 1, 2].map((i) => <span key={i} className="skel skel-line" />)}</section>}</div>
-  const v = p.values, linked = p.is_linked && !p.needs_relink, ready = linked && p.has_guild && !p.act_as
+  const v = p.values, linked = p.is_linked && !p.needs_relink, ready = linked && p.has_guild && (!p.act_as || !!p.act_as_edit)
   const guildName = p.guilds.find((g) => g.id === s(v.existingGuildId))?.name
   const clear = (f: string) => setAsk({ title: CLEAR[f][0], body: <p>This will permanently delete all {CLEAR[f][1]} configuration and settings. You cannot undo this.</p>, yes: 'Yes, Clear All Data', run: () => cfg('clr-' + f, { action: CLEAR[f][2] }, () => { if (['reactionRoles', 'rulesConfiguration', 'streamSchedule'].includes(f)) feature(f, false); load() }) })
   const pick = { p, ready }
@@ -129,7 +129,7 @@ export default function DiscordBot() {
         {!p.is_linked ? <div className="dc-link">
           <h4>{p.needs_relink ? (p.needs_reauth ? 'New Permissions Required' : 'Reconnection Required') : 'Link Your Discord Account'}</h4>
           <p className="muted">{p.needs_relink ? (p.needs_reauth ? "We've added new features that need more Discord permissions. Re-authorize your account to use server management and server selection." : 'Your Discord account was linked using our previous system. Reconnect it to use the latest features.') : "Link your Discord account to get Specter alerts in your Discord server, and a voice channel that updates when you go live."}</p>
-          {p.act_as ? <div className="notice notice-warn"><i className="fas fa-circle-exclamation" /> <span>Act As mode is active. Discord linking is disabled for acting users.</span></div>
+          {p.act_as ? <div className="notice notice-warn"><i className="fas fa-circle-exclamation" /> <span>{p.act_as_edit ? 'Act As mode is active. You can change these settings for this user; Discord linking and disconnecting stay disabled.' : 'Act As mode is active. Discord linking is disabled for acting users.'}</span></div>
             : p.auth_url && <div className="row-btns"><a className={`btn${p.needs_relink ? ' btn-warn' : ''}`} href={p.auth_url}><i className={p.needs_relink ? 'fas fa-sync-alt' : 'fab fa-discord'} /> {p.needs_relink ? (p.needs_reauth ? 'Grant New Permissions' : 'Reconnect Discord Account') : 'Link Discord'}</a></div>}
         </div> : <div className="dc-link">
           <h4><i className="fas fa-check-circle mp-green" /> Your Discord account is linked!</h4>
@@ -157,7 +157,7 @@ export default function DiscordBot() {
           <section className="card dc-card" aria-label="Twitch Stream Monitoring">
             <h3 className="card-h"><i className="fa-brands fa-twitch" /> Twitch Stream Monitoring</h3>
             <p className="muted">Add Twitch streamers to monitor and get notified in your Discord server when they go live.</p>
-            <AddStreamer disabled={!linked || p.act_as} busy={busy === 'add'} save={(u) => form('add', { monitor_username: u })} />
+            <AddStreamer disabled={!linked || (p.act_as && !p.act_as_edit)} busy={busy === 'add'} save={(u) => form('add', { monitor_username: u })} />
             <button type="button" className="btn btn-ghost" onClick={() => setShowStreamers(true)}><i className="fa-solid fa-people-group" /> View Tracked Streamers ({p.streamers.length})</button>
             <ChannelForm {...pick} k="mon" busy={busy === 'mon'} fields={[['twitch_stream_monitor_id', 'Twitch Stream Monitoring Channel', 'Channel to post when tracked Twitch users go live', 'existingTwitchStreamMonitoringID', false]]} btn="Save Monitoring Channel" icon="fas fa-wifi" save={(b) => form('mon', { ...b, guild_id: s(v.existingGuildId), save_stream_monitoring: '1' })} />
           </section>
@@ -202,7 +202,7 @@ export default function DiscordBot() {
 
       {showStreamers && <Modal title="Saved Streamers List" icon="fas fa-people-group" onClose={() => setShowStreamers(false)} wide>
         {!p.streamers.length ? <p className="muted">No streamers saved yet.</p> : <ul className="dc-list">{p.streamers.map((x) => <li key={x.username} className="dc-row"><span className="dc-row-main"><b>{x.username}</b><a className="muted small" href={x.stream_url.startsWith('https://www.twitch.tv/') ? x.stream_url : `https://www.twitch.tv/${encodeURIComponent(x.username)}`} target="_blank" rel="noopener noreferrer">{x.stream_url}</a></span>
-          <button type="button" className="btn btn-danger" disabled={p.act_as || busy === 'rm' + x.username} onClick={() => setAsk({ title: 'Remove Tracked Streamer?', body: <p>Remove <b>{x.username}</b> from your tracked streamers? The bot stops posting when they go live.</p>, yes: 'Yes, Remove', run: () => form('rm' + x.username, { remove_streamer: x.username }) })}><i className="fas fa-trash" /> Remove</button></li>)}</ul>}
+          <button type="button" className="btn btn-danger" disabled={(p.act_as && !p.act_as_edit) || busy === 'rm' + x.username} onClick={() => setAsk({ title: 'Remove Tracked Streamer?', body: <p>Remove <b>{x.username}</b> from your tracked streamers? The bot stops posting when they go live.</p>, yes: 'Yes, Remove', run: () => form('rm' + x.username, { remove_streamer: x.username }) })}><i className="fas fa-trash" /> Remove</button></li>)}</ul>}
       </Modal>}
       {ask && <Confirm title={ask.title} yes={ask.yes} danger={ask.danger !== false} onClose={() => setAsk(null)} onYes={() => { const r = ask.run; setAsk(null); r() }}>{ask.body}</Confirm>}
     </div>
@@ -229,7 +229,7 @@ const idOk = (x: string) => x === '' || /^\d{15,22}$/.test(x)
 function ServerCard({ p, busy, save }: { p: Page; busy: boolean; save: (g: string) => void }) {
   const [g, setG] = useState(s(p.values.existingGuildId))
   const linked = !p.needs_relink, opts = p.guilds.map((x) => ({ value: x.id, label: x.name }))
-  const canPick = linked && (p.use_manual_ids || p.guilds.length > 0) && !p.act_as
+  const canPick = linked && (p.use_manual_ids || p.guilds.length > 0) && (!p.act_as || !!p.act_as_edit)
   return (
     <section className="card dc-card" aria-label="Discord Server Configuration">
       <div className="card-title-row"><h3 className="card-h"><i className="fas fa-server" /> Discord Server Configuration <span className="pill pill-info">Required</span></h3></div>

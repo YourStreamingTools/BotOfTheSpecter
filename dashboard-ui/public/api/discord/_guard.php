@@ -14,9 +14,25 @@ function beta_cm_out(array $body): never {
 }
 }
 
+// Act As writes: only a real admin (users.is_admin re-checked on every call)
+// may change the acted-as user's Discord settings. Linking stays blocked.
+function beta_discord_act_as_ok(): bool {
+    if (empty($_SESSION['admin_act_as_active'])) return true;
+    if (($_SESSION['admin_act_as_actor_role'] ?? '') !== 'admin') return false;
+    $aid = (int) ($_SESSION['admin_act_as_actor_user_id'] ?? 0);
+    if ($aid <= 0) return false;
+    include '/var/www/config/database.php';
+    $c = @new mysqli($db_servername, $db_username, $db_password, 'website');
+    if ($c->connect_error) return false;
+    $st = $c->prepare('SELECT is_admin FROM users WHERE id = ? LIMIT 1');
+    if (!$st) { $c->close(); return false; }
+    $st->bind_param('i', $aid); $st->execute();
+    $row = $st->get_result()->fetch_assoc(); $st->close(); $c->close();
+    return (int) ($row['is_admin'] ?? 0) === 1;
+}
 // The user's saved server (discord_users.guild_id) is the only server beta acts on.
 function beta_discord_guild(): string {
-    if (!empty($_SESSION['admin_act_as_active'])) beta_cm_fail('Discord changes are disabled while acting as another user.', 403);
+    if (!beta_discord_act_as_ok()) beta_cm_fail('Discord changes are disabled while acting as another user.', 403);
     $uid = (int) ($_SESSION['user_id'] ?? 0);
     if ($uid <= 0) beta_cm_fail('session_expired', 401);
     include '/var/www/config/database.php';
