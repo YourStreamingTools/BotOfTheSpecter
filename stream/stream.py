@@ -194,6 +194,12 @@ CAMERA_DEFAULT_NAME = "main"
 _CAMERA_NAME_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
 
 CAMERA_DEVICE_TOKEN_PREFIX = "scd_"
+# App store review keys (admin_api_keys services) -> sandbox camera identities. The leading underscore
+# can never be a Twitch login, so reviewer video never lands on a real streamer's camera path.
+CAMERA_REVIEWER_SERVICES = {
+    "googleplaystore": "_review_googleplay",
+    "applestoreconnect": "_review_appstore",
+}
 CAMERA_DEVICE_RECHECK_SECONDS = 30
 
 def split_camera_key(publishing_name: str) -> tuple[str, str | None]:
@@ -380,6 +386,24 @@ async def get_username_from_api_key(api_key):
 
 async def validate_api_key(api_key):
     return await get_username_from_api_key(api_key)
+
+async def camera_reviewer_lookup(api_key: str) -> str | None:
+    # Camera ingest only: a store review key maps to its sandbox username, never to a real account.
+    if not api_key:
+        return None
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT service FROM admin_api_keys WHERE api_key = %s", (api_key,))
+            row = await cursor.fetchone()
+            return CAMERA_REVIEWER_SERVICES.get(str(row["service"]).lower()) if row else None
+    except Exception as e:
+        logger.error(f"Error in camera_reviewer_lookup: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
 
 async def camera_device_lookup(token: str) -> dict | None:
     # Linked phone (Cloud Studio pairing): scd_ token -> {id, username, camera}; unlinked devices come back as None.
@@ -870,6 +894,11 @@ class RTMP2FLVController(SimpleRTMPController):
                 camera_device_id = device["id"]
         else:
             username = await validate_api_key(lookup_key)
+            if not username and is_camera:
+                # Store reviewers: camera relay only, so no recording, storage slot or Twitch forwarding.
+                username = await camera_reviewer_lookup(lookup_key)
+                if username:
+                    logger.info(f"Camera publish from store review key as {username}")
         if not username:
             logger.warning(f"Unauthorized API key: {publishing_name}")
             session.writer.close()
