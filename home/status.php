@@ -371,6 +371,16 @@ if (isset($_GET['ajax'])) {
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <script>
+        // Pick the layout: ?res=720 or ?res=1080 forces one, otherwise a
+        // viewport up to 1400x800 (e.g. a 1280x720 Cloud Studio canvas) gets 720p.
+        (function () {
+            var res = new URLSearchParams(window.location.search).get('res');
+            var w = window.innerWidth, h = window.innerHeight;
+            var is720 = res === '720' || (res !== '1080' && w > 768 && w <= 1400 && h <= 800);
+            if (is720) document.documentElement.classList.add('res-720');
+        })();
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; }
@@ -453,6 +463,13 @@ if (isset($_GET['ajax'])) {
             .columns:not(.is-mobile) > .column.is-one-quarter,
             .columns:not(.is-mobile) > .column.is-half { flex: 1 1 100%; max-width: 100%; }
         }
+        /* Dedicated 720p layout (1280x720 browser sources): 2/3 of the 1080p sizes */
+        html.res-720 { font-size: 11px; }
+        html.res-720 body { font-size: 11px; padding: 5px; padding-bottom: 18px; }
+        html.res-720 .maintenance-banner { padding: 5px 9px; margin-bottom: 5px; gap: 5px; }
+        html.res-720 .user-list { column-width: 135px; column-gap: 0.85rem; max-height: calc(100vh - 240px); min-height: 180px; padding-bottom: 64px; }
+        html.res-720 .bottom-row .section { padding-top: 5px; }
+        html.res-720 .status-brand-logo { width: 107px; right: 9px; bottom: 8px; }
     </style>
 </head>
 <body>
