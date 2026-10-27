@@ -55,6 +55,8 @@ CONFORM_DEFAULT_BITRATE = 6_000_000
 CONFORM_MIN_BITRATE = 2_500_000
 CONFORM_MAX_BITRATE = 8_000_000
 CONFORM_AUDIO_BITRATE = "160k"
+# Twitch's recommended video bitrate for each setting (the shorter side, then frames per second); a re-encode never goes above it.
+TWITCH_MAX_BITRATES = ((720, 30, 3_000_000), (720, 60, 4_500_000), (1080, 30, 4_500_000), (1080, 60, 6_000_000))
 X264_PROFILES = {"high": "high", "main": "main", "baseline": "baseline", "constrained baseline": "baseline"}
 
 TWITCH_INGEST_SERVERS = {
@@ -640,6 +642,22 @@ def pick_target(entries):
     return max(totals, key=lambda key: totals[key]) if totals else None
 
 
+def twitch_bitrate_cap(target):
+    # The recommended bitrate for the target's size and frame rate; anything above 1080p uses the 1080p figure
+    _, _, width, height, rate, *_ = target
+    try:
+        num, _, den = str(rate).partition("/")
+        fps = float(num) / float(den or 1)
+        lines = min(int(width), int(height))
+    except (TypeError, ValueError, ZeroDivisionError):
+        return CONFORM_MAX_BITRATE
+    high_fps = fps > 31
+    for max_lines, max_fps, cap in TWITCH_MAX_BITRATES:
+        if lines <= max_lines and (high_fps == (max_fps == 60)):
+            return cap
+    return TWITCH_MAX_BITRATES[-1][2] if high_fps else TWITCH_MAX_BITRATES[2][2]
+
+
 def conform_command(src, part, target, bitrate, source_has_audio):
     _, profile, width, height, rate, pix_fmt, a_codec, a_rate, a_channels = target
     num, _, den = str(rate).partition("/")
@@ -712,7 +730,7 @@ async def conform_item(pool, rerun_id, item, src, src_key, src_duration, target,
             logger.error(f"Rerun {rerun_id}: not enough disk to re-encode item {item['position']}; it will reconnect the stream")
             return
         bitrate = await asyncio.to_thread(probe_video_bitrate, reference) or CONFORM_DEFAULT_BITRATE
-        bitrate = max(CONFORM_MIN_BITRATE, min(CONFORM_MAX_BITRATE, bitrate))
+        bitrate = max(CONFORM_MIN_BITRATE, min(CONFORM_MAX_BITRATE, twitch_bitrate_cap(target), bitrate))
         _discard_file(part)
         try:
             pid = spawn_detached_ffmpeg(conform_command(src, part, target, bitrate, src_key[6] is not None), log_path)
