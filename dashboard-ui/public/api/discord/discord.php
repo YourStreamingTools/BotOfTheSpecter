@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   if ($_GET) beta_cm_fail('Unknown action.');
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($_GET || stripos((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'json') !== false) beta_cm_fail('Unknown action.');
-  if ($isActAsUser) beta_cm_fail('Discord changes are disabled while acting as another user.', 403);
+  if ($isActAsUser && (isset($_POST['disconnect_discord']) || !beta_discord_act_as_ok())) beta_cm_fail('Discord changes are disabled while acting as another user.', 403);
   foreach ($_POST as $betaV) if (!is_string($betaV) || mb_strlen($betaV) > 200) beta_cm_fail('Unknown action.');
   $betaActs = ['save_message_tracking', 'save_freestuff_settings', 'save_stream_online', 'save_alert_channels', 'save_stream_monitoring', 'disconnect_discord', 'monitor_username', 'remove_streamer', 'save_role_history', 'save_role_tracking', 'save_server_role_management', 'save_user_tracking'];
   $betaHit = array_values(array_intersect($betaActs, array_keys($_POST)));
@@ -1811,6 +1811,7 @@ beta_cm_out([
   'message' => $betaClean($buildStatus) ?: $betaClean($linkingMessage),
   'error' => $betaClean($errorMsg) ?: null,
   'act_as' => $isActAsUser,
+  'act_as_edit' => $isActAsUser && beta_discord_act_as_ok(),
   'is_linked' => (bool) $is_linked, 'needs_relink' => (bool) $needs_relink, 'needs_reauth' => (bool) ($needs_reauth ?? false),
   'expires_str' => (string) $expires_str,
   'auth_url' => $authURL,
