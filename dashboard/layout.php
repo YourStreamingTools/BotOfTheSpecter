@@ -137,7 +137,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         <div class="mb-3">
             <?php echo t('cookie_consent_help'); ?>
             <br>
-            <a href="https://botofthespecter.com/privacy-policy.php" target="_blank">
+            <a href="https://botofthespecter.com/privacy" target="_blank">
                 <?php echo t('privacy_policy'); ?>
             </a>
         </div>

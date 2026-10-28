@@ -52,8 +52,8 @@ $currentFile = basename($_SERVER['SCRIPT_NAME']);
         </a>
         <div class="hs-topnav-links" id="hsDesktopNav">
             <a href="/" class="hs-topnav-link<?= $currentFile === 'index.php' ? ' active' : '' ?>">Home</a>
-            <a href="privacy-policy.php" class="hs-topnav-link<?= $currentFile === 'privacy-policy.php' ? ' active' : '' ?>">Privacy Policy</a>
-            <a href="terms-of-service.php" class="hs-topnav-link<?= $currentFile === 'terms-of-service.php' ? ' active' : '' ?>">Terms of Service</a>
+            <a href="/privacy" class="hs-topnav-link">Privacy Policy</a>
+            <a href="/terms" class="hs-topnav-link">Terms of Service</a>
             <a href="feedback.php" class="hs-topnav-link<?= $currentFile === 'feedback.php' ? ' active' : '' ?>">Feedback</a>
         </div>
         <div class="hs-topnav-right">
@@ -72,8 +72,8 @@ $currentFile = basename($_SERVER['SCRIPT_NAME']);
 <!-- Mobile nav dropdown -->
 <div class="hs-mobile-nav" id="hsMobileNav" role="navigation" aria-label="mobile navigation">
     <a href="/" class="hs-topnav-link<?= $currentFile === 'index.php' ? ' active' : '' ?>"><i class="fa-solid fa-house"></i> Home</a>
-    <a href="privacy-policy.php" class="hs-topnav-link<?= $currentFile === 'privacy-policy.php' ? ' active' : '' ?>"><i class="fa-solid fa-shield-halved"></i> Privacy Policy</a>
-    <a href="terms-of-service.php" class="hs-topnav-link<?= $currentFile === 'terms-of-service.php' ? ' active' : '' ?>"><i class="fa-solid fa-file-lines"></i> Terms of Service</a>
+    <a href="/privacy" class="hs-topnav-link"><i class="fa-solid fa-shield-halved"></i> Privacy Policy</a>
+    <a href="/terms" class="hs-topnav-link"><i class="fa-solid fa-file-lines"></i> Terms of Service</a>
     <a href="feedback.php" class="hs-topnav-link<?= $currentFile === 'feedback.php' ? ' active' : '' ?>"><i class="fa-solid fa-comment"></i> Feedback</a>
     <div class="hs-mobile-nav-cta">
         <a href="https://dashboard.botofthespecter.com/dashboard.php" class="hs-btn hs-btn-primary" style="width:100%;justify-content:center;">
