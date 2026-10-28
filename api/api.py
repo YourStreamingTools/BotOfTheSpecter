@@ -3378,7 +3378,7 @@ async def camera_devices_unlink(id: int, api_key: str = Query(...), channel: str
 @app.get(
     "/camera/device/me",
     summary="Check a linked camera",
-    description="Called by the Specter Camera app with its device token in the X-Device-Token header. 200 while the phone is linked, 401 unlinked once it has been unlinked in Cloud Studio (link again with a new code).",
+    description="Called by the Specter Camera app with its device token in the X-Device-Token header. 200 while the phone is linked, 401 unlinked once it has been unlinked in Cloud Studio or on the phone (link again with a new code).",
     tags=["Public"],
     operation_id="camera_device_me",
 )
@@ -3414,6 +3414,44 @@ async def camera_device_me(x_device_token: str = Header(None, max_length=128)):
         "region": CAMERA_INGEST_REGION,
         "ingest_url": CAMERA_INGEST_URL,
     }
+
+@app.delete(
+    "/camera/device/me",
+    summary="Unlink this camera from the phone",
+    description="Called by the Specter Camera app when the user taps Unlink on the phone, with its device token in the X-Device-Token header. The device is revoked the same way as an unlink from Cloud Studio: it leaves the Linked phones list, its token stops working and any live stream from it is dropped. 200 when it was revoked (or already was), 401 when the token is not a linked device.",
+    tags=["Public"],
+    operation_id="camera_device_unlink_me",
+)
+async def camera_device_unlink_me(x_device_token: str = Header(None, max_length=128)):
+    token = (x_device_token or "").strip()
+    if not token.startswith(CAMERA_DEVICE_TOKEN_PREFIX):
+        return _camera_pair_error(401, "unlinked", "This camera is not linked")
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT id, username, revoked_at FROM camera_devices WHERE token_hash = %s", (token_hash,))
+            row = await cur.fetchone()
+            if not row:
+                return _camera_pair_error(401, "unlinked", "This camera is not linked")
+            already = row["revoked_at"] is not None
+            if not already:
+                await cur.execute(
+                    "UPDATE camera_devices SET revoked_at = UTC_TIMESTAMP() WHERE id = %s AND revoked_at IS NULL",
+                    (row["id"],),
+                )
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Error unlinking camera device from the phone: {e}")
+        return _camera_pair_error(500, "server_error", "Internal server error")
+    finally:
+        conn.close()
+    disconnected = 0
+    if not already:
+        results, _ = await _camera_stream_servers_call("POST", "/api/cameras/disconnect", {"device_id": str(row["id"])})
+        disconnected = sum(int(r.get("disconnected") or 0) for r in results)
+        logging.info(f"Camera device {row['id']} unlinked from the phone for '{row['username']}'")
+    return {"status": "unlinked", "id": row["id"], "already_unlinked": already, "disconnected": disconnected}
 
 @app.get(
     "/camera/view-token",
