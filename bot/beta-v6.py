@@ -980,46 +980,132 @@ class EventSubReconnect(Exception):
 _seen_eventsub_message_ids: dict = {}  # message_id -> received_timestamp
 _EVENTSUB_DEDUP_TTL = 60  # seconds to remember a seen message_id
 
-# Get or create Twitch EventSub Conduit
-async def get_or_create_conduit():
-    global CONDUIT_ID, CHANNEL_AUTH, CLIENT_ID
-    url = "https://api.twitch.tv/helix/eventsub/conduits"
-    headers = {
-        "Client-Id": CLIENT_ID,
-        "Authorization": f"Bearer {CHANNEL_AUTH}",
-        "Content-Type": "application/json"
-    }
+# Twitch conduit and chat-in plumbing. Chat arrives through a TwitchIO AutoBot conduit.
+# Conduit endpoints only accept an app access token, so every call here uses one.
+# Each channel process owns its OWN conduit: a conduit shared between processes lets the
+# last process to start take over the shards, so the other channels silently lose chat.
+CHAT_CONDUIT_MAX = 5                    # Twitch allows 5 conduits per client id
+CHAT_WATCHDOG_INTERVAL = 60             # seconds between conduit health checks
+CHAT_SILENCE_REPAIR_AFTER = 900         # seconds of live-stream silence before a forced re-association
+CHAT_FORCED_REPAIR_COOLDOWN = 900       # minimum seconds between forced re-associations
+CHAT_BACKOFF_START = 5
+CHAT_BACKOFF_MAX = 300
+_app_token_cache = {"token": None, "expires": 0.0}
+_app_token_lock = None
+chat_last_received = None               # monotonic seconds of the last chat message for this channel
+chat_ready_once = False                 # set once TwitchIO finished setup and event_ready ran
+chat_last_forced_repair = 0.0
+CONDUIT_ID = None
+CHAT_SUB_USER_ID = None                 # chat user id this process subscribes as, set in main()
+
+async def get_twitch_app_token(force=False):
+    global _app_token_lock
+    if _app_token_lock is None:
+        _app_token_lock = asyncio.Lock()
+    async with _app_token_lock:
+        now = time.monotonic()
+        if not force and _app_token_cache["token"] and now < _app_token_cache["expires"]:
+            return _app_token_cache["token"]
+        payload = {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET, "grant_type": "client_credentials"}
+        async with httpClientSession(timeout=ClientTimeout(total=20)) as session:
+            async with session.post("https://id.twitch.tv/oauth2/token", data=payload) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"App access token request failed: HTTP {response.status}")
+                data = await response.json()
+        _app_token_cache["token"] = data["access_token"]
+        _app_token_cache["expires"] = now + max(60, int(data.get("expires_in", 3600)) - 300)
+        return _app_token_cache["token"]
+
+async def twitch_app_request(method, path, params=None):
+    # Helix call with an app access token. Retries once with a fresh token on 401.
+    url = f"https://api.twitch.tv/helix/{path}"
+    for attempt in range(2):
+        token = await get_twitch_app_token(force=(attempt == 1))
+        headers = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {token}"}
+        async with httpClientSession(timeout=ClientTimeout(total=20)) as session:
+            async with session.request(method, url, headers=headers, params=params) as response:
+                if response.status == 401 and attempt == 0:
+                    continue
+                if response.status == 204:
+                    return response.status, {}
+                try:
+                    body = await response.json(content_type=None)
+                except Exception:
+                    body = {}
+                return response.status, body
+    return 401, {}
+
+async def twitch_app_list(path, params=None):
+    # Follow Helix pagination for a GET list endpoint. Raises on any non-200 answer.
+    items = []
+    query = dict(params or {})
+    for _ in range(50):
+        status, body = await twitch_app_request("GET", path, query)
+        if status != 200:
+            raise RuntimeError(f"GET {path} failed: HTTP {status} {str(body.get('message', ''))[:120]}")
+        items.extend(body.get("data", []))
+        cursor = (body.get("pagination") or {}).get("cursor")
+        if not cursor:
+            break
+        query["after"] = cursor
+    return items
+
+async def fetch_chat_subscriptions():
+    # Every channel.chat.message subscription on conduits for this client id
+    subs = await twitch_app_list("eventsub/subscriptions", {"type": "channel.chat.message"})
+    return [s for s in subs if (s.get("transport") or {}).get("method") == "conduit"]
+
+async def resolve_chat_conduit():
+    # Pick the conduit this channel process should own.
+    # Returns a conduit id to adopt, or True to have TwitchIO create a new one.
+    conduits = await twitch_app_list("eventsub/conduits")
+    chat_subs = await fetch_chat_subscriptions()
+    by_conduit = {}
+    for sub in chat_subs:
+        by_conduit.setdefault(sub["transport"].get("conduit_id"), set()).add(str(sub["condition"].get("broadcaster_user_id")))
+    existing_ids = {c["id"] for c in conduits}
+    # Adopt a conduit that only carries this channel
+    for cid, broadcasters in by_conduit.items():
+        if cid in existing_ids and broadcasters == {str(CHANNEL_ID)}:
+            return cid
+    if len(conduits) < CHAT_CONDUIT_MAX:
+        return True
+    # At the conduit limit: reuse a conduit nobody has a chat subscription on
+    for conduit in conduits:
+        if conduit["id"] not in by_conduit:
+            return conduit["id"]
+    raise RuntimeError(f"All {CHAT_CONDUIT_MAX} Twitch conduits are in use by other channels")
+
+async def remove_foreign_chat_subscriptions(own_conduit_id):
+    # Drop this channel's chat subscriptions that sit on any other conduit, so a shared
+    # conduit left over from the old layout stops delivering this channel's chat elsewhere.
+    removed = 0
+    for sub in await fetch_chat_subscriptions():
+        if str(sub["condition"].get("broadcaster_user_id")) != str(CHANNEL_ID):
+            continue
+        if sub["transport"].get("conduit_id") == own_conduit_id:
+            # On our own conduit, only a subscription made as a different chat user is stale
+            if not CHAT_SUB_USER_ID or str(sub["condition"].get("user_id")) == str(CHAT_SUB_USER_ID):
+                continue
+        status, _ = await twitch_app_request("DELETE", "eventsub/subscriptions", {"id": sub["id"]})
+        if status in (200, 204):
+            removed += 1
+        else:
+            bot_logger.warning(f"[CHAT CONDUIT] Could not remove stray chat subscription (HTTP {status})")
+    if removed:
+        bot_logger.info(f"[CHAT CONDUIT] Removed {removed} stray chat subscription(s) for this channel")
+    return removed
+
+# Report the conduit TwitchIO owns for chat (kept for the existing startup call)
+async def get_or_create_conduit(bot=None):
+    global CONDUIT_ID
     try:
-        async with httpClientSession() as session:
-            # Try to get existing conduits
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    conduits = data.get('data', [])
-                    if conduits:
-                        # Use the first available conduit
-                        CONDUIT_ID = conduits[0]['id']
-                        event_logger.info(f"Using existing conduit: {CONDUIT_ID}")
-                        return CONDUIT_ID
-                    # No conduits exist, create a new one
-                    event_logger.info("No existing conduits found. Creating new conduit...")
-                    async with session.post(url, headers=headers, json={"shard_count": 1}) as create_response:
-                        if create_response.status in (200, 201):
-                            create_data = await create_response.json()
-                            CONDUIT_ID = create_data['data'][0]['id']
-                            event_logger.info(f"Created new conduit: {CONDUIT_ID}")
-                            return CONDUIT_ID
-                        else:
-                            error_text = await create_response.text()
-                            event_logger.error(f"Failed to create conduit: HTTP {create_response.status} - {error_text}")
-                            return None
-                else:
-                    error_text = await response.text()
-                    event_logger.error(f"Failed to get conduits: HTTP {response.status} - {error_text}")
-                    return None
+        target = bot if bot is not None else BOTS_TWITCH_BOT
+        CONDUIT_ID = target.conduit_info.id
+        event_logger.info(f"Chat conduit in use: {CONDUIT_ID}")
     except Exception as e:
-        event_logger.error(f"Error getting or creating conduit: {e}")
-        return None
+        event_logger.error(f"Error reading chat conduit: {e}")
+    return CONDUIT_ID
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -2254,6 +2340,9 @@ async def process_twitch_eventsub_message(message):
             await connection.release()
 
 # Maintain a Twitch IRC presence so the bot appears in the channel user list
+class _IrcNotAuthenticated(Exception):
+    pass
+
 async def twitch_irc_presence(override_nick=None, override_token=None):
     IRC_HOST = "irc.chat.twitch.tv"
     IRC_PORT = 6697
@@ -2358,7 +2447,8 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     )
                     authenticated = True
             if not authenticated:
-                continue
+                # Fall through to the backoff below. A bare continue here skipped it and reconnected every second.
+                raise _IrcNotAuthenticated()
             writer.write(f"JOIN #{CHANNEL_NAME}\r\n".encode())
             await writer.drain()
             bot_logger.info(f"IRC Presence: Joined #{CHANNEL_NAME}")
@@ -2439,6 +2529,8 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                         f"IRC Presence: Bot joined #{CHANNEL_NAME} as {role} "
                         f"(IRC rate limit: {rate_bucket})"
                     )
+        except _IrcNotAuthenticated:
+            pass
         except asyncioTimeoutError:
             bot_logger.warning("IRC Presence: Read timeout (no data in 5 min), reconnecting...")
         except asyncioCancelledError:
@@ -3803,7 +3895,11 @@ class TwitchBot(commands.AutoBot):
     # Minimal Component surface for TwitchIO when Command._injected is the bot instance.
     __all_guards__ = ()
 
-    def __init__(self, prefix, client_id, client_secret, bot_id, owner_id, subscriptions, force_subscribe):
+    def __init__(self, prefix, client_id, client_secret, bot_id, owner_id, subscriptions, force_subscribe, conduit_id=None):
+        extra_options = {}
+        if conduit_id is not None:
+            # A conduit id to adopt, or True to create a new one; left out, TwitchIO guesses
+            extra_options["conduit_id"] = conduit_id
         super().__init__(
                 prefix=prefix,
                 case_insensitive=True,
@@ -3812,7 +3908,8 @@ class TwitchBot(commands.AutoBot):
                 bot_id=bot_id,
                 owner_id=owner_id,
                 subscriptions=subscriptions,
-                force_subscribe=force_subscribe
+                force_subscribe=force_subscribe,
+                **extra_options
             )
         self.channel_name = CHANNEL_NAME
         self.running_commands = set()
@@ -3855,6 +3952,93 @@ class TwitchBot(commands.AutoBot):
             CHANNEL_AUTH = payload.token
             bot_logger.info(f"Token refreshed for user_id={payload.user_id}; CHANNEL_AUTH updated.")
 
+    async def chat_conduit_repair(self, force_reassociate=False):
+        # Compare Twitch's view of our conduit with TwitchIO's live sockets and fix what is wrong.
+        # Returns a short list of the problems found (empty when healthy).
+        problems = []
+        info = self.conduit_info
+        conduit_id = info.id
+        conduits = await twitch_app_list("eventsub/conduits")
+        if not conduit_id or not any(c["id"] == conduit_id for c in conduits):
+            problems.append("conduit missing")
+            bot_logger.error(f"[CHAT WATCHDOG] Conduit {conduit_id} no longer exists on Twitch. Creating a new one.")
+            old_sockets = list(info.websockets.values())
+            self._shard_ids = []
+            self._subbed = False
+            await self._generate_new_conduit()
+            for sock in old_sockets:
+                try:
+                    await sock.close(reassociate=False)
+                except Exception:
+                    pass
+            info._sockets.clear()
+            await self._associate_shards(list(range(info.shard_count)))
+            global CONDUIT_ID
+            CONDUIT_ID = info.id
+            bot_logger.info(f"[CHAT WATCHDOG] Chat restored on new conduit {info.id}")
+            return problems
+        # Shards must be enabled and attached to the websocket sessions this process holds
+        shards = await twitch_app_list("eventsub/conduits/shards", {"conduit_id": conduit_id})
+        shard_state = {str(sh["id"]): sh for sh in shards}
+        broken = []
+        for shard_id in range(info.shard_count or 0):
+            sh = shard_state.get(str(shard_id))
+            sock = info.websockets.get(str(shard_id))
+            transport = (sh or {}).get("transport") or {}
+            if (sh is None or sock is None or sh.get("status") != "enabled"
+                    or transport.get("method") != "websocket"
+                    or transport.get("session_id") != sock.session_id):
+                broken.append(shard_id)
+        if force_reassociate and not broken:
+            broken = list(range(info.shard_count or 0))
+        if broken:
+            problems.append(f"shards {broken}")
+            bot_logger.warning(f"[CHAT WATCHDOG] Re-associating chat shard(s) {broken} on conduit {conduit_id}")
+            await self._associate_shards(broken)
+        # The chat subscription must exist on this conduit and be enabled
+        subs = [s for s in await fetch_chat_subscriptions()
+                if str(s["condition"].get("broadcaster_user_id")) == str(CHANNEL_ID)]
+        own = [s for s in subs if s["transport"].get("conduit_id") == conduit_id]
+        healthy = [s for s in own if s.get("status") == "enabled"]
+        if not healthy:
+            problems.append("chat subscription missing")
+            bot_logger.warning("[CHAT WATCHDOG] Chat subscription missing or not enabled. Subscribing again.")
+            for sub in own:
+                await twitch_app_request("DELETE", "eventsub/subscriptions", {"id": sub["id"]})
+            result = await self.multi_subscribe(self._initial_subs)
+            bot_logger.info(f"[CHAT WATCHDOG] Re-subscribe finished with {len(result.errors)} error(s)")
+        await remove_foreign_chat_subscriptions(conduit_id)
+        if problems:
+            bot_logger.info(f"[CHAT WATCHDOG] Repair complete: {', '.join(problems)}")
+        return problems
+
+    async def chat_conduit_watchdog(self):
+        # Runs for the life of the process. Never gives up: failures back off and try again.
+        global chat_last_forced_repair
+        backoff = CHAT_BACKOFF_START
+        first_pass = True
+        while True:
+            try:
+                await sleep(5 if first_pass else CHAT_WATCHDOG_INTERVAL)
+                first_pass = False
+                force = False
+                now = time.monotonic()
+                if (stream_online and chat_last_received is not None
+                        and now - chat_last_received > CHAT_SILENCE_REPAIR_AFTER
+                        and now - chat_last_forced_repair > CHAT_FORCED_REPAIR_COOLDOWN):
+                    quiet = int((now - chat_last_received) / 60)
+                    bot_logger.warning(f"[CHAT WATCHDOG] Stream is live and no chat has arrived for {quiet} minute(s). Forcing chat re-association.")
+                    chat_last_forced_repair = now
+                    force = True
+                await self.chat_conduit_repair(force_reassociate=force)
+                backoff = CHAT_BACKOFF_START
+            except asyncioCancelledError:
+                raise
+            except Exception as e:
+                bot_logger.error(f"[CHAT WATCHDOG] Check failed: {type(e).__name__}: {e}. Retrying in {backoff}s")
+                await sleep(backoff)
+                backoff = min(backoff * 2, CHAT_BACKOFF_MAX)
+
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.user.name}"')
         await update_version_control()
@@ -3864,8 +4048,12 @@ class TwitchBot(commands.AutoBot):
         await load_word_replace_settings(force=True)
         # Resume bot-owned personal timers that were still active in the DB.
         create_task(resume_active_pomos())
-        # Get or create EventSub conduit before starting EventSub
-        await get_or_create_conduit()
+        # Chat conduit is owned by TwitchIO; record it and start the watchdog that keeps chat-in alive
+        global chat_ready_once, chat_last_received
+        chat_ready_once = True
+        chat_last_received = time.monotonic()
+        await get_or_create_conduit(self)
+        looped_tasks["chat_conduit_watchdog"] = create_task(self.chat_conduit_watchdog())
         await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         looped_tasks["periodic_stream_metadata_refresh"] = create_task(periodic_stream_metadata_refresh())
@@ -4001,7 +4189,13 @@ class TwitchBot(commands.AutoBot):
 
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
-        global CHANNEL_NAME, CHANNEL_ID
+        global CHANNEL_NAME, CHANNEL_ID, chat_last_received
+        # Chat for another channel can reach this process if a conduit is ever shared. Never act on it.
+        message_room = getattr(message, 'broadcaster', None)
+        if message_room is not None and str(message_room.id) != str(CHANNEL_ID):
+            bot_logger.warning(f"[CHAT] Ignored a message for another channel (room {message_room.id})")
+            return
+        chat_last_received = time.monotonic()
         # In v3 EventSub, source_broadcaster is set when a message was forwarded via shared chat (originated from a different channel). Ignore such messages.
         if message.source_broadcaster is not None and message.source_broadcaster.id != str(CHANNEL_ID):
             return
@@ -21996,26 +22190,47 @@ async def _fetch_custom_bot_user_id() -> str:
     return CHANNEL_ID
 
 async def main() -> None:
-    global BOTS_TWITCH_BOT
+    global BOTS_TWITCH_BOT, CHAT_SUB_USER_ID
     if SELF_MODE:
         bot_user_id = CHANNEL_ID
     elif CUSTOM_MODE:
         bot_user_id = await _fetch_custom_bot_user_id()
     else:
         bot_user_id = "971436498"
+    CHAT_SUB_USER_ID = bot_user_id
     subs = [eventsub.ChatMessageSubscription(broadcaster_user_id=CHANNEL_ID, user_id=bot_user_id)]
-    async with TwitchBot(
-        prefix='!',
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        bot_id=BOT_ID,
-        owner_id=OWNER_ID,
-        subscriptions=subs,
-        force_subscribe=True
-    ) as bot:
-        BOTS_TWITCH_BOT = bot
-        await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)
-        await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)
+    backoff = CHAT_BACKOFF_START
+    while True:
+        try:
+            # Each channel owns its own conduit; an app token is needed to look them up
+            conduit_choice = await resolve_chat_conduit()
+            if conduit_choice is True:
+                bot_logger.info("[CHAT CONDUIT] No conduit of our own yet, a new one will be created")
+            else:
+                bot_logger.info(f"[CHAT CONDUIT] Using conduit {conduit_choice}")
+            async with TwitchBot(
+                prefix='!',
+                client_id=CLIENT_ID,
+                client_secret=CLIENT_SECRET,
+                bot_id=BOT_ID,
+                owner_id=OWNER_ID,
+                subscriptions=subs,
+                force_subscribe=True,
+                conduit_id=conduit_choice
+            ) as bot:
+                BOTS_TWITCH_BOT = bot
+                await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)
+                await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)
+            return
+        except (KeyboardInterrupt, asyncioCancelledError):
+            raise
+        except Exception as e:
+            if chat_ready_once:
+                raise
+            # Setup failed before the bot was ready (for example a Twitch API error). Keep trying.
+            bot_logger.error(f"[CHAT CONDUIT] Startup failed: {type(e).__name__}: {e}. Retrying in {backoff}s")
+            await sleep(backoff)
+            backoff = min(backoff * 2, CHAT_BACKOFF_MAX)
 
 # Pet module (modules/pet.py) is shared by beta.py and beta-v6.py, so hand it this bot's own helpers
 async def pet_close_connection(connection):
