@@ -54,7 +54,6 @@ $currentFile = basename($_SERVER['SCRIPT_NAME']);
             <a href="/" class="hs-topnav-link<?= $currentFile === 'index.php' ? ' active' : '' ?>">Home</a>
             <a href="/privacy" class="hs-topnav-link">Privacy Policy</a>
             <a href="/terms" class="hs-topnav-link">Terms of Service</a>
-            <a href="feedback.php" class="hs-topnav-link<?= $currentFile === 'feedback.php' ? ' active' : '' ?>">Feedback</a>
         </div>
         <div class="hs-topnav-right">
             <button class="hs-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
@@ -74,7 +73,6 @@ $currentFile = basename($_SERVER['SCRIPT_NAME']);
     <a href="/" class="hs-topnav-link<?= $currentFile === 'index.php' ? ' active' : '' ?>"><i class="fa-solid fa-house"></i> Home</a>
     <a href="/privacy" class="hs-topnav-link"><i class="fa-solid fa-shield-halved"></i> Privacy Policy</a>
     <a href="/terms" class="hs-topnav-link"><i class="fa-solid fa-file-lines"></i> Terms of Service</a>
-    <a href="feedback.php" class="hs-topnav-link<?= $currentFile === 'feedback.php' ? ' active' : '' ?>"><i class="fa-solid fa-comment"></i> Feedback</a>
     <div class="hs-mobile-nav-cta">
         <a href="https://dashboard.botofthespecter.com/dashboard.php" class="hs-btn hs-btn-primary" style="width:100%;justify-content:center;">
             <i class="fa-solid fa-gauge-high"></i> Dashboard

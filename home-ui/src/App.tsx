@@ -5,15 +5,13 @@ import { projectTimeHtml } from './projectTime'
 import HomePage from './pages/HomePage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
-import FeedbackPage from './pages/FeedbackPage'
 
-type View = 'home' | 'privacy' | 'terms' | 'feedback'
+type View = 'home' | 'privacy' | 'terms'
 
 function currentView(): View {
   const p = window.location.pathname.toLowerCase().replace(/\/+$/, '')
   if (p === '/privacy' || p.includes('privacy-policy')) return 'privacy'
   if (p === '/terms' || p.includes('terms-of-service')) return 'terms'
-  if (p.includes('feedback')) return 'feedback'
   return 'home'
 }
 
@@ -21,14 +19,12 @@ const TITLES: Record<View, string> = {
   home: 'BotOfTheSpecter',
   privacy: 'BotOfTheSpecter - Privacy Policy',
   terms: 'BotOfTheSpecter - Terms of Service',
-  feedback: 'BotOfTheSpecter - Feedback',
 }
 
 const DESCRIPTIONS: Record<View, string> = {
   home: 'BotOfTheSpecter is a Twitch-first streaming platform with a Discord extension, OBS overlays, dashboard tools, and optional integrations for music, tips, and more.',
   privacy: 'Privacy Policy for BotOfTheSpecter - how we collect, use, share, and protect personal information across our Twitch bot, dashboard, overlays, and related services.',
   terms: 'Terms of Service for BotOfTheSpecter - rules for using our Twitch bot, dashboard, overlays, integrations, and related services.',
-  feedback: 'Feedback and bug reports have moved to the unified support ticket system.',
 }
 
 const empty: HomeSession = {
@@ -110,13 +106,6 @@ export default function App() {
         description: DESCRIPTIONS.terms,
         url: 'https://botofthespecter.com/terms',
       },
-      feedback: {
-        '@context': 'https://schema.org',
-        '@type': 'WebPage',
-        name: 'BotOfTheSpecter - Feedback',
-        description: DESCRIPTIONS.feedback,
-        url: 'https://botofthespecter.com/feedback.php',
-      },
     }
     const el = document.createElement('script')
     el.type = 'application/ld+json'
@@ -144,7 +133,6 @@ export default function App() {
             <a href="/" className={'hs-topnav-link' + (view === 'home' ? ' active' : '')}>Home</a>
             <a href="/privacy" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')}>Privacy Policy</a>
             <a href="/terms" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')}>Terms of Service</a>
-            <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')}>Feedback</a>
           </div>
           <div className="hs-topnav-right">
             <div className="hs-seg" role="radiogroup" aria-label="Theme">
@@ -191,9 +179,6 @@ export default function App() {
         <a href="/terms" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-file-lines" /> Terms of Service
         </a>
-        <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
-          <i className="fa-solid fa-comment" /> Feedback
-        </a>
         <div className="hs-mobile-nav-cta">
           <a
             href="https://dashboard.botofthespecter.com/dashboard.php"
@@ -209,7 +194,6 @@ export default function App() {
           {view === 'home' && <HomePage loggedIn={s.logged_in} displayName={displayName} />}
           {view === 'privacy' && <PrivacyPage />}
           {view === 'terms' && <TermsPage />}
-          {view === 'feedback' && <FeedbackPage />}
         </div>
       </main>
       <footer className="hs-footer" role="contentinfo">

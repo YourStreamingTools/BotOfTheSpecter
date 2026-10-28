@@ -139,6 +139,8 @@ botofthespecter.com, www.botofthespecter.com {
     # Permanent redirects keep every old link working (App Store notes, emails, bookmarks).
     redir /privacy-policy.php /privacy 301
     redir /terms-of-service.php /terms 301
+    # The home Feedback page is gone (feedback moved to the support portal).
+    redir /feedback.php / 301
     import php_app
     log {
         output file /var/log/caddy/botofthespecter.log
