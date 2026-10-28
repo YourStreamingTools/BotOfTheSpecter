@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
     <title>BotOfTheSpecter</title>
     <meta name="description" content="BotOfTheSpecter is a Twitch-first streaming platform with a Discord extension, OBS overlays, dashboard tools, and optional integrations for music, tips, and more." />
     <meta name="twitter:card" content="summary_large_image" />
@@ -19,13 +20,14 @@
           }
           document.documentElement.setAttribute('data-theme', t);
           document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+          document.documentElement.style.colorScheme = t;
         } catch (e) {}
       })();
     </script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" />
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/style.css?v=20261029" />
   </head>
   <body>
     <div id="root"></div>

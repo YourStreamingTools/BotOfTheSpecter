@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchSession, type HomeSession } from './api'
-import { applyTheme, readTheme, type ThemeName } from './theme'
+import { applyTheme, onOsChange, osTheme, readSaved, readTheme, saveTheme, type ThemeName } from './theme'
 import { projectTimeHtml } from './projectTime'
 import HomePage from './pages/HomePage'
 import PrivacyPage from './pages/PrivacyPage'
@@ -10,9 +10,9 @@ import FeedbackPage from './pages/FeedbackPage'
 type View = 'home' | 'privacy' | 'terms' | 'feedback'
 
 function currentView(): View {
-  const p = window.location.pathname
-  if (p.includes('privacy-policy')) return 'privacy'
-  if (p.includes('terms-of-service')) return 'terms'
+  const p = window.location.pathname.toLowerCase().replace(/\/+$/, '')
+  if (p === '/privacy' || p.includes('privacy-policy')) return 'privacy'
+  if (p === '/terms' || p.includes('terms-of-service')) return 'terms'
   if (p.includes('feedback')) return 'feedback'
   return 'home'
 }
@@ -21,13 +21,13 @@ const TITLES: Record<View, string> = {
   home: 'BotOfTheSpecter',
   privacy: 'BotOfTheSpecter - Privacy Policy',
   terms: 'BotOfTheSpecter - Terms of Service',
-  feedback: 'BotOfTheSpecter — Feedback',
+  feedback: 'BotOfTheSpecter - Feedback',
 }
 
 const DESCRIPTIONS: Record<View, string> = {
   home: 'BotOfTheSpecter is a Twitch-first streaming platform with a Discord extension, OBS overlays, dashboard tools, and optional integrations for music, tips, and more.',
-  privacy: 'Privacy Policy for BotOfTheSpecter — how we collect, use, share, and protect personal information across our Twitch bot, dashboard, overlays, and related services.',
-  terms: 'Terms of Service for BotOfTheSpecter — rules for using our Twitch bot, dashboard, overlays, integrations, and related services.',
+  privacy: 'Privacy Policy for BotOfTheSpecter - how we collect, use, share, and protect personal information across our Twitch bot, dashboard, overlays, and related services.',
+  terms: 'Terms of Service for BotOfTheSpecter - rules for using our Twitch bot, dashboard, overlays, integrations, and related services.',
   feedback: 'Feedback and bug reports have moved to the unified support ticket system.',
 }
 
@@ -47,8 +47,13 @@ export default function App() {
   const [uptime] = useState(() => projectTimeHtml())
 
   useEffect(() => {
-    applyTheme(theme, false)
+    applyTheme(theme)
   }, [theme])
+
+  // With nothing saved, follow the OS light/dark setting live (same as the dashboard).
+  useEffect(() => onOsChange(() => {
+    if (!readSaved()) setTheme(osTheme())
+  }), [])
 
   useEffect(() => {
     fetchSession().then(setSession).catch(() => setSession(empty))
@@ -96,14 +101,14 @@ export default function App() {
         '@type': 'WebPage',
         name: 'BotOfTheSpecter - Privacy Policy',
         description: DESCRIPTIONS.privacy,
-        url: 'https://botofthespecter.com/privacy-policy.php',
+        url: 'https://botofthespecter.com/privacy',
       },
       terms: {
         '@context': 'https://schema.org',
         '@type': 'WebPage',
         name: 'BotOfTheSpecter - Terms of Service',
         description: DESCRIPTIONS.terms,
-        url: 'https://botofthespecter.com/terms-of-service.php',
+        url: 'https://botofthespecter.com/terms',
       },
       feedback: {
         '@context': 'https://schema.org',
@@ -137,24 +142,30 @@ export default function App() {
           </a>
           <div className="hs-topnav-links" id="hsDesktopNav">
             <a href="/" className={'hs-topnav-link' + (view === 'home' ? ' active' : '')}>Home</a>
-            <a href="/privacy-policy.php" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')}>Privacy Policy</a>
-            <a href="/terms-of-service.php" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')}>Terms of Service</a>
+            <a href="/privacy" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')}>Privacy Policy</a>
+            <a href="/terms" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')}>Terms of Service</a>
             <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')}>Feedback</a>
           </div>
           <div className="hs-topnav-right">
-            <button
-              className="hs-theme-toggle"
-              type="button"
-              aria-label="Toggle light or dark theme"
-              title="Toggle theme"
-              onClick={() => {
-                const next = theme === 'light' ? 'dark' : 'light'
-                applyTheme(next, true)
-                setTheme(next)
-              }}
-            >
-              <i className={theme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'} />
-            </button>
+            <div className="hs-seg" role="radiogroup" aria-label="Theme">
+              {([['light', 'fa-sun', 'Light'], ['dark', 'fa-moon', 'Dark']] as const).map(([v, icon, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === v}
+                  className={theme === v ? 'on' : ''}
+                  title={label}
+                  onClick={() => {
+                    saveTheme(v)
+                    setTheme(v)
+                  }}
+                >
+                  <i className={`fa-solid ${icon}`} aria-hidden="true" />
+                  <span className="lbl">{label}</span>
+                </button>
+              ))}
+            </div>
             <a href="https://dashboard.botofthespecter.com/dashboard.php" className="hs-btn hs-btn-primary hs-btn-sm">
               <i className="fa-solid fa-gauge-high" /> Dashboard
             </a>
@@ -174,10 +185,10 @@ export default function App() {
         <a href="/" className={'hs-topnav-link' + (view === 'home' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-house" /> Home
         </a>
-        <a href="/privacy-policy.php" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
+        <a href="/privacy" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-shield-halved" /> Privacy Policy
         </a>
-        <a href="/terms-of-service.php" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
+        <a href="/terms" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-file-lines" /> Terms of Service
         </a>
         <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
