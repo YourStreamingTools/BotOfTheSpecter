@@ -357,40 +357,11 @@ function Secret({ id, value, onChange, label, readOnly, warn, ask }: { id: strin
 }
 function Copy({ v, toast }: { v: string; toast?: (t: Toast) => void }) { return <button type="button" className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(v).then(() => toast?.({ kind: 'ok', text: 'Copied.' }))}><i className="fas fa-copy" /> Copy</button> }
 
-type Cam = { success: boolean; act_as: boolean; login: string; ingest_url: string; srt_url: string; web_url: string; password_set: boolean }
-const CAM_API = '/api/streaming/camera.php'
-function Camera({ ask, toast }: Pick<Ctx, 'ask' | 'toast'>) {
-  const [c, setC] = useState<Cam | null>(null), [err, setErr] = useState(''), [pw, setPw] = useState(''), [show, setShow] = useState(false), [busy, setBusy] = useState('')
-  useEffect(() => { get<Cam>(CAM_API, 20000).then(setC).catch(() => setErr('The camera settings could not load. Refresh to try again.')) }, [])
-  const pwOk = /^[A-Za-z0-9_-]{8,64}$/.test(pw)
-  async function save(action: 'save' | 'clear') {
-    setBusy(action)
-    try {
-      const r = await send<{ success: boolean; message?: string; error?: string; password_set?: boolean }>(CAM_API, action === 'save' ? { action, camera_password: pw } : { action })
-      toast?.({ kind: r.success ? 'ok' : 'err', text: r.message || r.error || (r.success ? 'Done.' : 'That did not work. Please try again.') })
-      if (r.success) { setPw(''); setShow(false); setC((o) => o && { ...o, password_set: !!r.password_set }) }
-    } catch (e) { toast?.({ kind: 'err', text: (e as Error).message || 'That did not work. Please try again.' }) }
-    setBusy('')
-  }
-  const url = (id: string, label: string, v: string, help: ReactNode) => <div className="fld fld-wide"><label htmlFor={id}>{label}</label><div className="st-secret"><input id={id} className="input mono" readOnly value={v} /><Copy v={v} toast={toast} /></div><span className="muted small">{help}</span></div>
+function Camera() {
   return <section className="card" id="camera" aria-label="Phone Camera">
     <h3 className="card-h"><i className="fas fa-mobile-alt" /> Phone Camera</h3>
-    <p className="muted">Send your phone camera to our server with the Specter Camera app. Camera streams are never recorded or forwarded; they are only relayed live so you can pull them into OBS or watch them in a browser.</p>
-    {!c ? (err ? <div className="notice notice-err" role="alert"><i className="fas fa-triangle-exclamation" /> <span>{err}</span></div> : <span className="skel skel-line" />) : <>
-      <div className="st-form">
-        {url('cam-ingest', 'Camera RTMPS server (in the app)', c.ingest_url, 'Your API Key (found on your profile) serves as the stream key for our servers.')}
-        {url('cam-srt', 'OBS Media Source (SRT, lowest delay)', c.srt_url, 'In OBS add a Media Source, untick Local File and paste this as the input. Replace PASSWORD with your API key or the camera password below. These links show your main camera; for another camera use its name instead of main (stream key: API key?cam=name).')}
-        {url('cam-web', 'Browser viewer (WebRTC)', c.web_url, <>Opens a live viewer. When it asks to sign in, use <b>{c.login}</b> as the username and your API key or the camera password.</>)}
-        {!c.act_as && <div className="fld fld-wide"><label htmlFor="cam-pw">Camera viewer password</label><div className="st-secret">
-          <input id="cam-pw" className="input mono" type={show ? 'text' : 'password'} autoComplete="new-password" maxLength={64} placeholder={c.password_set ? 'A camera password is set. Enter a new one to replace it.' : 'No camera password set.'} value={pw} onChange={(e) => setPw(e.target.value)} />
-          <button type="button" className="btn btn-ghost" aria-label={show ? 'Hide camera password' : 'Show camera password'} aria-pressed={show} onClick={() => setShow(!show)}><i className={show ? 'fas fa-eye-slash' : 'fas fa-eye'} /></button>
-        </div><span className="muted small">Lets other people (or your OBS) view the camera without your API key. 8 to 64 letters, numbers, - or _.</span></div>}
-      </div>
-      {c.act_as ? <p className="muted">The camera password is disabled while acting as another channel.</p> : <div className="row-btns">
-        <Btn k="save" busy={busy} cls="btn" disabled={!pwOk} onClick={() => save('save')}>Save camera password</Btn>
-        {c.password_set && <Btn k="clear" busy={busy} cls="btn btn-danger" onClick={() => ask?.({ title: 'Remove camera password?', body: <p>Anyone using the camera password will need your API key to watch the camera again.</p>, yes: 'Remove password', danger: true, run: () => save('clear') })}>Remove camera password</Btn>}
-      </div>}
-    </>}
+    <p className="muted">Phone cameras (Specter Camera app) are now set up and viewed in Cloud Studio.</p>
+    <div className="row-btns"><a className="btn" href="https://studio.botofthespecter.com" target="_blank" rel="noopener noreferrer"><i className="fas fa-external-link-alt" /> Open Cloud Studio</a></div>
   </section>
 }
 
@@ -480,6 +451,6 @@ function Setup({ p, busy, act, ask, toast }: Ctx) {
       </div>)}</div>
       <div className="row-btns"><Btn k="fwd" busy={busy} cls="btn" disabled={p.act_as || fwd.some((f) => !keyOk(f.stream_key))} onClick={() => { const b: Record<string, string> = { save_forward_settings: '1' }; fwd.forEach((f) => { b[`forward_${f.service}_key`] = f.stream_key; if (f.enabled) b[`forward_${f.service}_enabled`] = 'on' }); act('fwd', b, 'load') }}>Save Forwarding Settings</Btn></div>
     </section>
-    <Camera ask={ask} toast={toast} />
+    <Camera />
   </div>
 }
