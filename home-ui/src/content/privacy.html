@@ -1,11 +1,11 @@
 <div class="hs-prose" role="main" aria-labelledby="privacy-heading">
     <h1 id="privacy-heading">Privacy Policy</h1>
-    <p class="hs-prose-subtitle">Effective date: <?php echo $effectiveDate; ?>.</p>
+    <p class="hs-prose-subtitle">Effective date: October 29, 2026.</p>
     <br />
     <section id="introduction">
         <h2>1. Introduction</h2>
         <p><strong>BotOfTheSpecter</strong>, operating under the business name <strong>YourStreamingTools</strong> and registered as a subsidiary of <strong>LochStudios, Australia Business Number 20 447 022 747</strong> (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is committed to protecting your privacy and complying with applicable data protection laws, including the Australian Privacy Principles and the GDPR where it applies. This Privacy Policy explains how we collect, use, share, and protect personal information when you visit our websites or use our services.</p>
-        <p>Our services include the public website, account pages, dashboard, Twitch bot, Discord extension, Kick companion bot, browser-source overlays, API and WebSocket services, optional stream recording and multi-destination forwarding tools, and related ecosystem pages (together, the &ldquo;Services&rdquo; or &ldquo;Site&rdquo;).</p>
+        <p>Our services include the public website, account pages, dashboard, Twitch bot, Discord extension, Kick companion bot, browser-source overlays, API and WebSocket services, optional stream recording and multi-destination forwarding tools, the Specter Camera phone app (iOS and Android), and related ecosystem pages (together, the &ldquo;Services&rdquo; or &ldquo;Site&rdquo;).</p>
     </section>
     <br />
     <section id="data-controller">
@@ -68,6 +68,19 @@
             <li><strong>Preference storage:</strong> remembering settings you choose (for example display theme or dashboard UI preferences) so you do not have to re-enter them each time.</li>
         </ul>
         <p>On the dashboard, you may be offered cookie preference controls for certain non-essential preference cookies. Our public home Site does not currently run a third-party advertising or product-analytics cookie suite. You can also control cookies through your browser settings; disabling certain cookies may affect site functionality.</p>
+        <h3>3.9 Specter Camera phone app (iOS and Android)</h3>
+        <p><strong>Specter Camera</strong> is our phone app that sends your phone&rsquo;s camera and microphone to your own BotOfTheSpecter Cloud Studio, or to the BotOfTheSpecter Connector App on your own computer. This section explains what the app sends and stores.</p>
+        <ul>
+            <li><strong>Camera and microphone:</strong> the app asks for camera and microphone access, and only uses them to show the preview and to send live video and audio when you tap Go live. Video is sent as H.264 and audio as AAC. The camera is also used to scan link QR codes. You can mute the microphone in the app, and you can turn off either permission in your phone&rsquo;s settings.</li>
+            <li><strong>Cloud route:</strong> video and audio are sent over an encrypted RTMPS connection to our stream relay at <strong>syd1.stream.botofthespecter.com</strong>. The relay only passes the stream through to your own Cloud Studio. It does not record or store the stream, and does not forward it to Twitch or any other destination.</li>
+            <li><strong>Local route:</strong> if you choose To: Local PC and have paired the app with the Connector App, video and audio go directly from your phone to your own computer over your local network and do not pass through our servers. The app asks for local network access on iPhone for this. It also asks the Connector App to confirm the camera name and local pairing key before it sends.</li>
+            <li><strong>Linking your phone:</strong> when you link with a code from Cloud Studio, the app sends that one-time code and your phone&rsquo;s name (for example &ldquo;Lachlan&rsquo;s iPhone&rdquo;) to <strong>api.botofthespecter.com</strong>. We issue a device link token for that phone and store it, together with the phone&rsquo;s name, against your BotOfTheSpecter account so Cloud Studio can show your linked phones. The app keeps the token in the iOS Keychain on iPhone or in Android&rsquo;s encrypted secure storage on Android, so your account API key is not stored on the phone. If you link by typing your BotOfTheSpecter API key instead, the key is kept in the same secure storage on that phone.</li>
+            <li><strong>Link checks:</strong> when the app opens, before it goes live, and when a stream drops, it checks with our API (<strong>/v2/camera/device/me</strong>, using its device link token) that the phone is still linked. If it has been unlinked, the app forgets the link.</li>
+            <li><strong>Stored on your phone:</strong> your stream quality choice, an install ID the app generates to identify that installation, the camera name, and the link described above. The install ID is also sent to the Connector App on the local route so it can tell phones apart.</li>
+            <li><strong>Unlinking:</strong> you can unlink a phone in the app (Settings, then Unlink this phone) or in Cloud Studio (the Linked phones list). Unlinking removes the link so the phone can no longer stream to your account.</li>
+            <li><strong>No tracking:</strong> the app does not use analytics, advertising, or tracking SDKs, does not use your location, contacts, or photos, and does not read your advertising identifier. The only third-party code it includes is a streaming library (HaishinKit on iPhone, RootEncoder on Android) and, on Android, a QR code scanning library (ZXing). These run on your phone and do not send data to their authors.</li>
+        </ul>
+        <p>The usual technical data described in section 3.5 (such as IP address and connection times) is also processed when the app connects to our servers.</p>
     </section>
     <br />
     <section id="lawful-bases">
