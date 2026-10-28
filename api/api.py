@@ -925,7 +925,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url=None,
     redoc_url=None,
-    terms_of_service="https://botofthespecter.com/terms-of-service.php",
+    terms_of_service="https://botofthespecter.com/terms",
     contact={
         "name": "BotOfTheSpecter",
         "url": "https://botofthespecter.com/",
@@ -1228,7 +1228,7 @@ def custom_openapi():
         routes=app.routes,
         tags=tags_metadata,
     )
-    openapi_schema.setdefault("info", {})["termsOfService"] = "https://botofthespecter.com/terms-of-service.php"
+    openapi_schema.setdefault("info", {})["termsOfService"] = "https://botofthespecter.com/terms"
     openapi_schema["info"]["contact"] = {
         "name": "BotOfTheSpecter",
         "url": "https://botofthespecter.com/",
@@ -1251,7 +1251,7 @@ def build_v2_openapi_schema():
         routes=app.routes,
         tags=tags_metadata,
     )
-    openapi_schema.setdefault("info", {})["termsOfService"] = "https://botofthespecter.com/terms-of-service.php"
+    openapi_schema.setdefault("info", {})["termsOfService"] = "https://botofthespecter.com/terms"
     openapi_schema["info"]["contact"] = {
         "name": "BotOfTheSpecter",
         "url": "https://botofthespecter.com/",
