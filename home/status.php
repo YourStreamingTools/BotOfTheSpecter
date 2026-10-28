@@ -384,27 +384,27 @@ if (isset($_GET['ajax'])) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; }
-        body { display: block; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 8px; padding-bottom: 28px; font-size: 16px; line-height: 1.45; }
+        body { display: block; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: var(--bg-base); color: var(--text-primary); min-height: 100vh; padding: 8px; padding-bottom: 28px; font-size: 16px; line-height: 1.45; }
         .container { width: 100%; max-width: 100%; margin: 0; }
         .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .maintenance-banner { display: flex; align-items: center; gap: 8px; background: rgba(255,193,7,0.12); border: 1px solid #ffc107; color: #ffe08a; border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.95em; }
+        .maintenance-banner { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--amber); color: var(--amber); border-radius: 10px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.95em; }
         .maintenance-banner[hidden] { display: none; }
         .maintenance-banner .icon { font-size: 1.1em; }
         .columns { margin-bottom: 0; }
-        h1 { text-align: left; margin-bottom: 0; font-size: 1.6em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(10px); margin: 0; }
-        .section h2 { margin-bottom: 6px; font-size: 1.15em; border-bottom: 2px solid #ffffff; padding-bottom: 4px; }
+        h1 { text-align: left; margin-bottom: 0; font-size: 1.6em; letter-spacing: -0.01em; }
+        .section { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; margin: 0; }
+        .section h2 { margin-bottom: 6px; font-size: 1.15em; border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
         .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
-        .status-item { background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .status-item { background: var(--bg-2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
         .status-item strong { font-size: 1.05em; }
-        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.25em; }
-        .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
+        .heartbeat { color: var(--red); transition: transform 0.2s ease; font-size: 1.25em; }
+        .heartbeat.beating { color: var(--green); animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .info-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #292929; }
+        .info-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
         .info-item:last-child { border-bottom: none; }
         .last-updated { text-align: center; font-size: 0.92em; opacity: 0.8; white-space: nowrap; }
         #system-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
-        #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; padding: 4px 6px; gap: 2px; font-size: 0.95em; }
+        #system-metrics .status-item { background: transparent; border: 0; align-items: flex-start; flex-direction: column; position: relative; padding: 4px 6px; gap: 2px; font-size: 0.95em; }
         #system-metrics .status-item > .metric-body { text-align: left; line-height: 1.4; }
         #system-metrics .metric-line { display: block; }
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }

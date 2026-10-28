@@ -26,10 +26,10 @@ export default function FeedbackPage() {
         </p>
         <hr />
         <p>
-          <strong>Privacy:</strong> See our <a href="/privacy-policy.php">Privacy Policy</a>.
+          <strong>Privacy:</strong> See our <a href="/privacy">Privacy Policy</a>.
         </p>
         <p>
-          <strong>Terms:</strong> See our <a href="/terms-of-service.php">Terms of Service</a>.
+          <strong>Terms:</strong> See our <a href="/terms">Terms of Service</a>.
         </p>
       </aside>
     </div>
