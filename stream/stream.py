@@ -16,6 +16,8 @@ from urllib.parse import quote
 import aiomysql
 from dotenv import load_dotenv
 from pyrtmp import StreamClosedException
+from pyrtmp.amf.serializers import AMF0Deserializer
+from pyrtmp.messages.user_control import StreamBegin
 from pyrtmp.flv import FLVFileWriter, FLVMediaType, FLVWriter
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
@@ -46,6 +48,46 @@ def safe_peername(self):
     return info
 
 SessionManager.peername = property(safe_peername)
+
+# Patch AMF0Deserializer for the connect command HaishinKit (the Specter Camera iOS app) sends. It has a
+# strict array (fourCcList) and nested objects, and some encoders send undefined. pyrtmp 0.3.1 rejects the
+# array with NotImplementedError, so the phone sat on "connecting". It also never consumes a nested
+# object's end marker, so every property after a nested object (the order is random in HaishinKit,
+# "app" included) was dropped. HaishinKit's onMetaData is an ECMA array whose count field is 0 while it
+# holds entries, which pyrtmp asserts on, so the count is ignored. All three are fixed here.
+_amf0_from_stream_original = AMF0Deserializer.from_stream.__func__
+_amf0_to_object_original = AMF0Deserializer.to_object_object.__func__
+
+def _amf0_to_object(cls, data):
+    obj = _amf0_to_object_original(cls, data)
+    data.read("bytes:3")  # the 00 00 09 end marker the loop stopped on
+    return obj
+
+def _amf0_to_array(cls, data):
+    data.read("uint:8")  # type marker
+    data.read("uint:32")  # count, not trusted
+    arr = []
+    while data.peek("bytes:3").hex() != "000009":
+        size = data.read("uint:16")
+        property_name = data.read(f"bytes:{size}").decode()
+        arr.append({property_name: cls.from_stream(data)})
+    data.read("bytes:3")  # the 00 00 09 end marker
+    return arr
+
+def _amf0_from_stream(cls, data):
+    obj_type = data.peek("uint:8")
+    if obj_type == 0x0A:  # strict array: u32 count, then that many values
+        data.read("uint:8")
+        count = data.read("uint:32")
+        return [cls.from_stream(data) for _ in range(count)]
+    if obj_type == 0x06:  # undefined
+        data.read("uint:8")
+        return None
+    return _amf0_from_stream_original(cls, data)
+
+AMF0Deserializer.from_stream = classmethod(_amf0_from_stream)
+AMF0Deserializer.to_object_object = classmethod(_amf0_to_object)
+AMF0Deserializer.to_array_object = classmethod(_amf0_to_array)
 
 # Define Twitch ingest servers
 TWITCH_INGEST_SERVERS = {
@@ -909,7 +951,7 @@ class RTMP2FLVController(SimpleRTMPController):
             return
         if is_camera:
             await self._start_camera_relay(session, publishing_name, username, camera_name, camera_device_id)
-            await super().on_ns_publish(session, message)
+            await self._camera_publish_ack(session, message)
             return
         slot = await get_storage_slot(username)
         if not slot:
@@ -961,6 +1003,16 @@ class RTMP2FLVController(SimpleRTMPController):
             session.state = FLVFileWriter(output=file_path)
         logger.info(f"Started recording stream {publishing_name} to {file_path}")
         await super().on_ns_publish(session, message)
+
+    async def _camera_publish_ack(self, session, message) -> None:
+        # Same reply as pyrtmp's on_ns_publish (StreamBegin, then onStatus NetStream.Publish.Start), but the
+        # onStatus is forced to a full type 0 chunk header. pyrtmp picks a shorter header from the previous
+        # chunk it wrote (the StreamBegin), so the phone read the onStatus as message stream 0 instead of 1,
+        # HaishinKit (iOS) never saw "publish started" and the app sat on "connecting". ffmpeg and OBS ignore it.
+        session.write_chunk_to_stream(StreamBegin(stream_id=1))
+        session.previous_chunk_for_writing = None
+        session.write_chunk_to_stream(message.create_response())
+        await session.drain()
 
     async def _start_camera_relay(self, session, publishing_name, username, camera_name, camera_device_id=None):
         session.publishing_name = publishing_name
