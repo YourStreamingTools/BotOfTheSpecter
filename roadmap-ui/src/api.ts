@@ -15,6 +15,7 @@ export type RoadmapItem = {
   category: string
   subcategory: string
   priority: string
+  sort_order?: number | null
   website_type: string | null
   completed_date: string | null
   created_by: string | null
@@ -32,6 +33,7 @@ export type ItemsPayload = {
   subcategories: Subcat[]
   subcat_colors: Record<string, string>
   items: RoadmapItem[]
+  wip_limits?: Record<string, number>
   is_admin: boolean
 }
 

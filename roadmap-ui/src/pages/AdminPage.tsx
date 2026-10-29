@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import ItemModal from '../components/ItemModal'
+import KanbanBoard, { type LaneField, type MoveRequest } from '../components/KanbanBoard'
 import {
   apiGet,
   apiPost,
-  CAT_ICON,
   PRIO_TAG,
   subTag,
   sydneyDate,
@@ -37,12 +37,32 @@ export default function AdminPage({ session }: { session: RoadmapSession }) {
   const [files, setFiles] = useState<File[]>([])
   const [newSub, setNewSub] = useState('')
   const [newColor, setNewColor] = useState('light')
+  const [applied, setApplied] = useState({ search: '', category: '' })
+  const [laneField, setLaneField] = useState<LaneField>(() => {
+    try {
+      const v = localStorage.getItem('rm-admin-lanes')
+      if (v === 'priority' || v === 'subcategory') return v
+    } catch {
+      /* ignore */
+    }
+    return 'none'
+  })
+
+  function changeLane(v: LaneField) {
+    setLaneField(v)
+    try {
+      localStorage.setItem('rm-admin-lanes', v)
+    } catch {
+      /* ignore */
+    }
+  }
 
   function load() {
     const q = new URLSearchParams()
     if (search) q.set('search', search)
     if (category) q.set('category', category)
-    apiGet('/api/items.php' + (q.toString() ? '?' + q.toString() : '')).then(setData)
+    setApplied({ search, category })
+    return apiGet('/api/items.php' + (q.toString() ? '?' + q.toString() : '')).then(setData)
   }
   useEffect(() => { load() }, [])
   useEffect(() => {
@@ -52,12 +72,30 @@ export default function AdminPage({ session }: { session: RoadmapSession }) {
   }, [data, addSubs.length])
 
   const colors = data?.subcat_colors || {}
-  const byCat = useMemo(() => {
-    const map: Record<string, RoadmapItem[]> = {}
-    for (const cat of data?.categories || []) map[cat] = []
-    for (const it of data?.items || []) (map[it.category] ||= []).push(it)
-    return map
-  }, [data])
+  const subNames = useMemo(() => (data?.subcategories || []).map((s) => s.name), [data])
+  const canDrag = !applied.search && !applied.category
+
+  async function moveItem(m: MoveRequest) {
+    // Show the new position straight away, then confirm with the server.
+    setData((prev) => {
+      if (!prev) return prev
+      const order = new Map(m.orderedIds.map((id, i) => [id, i]))
+      const items = prev.items.map((it) => (it.id === m.id
+        ? { ...it, category: m.category, priority: m.priority || it.priority }
+        : it))
+      const inCol = items.filter((it) => it.category === m.category).sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9))
+      return { ...prev, items: [...items.filter((it) => it.category !== m.category), ...inCol] }
+    })
+    const res = await apiPost('/api/admin.php', {
+      action: 'move_item', id: m.id, category: m.category, priority: m.priority || '', ordered_ids: m.orderedIds, csrf_token: session.csrf_token,
+    })
+    if (!res?.ok) setFlash({ type: 'danger', msg: res?.error || 'Move failed.' })
+    load()
+  }
+
+  async function setLimit(cat: string, limit: number | null) {
+    await admin({ action: 'set_wip_limit', category: cat, limit })
+  }
 
   async function admin(body: Record<string, unknown>) {
     const res = await apiPost('/api/admin.php', { ...body, csrf_token: session.csrf_token })
@@ -145,29 +183,38 @@ export default function AdminPage({ session }: { session: RoadmapSession }) {
           <i className={'fa-solid ' + (showRejected ? 'fa-eye-slash' : 'fa-eye')} /> {showRejected ? 'Hide Rejected' : 'Show Rejected'}
         </button>
       </div>
-      <div className="rm-board">
-        {(data?.categories || []).map((cat) => (
-          <div key={cat} className="rm-column" style={cat === 'REJECTED' && !showRejected ? { display: 'none' } : undefined}>
-            <div className="rm-column-head">
-              <span><i className={'fa-solid fa-' + (CAT_ICON[cat] || 'folder')} style={{ marginRight: '0.4rem' }} />{cat}</span>
-              <span className="sp-badge">{(byCat[cat] || []).length}</span>
-            </div>
-            <div className="rm-column-body">
-              {(byCat[cat] || []).map((item) => (
-                <AdminCard
-                  key={item.id}
-                  item={item}
-                  colors={colors}
-                  categories={data?.categories || []}
-                  onOpen={() => setOpen(item)}
-                  onEdit={() => setEdit({ ...item })}
-                  onAction={(body) => admin(body)}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="rm-kb-toolbar">
+        <label className="rm-kb-lane-picker">
+          <span>Swimlanes</span>
+          <select className="sp-select sp-select-sm" value={laneField} onChange={(e) => changeLane(e.target.value as LaneField)}>
+            <option value="none">None</option>
+            <option value="priority">Priority</option>
+            <option value="subcategory">Subcategory</option>
+          </select>
+        </label>
+        {!canDrag && <span className="rm-admin-board-hint"><i className="fa-solid fa-circle-info" />Clear the search and category filter to drag cards.</span>}
       </div>
+      <KanbanBoard
+        categories={data?.categories || []}
+        items={data?.items || []}
+        subcategories={subNames}
+        wipLimits={data?.wip_limits || {}}
+        hiddenCategories={showRejected ? [] : ['REJECTED']}
+        laneField={laneField}
+        canDrag={canDrag}
+        onMove={moveItem}
+        onSetLimit={setLimit}
+        renderCard={(item) => (
+          <AdminCard
+            item={item}
+            colors={colors}
+            categories={data?.categories || []}
+            onOpen={() => setOpen(item)}
+            onEdit={() => setEdit({ ...item })}
+            onAction={(body) => admin(body)}
+          />
+        )}
+      />
 
       <details className="rm-admin-panel" open>
         <summary className="rm-admin-panel-summary">
@@ -184,7 +231,7 @@ export default function AdminPage({ session }: { session: RoadmapSession }) {
                   </div>
                   <div className="sp-form-group">
                     <label className="sp-label">Description</label>
-                    <textarea className="sp-textarea sp-textarea-mono" rows={7} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional — supports markdown" />
+                    <textarea className="sp-textarea sp-textarea-mono" rows={7} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional, supports markdown" />
                   </div>
                   <div className="sp-form-group">
                     <label className="sp-label">Attachments (optional)</label>
