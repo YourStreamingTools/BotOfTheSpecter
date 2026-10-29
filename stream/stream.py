@@ -846,13 +846,25 @@ class TeeFLVFileWriter(FLVFileWriter):
 class PipeFLVWriter:
     """FLV straight into ffmpeg stdin with nothing on disk (camera relay)."""
 
-    def __init__(self, sink_stdin):
+    def __init__(self, sink_stdin, hold: bool = False):
         self._stdin = sink_stdin
         self._writer = FLVWriter()
         self._broken = False
+        # hold: keep everything (FLV header included) until release(), so ffmpeg can be started once we know what the phone sends.
+        self._pending = [] if hold else None
         self._send(self._writer.write_header())
 
+    def release(self, sink_stdin) -> None:
+        pending, self._pending = self._pending or [], None
+        self._stdin = sink_stdin
+        for chunk in pending:
+            self._send(chunk)
+
     def _send(self, data: bytes) -> None:
+        if self._pending is not None:
+            if sum(len(c) for c in self._pending) < 16 * 1024 * 1024:
+                self._pending.append(data)
+            return
         if self._broken or self._stdin is None or self._stdin.is_closing():
             return
         try:
@@ -1033,12 +1045,26 @@ class RTMP2FLVController(SimpleRTMPController):
             return
         relay_path = f"{CAMERA_APP_NAME}/{session.camera_username}/{camera_name}"
         relay_url = f"rtsp://{CAMERA_RELAY_USER}:{CAMERA_RELAY_SECRET}@{MEDIAMTX_RTSP_HOST}/{relay_path}"
-        command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel", "warning",
-            "-f", "flv",
-            "-i", "pipe:0",
+        session.state = PipeFLVWriter(None, hold=True)
+        session.camera_relay_task = asyncio.create_task(self._spawn_camera_relay(session, username, relay_path, relay_url, camera_device_id))
+
+    async def _spawn_camera_relay(self, session, username, relay_path, relay_url, camera_device_id):
+        # Wait briefly for the phone's first audio message. A phone that sends no audio (the iPhone app, so far)
+        # would give MediaMTX a video-only path, and the studio's WebRTC offer always asks for audio, which
+        # MediaMTX refuses ("codecs not supported by client") so the tile stayed black. With no audio, ffmpeg
+        # gets a silent Opus track instead.
+        for _ in range(20):
+            if getattr(session, "closed", False) or getattr(session, "camera_audio_count", 0):
+                break
+            await asyncio.sleep(0.1)
+        if getattr(session, "closed", False):
+            return
+        silent = not getattr(session, "camera_audio_count", 0)
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-f", "flv", "-i", "pipe:0"]
+        if silent:
+            logger.info(f"Camera relay for {username}/{session.camera_name}: no audio from the phone, adding silent audio")
+            command += ["-re", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-map", "0:v:0", "-map", "1:a:0", "-shortest"]
+        command += [
             "-c:v", "copy",
             "-c:a", "libopus", "-b:a", "128k", "-ar", "48000",
             "-f", "rtsp",
@@ -1054,10 +1080,9 @@ class RTMP2FLVController(SimpleRTMPController):
             )
         except Exception as e:
             logger.error(f"Failed to start camera relay for {username}: {e}", exc_info=True)
-            session.state = PipeFLVWriter(None)
             session.writer.close()
             return
-        session.state = PipeFLVWriter(proc.stdin)
+        session.state.release(proc.stdin)
         session.ffmpeg_process = proc
         session.drain_task = asyncio.create_task(self._drain_ffmpeg_stdin(session))
         session.ffmpeg_watcher_task = asyncio.create_task(self._watch_camera_relay(session))
@@ -1287,10 +1312,22 @@ class RTMP2FLVController(SimpleRTMPController):
 
     async def on_video_message(self, session, message) -> None:
         session.state.write(message.timestamp, message.payload, FLVMediaType.VIDEO)
+        if getattr(session, "camera_name", None):
+            n = getattr(session, "camera_video_count", 0) + 1
+            session.camera_video_count = n
+            if n == 1:
+                logger.info(f"Camera {session.camera_name}: first video message {len(message.payload)} bytes, head {bytes(message.payload[:6]).hex()}")
+            elif n == 300 and not getattr(session, "camera_audio_count", 0):
+                logger.warning(f"Camera {session.camera_name}: 300 video messages and no audio from the publisher")
         await super().on_video_message(session, message)
 
     async def on_audio_message(self, session, message) -> None:
         session.state.write(message.timestamp, message.payload, FLVMediaType.AUDIO)
+        if getattr(session, "camera_name", None):
+            n = getattr(session, "camera_audio_count", 0) + 1
+            session.camera_audio_count = n
+            if n == 1:
+                logger.info(f"Camera {session.camera_name}: first audio message {len(message.payload)} bytes, head {bytes(message.payload[:6]).hex()}")
         await super().on_audio_message(session, message)
 
     async def on_stream_closed(self, session: SessionManager, exception: StreamClosedException) -> None:
