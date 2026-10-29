@@ -13360,6 +13360,16 @@ async def get_known_bots():
             await connection.close()
     return set(bots)
 
+async def is_points_excluded(user_name, settings=None):
+    # Points skip the channel's manually excluded users plus the global known bots (admin panel), case-insensitive.
+    name = (user_name or '').strip().lstrip('@').lower()
+    if not name:
+        return False
+    if settings is None:
+        settings = await get_point_settings()
+    manual = {u.strip().lower() for u in str((settings or {}).get('excluded_users') or '').split(',') if u.strip()}
+    return name in manual or name in await get_known_bots()
+
 # Working & Study task & pomo command helpers Function to resolve the chatter's current project string (None for the default context)
 async def resolve_active_project(cursor, user_id):
     # Returns the chatter's current project string, or None for the default context.
@@ -17399,6 +17409,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (from_broadcaster_name, "raid", viewer_count))
             # Retrieve the bot settings to get the raid points amount and subscriber multiplier
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(from_broadcaster_name, settings)  # manual list + known bots get no points
             raid_points = int(settings['raid_points'])
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             # Check if the user is a subscriber and apply the multiplier
@@ -17412,7 +17423,9 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             current_points = result.get("points") if result else 0
             # Update the raider's points
             new_points = current_points + total_awarded_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, from_broadcaster_id))
             else:
                 await cursor.execute(
@@ -17567,6 +17580,7 @@ async def process_cheer_event(user_id, user_name, bits):
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             cheer_points = int(settings['cheer_points'])
             subscriber_multiplier = int(settings['subscriber_multiplier'])
             # Check if the user is a subscriber and apply the multiplier
@@ -17578,7 +17592,9 @@ async def process_cheer_event(user_id, user_name, bits):
             current_points = result.get("points") if result else 0
             # Award points based on the cheer event
             new_points = current_points + cheer_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
             else:
                 await cursor.execute(
@@ -17637,6 +17653,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             event_logger.debug(f"[SUB EVENT] Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
@@ -17646,7 +17663,9 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             result = await cursor.fetchone()
             current_points = result.get("points") if result else 0
             new_points = current_points + subscriber_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                 event_logger.info(f"[SUB EVENT] Updated points for user_id: {user_id} to {new_points}")
             else:
@@ -17761,6 +17780,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             event_logger.debug(f"[SUB MESSAGE] Inserted stream credits for user_name: {user_name}")
             # Retrieve bot settings
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             subscriber_points = int(settings.get('subscriber_points', 0))
             subscriber_multiplier = int(settings.get('subscriber_multiplier', 1))
             subscriber_points *= subscriber_multiplier
@@ -17770,7 +17790,9 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             result = await cursor.fetchone()
             current_points = result.get("points") if result else 0
             new_points = current_points + subscriber_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
                 event_logger.info(f"[SUB MESSAGE] Updated points for user_id: {user_id} to {new_points}")
             else:
@@ -17946,6 +17968,7 @@ async def process_followers_event(user_id, user_name):
             )
             # Retrieve the bot settings to get the follower points amount
             settings = await get_point_settings()
+            points_excluded = await is_points_excluded(user_name, settings)  # manual list + known bots get no points
             follower_points = settings['follower_points']
             # Fetch current points for the user
             await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
@@ -17953,7 +17976,9 @@ async def process_followers_event(user_id, user_name):
             current_points = result.get("points") if result else 0
             # Update the user's points based on the follow event
             new_points = current_points + follower_points
-            if result:
+            if points_excluded:
+                pass
+            elif result:
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
             else:
                 await cursor.execute(
