@@ -243,6 +243,9 @@ CAMERA_REVIEWER_SERVICES = {
     "applestoreconnect": "_review_appstore",
 }
 CAMERA_DEVICE_RECHECK_SECONDS = 30
+# A camera publisher that sends no audio or video for this long is dead (phone moved from WiFi to 5G, signal lost):
+# TCP never reports it, so the session is closed here and the camera shows as offline.
+CAMERA_IDLE_SECONDS = 15
 
 def split_camera_key(publishing_name: str) -> tuple[str, str | None]:
     """'<API key>?cam=desk' -> (key, 'desk'); no cam means 'main'; an invalid name comes back as None."""
@@ -1045,6 +1048,15 @@ class RTMP2FLVController(SimpleRTMPController):
             return
         relay_path = f"{CAMERA_APP_NAME}/{session.camera_username}/{camera_name}"
         relay_url = f"rtsp://{CAMERA_RELAY_USER}:{CAMERA_RELAY_SECRET}@{MEDIAMTX_RTSP_HOST}/{relay_path}"
+        # One publisher per camera: a new publish replaces the old session (a phone that changed network leaves a
+        # dead one behind), the same drop api_cameras_disconnect uses.
+        for other in self.session_registry.snapshot():
+            if (other["id"] != id(session) and other.get("camera") == camera_name
+                    and (other.get("username") or "").lower() == session.camera_username
+                    and self.session_registry.force_disconnect(other["id"])):
+                logger.info(f"Camera {session.camera_username}/{camera_name}: new publish, dropped the old session from {other.get('peer')}")
+        session.camera_last_media = time.monotonic()
+        session.camera_idle_task = asyncio.create_task(self._watch_camera_idle(session))
         session.state = PipeFLVWriter(None, hold=True)
         session.camera_relay_task = asyncio.create_task(self._spawn_camera_relay(session, username, relay_path, relay_url, camera_device_id))
 
@@ -1092,6 +1104,19 @@ class RTMP2FLVController(SimpleRTMPController):
         if camera_device_id is not None:
             session.camera_device_task = asyncio.create_task(self._watch_camera_device(session))
         logger.info(f"Camera relay for {username} via ffmpeg PID {proc.pid} to MediaMTX path {relay_path}")
+
+    async def _watch_camera_idle(self, session):
+        try:
+            while not getattr(session, "closed", False):
+                await asyncio.sleep(CAMERA_IDLE_SECONDS / 3)
+                idle = time.monotonic() - getattr(session, "camera_last_media", time.monotonic())
+                if idle > CAMERA_IDLE_SECONDS:
+                    logger.info(f"Camera {session.camera_username}/{session.camera_name}: nothing received for {int(idle)}s, closing the publisher.")
+                    if session.writer is not None and not session.writer.is_closing():
+                        session.writer.close()
+                    return
+        except asyncio.CancelledError:
+            return
 
     async def _watch_camera_device(self, session):
         # Backstop for Unlink in Cloud Studio: api.py also asks every stream server to drop the session right away.
@@ -1312,6 +1337,7 @@ class RTMP2FLVController(SimpleRTMPController):
 
     async def on_video_message(self, session, message) -> None:
         session.state.write(message.timestamp, message.payload, FLVMediaType.VIDEO)
+        session.camera_last_media = time.monotonic()
         if getattr(session, "camera_name", None):
             n = getattr(session, "camera_video_count", 0) + 1
             session.camera_video_count = n
@@ -1323,6 +1349,7 @@ class RTMP2FLVController(SimpleRTMPController):
 
     async def on_audio_message(self, session, message) -> None:
         session.state.write(message.timestamp, message.payload, FLVMediaType.AUDIO)
+        session.camera_last_media = time.monotonic()
         if getattr(session, "camera_name", None):
             n = getattr(session, "camera_audio_count", 0) + 1
             session.camera_audio_count = n
@@ -1340,6 +1367,9 @@ class RTMP2FLVController(SimpleRTMPController):
         device_task = getattr(session, "camera_device_task", None)
         if device_task is not None and not device_task.done():
             device_task.cancel()
+        idle_task = getattr(session, "camera_idle_task", None)
+        if idle_task is not None and not idle_task.done():
+            idle_task.cancel()
         # Terminate FFmpeg process if it exists
         await self.terminate_ffmpeg(session)
         # Remove from the operator web UI registry
