@@ -151,8 +151,37 @@ function initializeRoadmapDatabase() {
         $ins->close();
     }
 
+    ensureRoadmapBoardSchema($conn);
+
     $conn->close();
     return array('success' => true, 'message' => 'Database initialized successfully');
+}
+
+// Board support: per-column WIP limits and a manual card order inside a column.
+// Safe to call repeatedly.
+function ensureRoadmapBoardSchema($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS roadmap_column_limits (
+        category VARCHAR(50) NOT NULL PRIMARY KEY,
+        wip_limit INT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $res = $conn->query("SHOW COLUMNS FROM roadmap_items LIKE 'sort_order'");
+    $has = $res && $res->num_rows > 0;
+    if ($res) { $res->free(); }
+    if (!$has) {
+        $conn->query("ALTER TABLE roadmap_items ADD COLUMN sort_order INT NULL DEFAULT NULL AFTER priority");
+    }
+}
+
+// Returns [category => limit] for columns that have a WIP limit.
+function getRoadmapColumnLimits($conn) {
+    $out = [];
+    $res = $conn->query("SELECT category, wip_limit FROM roadmap_column_limits");
+    if ($res) {
+        while ($r = $res->fetch_assoc()) { $out[$r['category']] = (int) $r['wip_limit']; }
+        $res->free();
+    }
+    return $out;
 }
 
 // Get available subcategories from the database

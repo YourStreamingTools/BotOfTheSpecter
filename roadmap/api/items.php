@@ -5,6 +5,7 @@ roadmap_session_start();
 
 $CATEGORIES = ['REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED'];
 $conn = getRoadmapConnection();
+ensureRoadmapBoardSchema($conn);
 $subcatRows = getAvailableSubcategories($conn);
 $subcatColorMap = [];
 foreach ($subcatRows as $r) {
@@ -30,7 +31,7 @@ if ($category !== '') {
     $types .= 's';
     $params[] = $category;
 }
-$sql .= ' ORDER BY updated_at DESC, created_at DESC, priority DESC';
+$sql .= ' ORDER BY (sort_order IS NULL) DESC, sort_order ASC, updated_at DESC, created_at DESC, priority DESC';
 
 $stmt = $conn->prepare($sql);
 if ($types !== '') {
@@ -88,5 +89,6 @@ json_out([
     'subcategories' => $subcatRows,
     'subcat_colors' => $subcatColorMap,
     'items' => $items,
+    'wip_limits' => (object) getRoadmapColumnLimits($conn),
     'is_admin' => roadmap_is_admin(),
 ]);

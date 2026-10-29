@@ -13,6 +13,7 @@ if (!verify_csrf_json()) {
 $body = json_body();
 $action = (string) ($body['action'] ?? '');
 $conn = getRoadmapConnection();
+ensureRoadmapBoardSchema($conn);
 $subcatRows = getAvailableSubcategories($conn);
 $subcategories = array_map(static fn($r) => $r['name'], $subcatRows);
 $CATEGORIES = ['REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED'];
@@ -78,18 +79,88 @@ if ($action === 'update') {
         json_out(['ok' => false, 'error' => 'Invalid item'], 400);
     }
     if ($status === 'completed') {
-        $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW(), updated_at = NOW() WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW(), sort_order = NULL, updated_at = NOW() WHERE id = ?");
         $stmt->bind_param('i', $id);
     } else {
         if (!in_array($category, $CATEGORIES, true)) {
             json_out(['ok' => false, 'error' => 'Invalid category'], 400);
         }
-        $stmt = $conn->prepare('UPDATE roadmap_items SET category = ?, updated_at = NOW() WHERE id = ?');
+        $stmt = $conn->prepare('UPDATE roadmap_items SET category = ?, sort_order = NULL, updated_at = NOW() WHERE id = ?');
         $stmt->bind_param('si', $category, $id);
     }
     $stmt->execute();
     $stmt->close();
     json_out(['ok' => true, 'message' => 'Item updated successfully!']);
+}
+
+if ($action === 'move_item') {
+    // Board drag and drop: change column (and optionally priority) and store the column order.
+    $id = (int) ($body['id'] ?? 0);
+    $category = (string) ($body['category'] ?? '');
+    $priority = (string) ($body['priority'] ?? '');
+    $order = $body['ordered_ids'] ?? [];
+    if ($id <= 0 || !in_array($category, $CATEGORIES, true)) {
+        json_out(['ok' => false, 'error' => 'Invalid move'], 400);
+    }
+    if ($priority !== '' && !in_array($priority, $PRIORITIES, true)) {
+        json_out(['ok' => false, 'error' => 'Invalid priority'], 400);
+    }
+    if (!is_array($order)) {
+        $order = [];
+    }
+    $order = array_values(array_unique(array_filter(array_map('intval', $order), static fn($v) => $v > 0)));
+    $cur = $conn->prepare('SELECT category, priority FROM roadmap_items WHERE id = ?');
+    $cur->bind_param('i', $id);
+    $cur->execute();
+    $row = $cur->get_result()->fetch_assoc();
+    $cur->close();
+    if (!$row) {
+        json_out(['ok' => false, 'error' => 'Item not found'], 404);
+    }
+    $changedCat = $row['category'] !== $category;
+    $newPrio = $priority !== '' ? $priority : $row['priority'];
+    $changedPrio = $newPrio !== $row['priority'];
+    if ($changedCat || $changedPrio) {
+        $sets = 'category = ?, priority = ?, updated_at = NOW()';
+        if ($changedCat && $category === 'COMPLETED') {
+            $sets .= ', completed_date = NOW()';
+        }
+        $stmt = $conn->prepare("UPDATE roadmap_items SET $sets WHERE id = ?");
+        $stmt->bind_param('ssi', $category, $newPrio, $id);
+        $stmt->execute();
+        $stmt->close();
+    }
+    if ($order) {
+        // Only touch items that are in the target column, and keep their updated_at.
+        $stmt = $conn->prepare('UPDATE roadmap_items SET sort_order = ?, updated_at = updated_at WHERE id = ? AND category = ?');
+        foreach ($order as $pos => $oid) {
+            $stmt->bind_param('iis', $pos, $oid, $category);
+            $stmt->execute();
+        }
+        $stmt->close();
+    }
+    json_out(['ok' => true, 'message' => 'Item moved.']);
+}
+
+if ($action === 'set_wip_limit') {
+    $category = (string) ($body['category'] ?? '');
+    if (!in_array($category, $CATEGORIES, true)) {
+        json_out(['ok' => false, 'error' => 'Invalid column'], 400);
+    }
+    $raw = $body['limit'] ?? null;
+    if ($raw === null || $raw === '' || (int) $raw <= 0) {
+        $stmt = $conn->prepare('DELETE FROM roadmap_column_limits WHERE category = ?');
+        $stmt->bind_param('s', $category);
+        $stmt->execute();
+        $stmt->close();
+        json_out(['ok' => true, 'message' => 'WIP limit cleared for ' . $category . '.']);
+    }
+    $limit = min(999, (int) $raw);
+    $stmt = $conn->prepare('INSERT INTO roadmap_column_limits (category, wip_limit) VALUES (?, ?) ON DUPLICATE KEY UPDATE wip_limit = VALUES(wip_limit)');
+    $stmt->bind_param('si', $category, $limit);
+    $stmt->execute();
+    $stmt->close();
+    json_out(['ok' => true, 'message' => 'WIP limit for ' . $category . ' set to ' . $limit . '.']);
 }
 
 if ($action === 'edit_item') {
