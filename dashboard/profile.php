@@ -755,6 +755,14 @@ ob_start();
                             <button id="export-data-profile-btn" class="sp-btn sp-btn-warning" type="button" data-user-id="<?php echo $userId; ?>" data-user-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>" data-user-username="<?php echo htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES); ?>" onclick="exportProfileData()"><?php echo t('profile_export_my_data'); ?></button>
                             <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('profile_export_help'); ?></p>
                         </div>
+                        <div id="account-deletion" style="margin-top:1rem;">
+                            <button id="delete-data-profile-btn" class="sp-btn sp-btn-danger" type="button" onclick="requestAccountDeletion()" disabled><?php echo t('profile_delete_my_data'); ?></button>
+                            <div id="delete-data-pending" class="sp-alert sp-alert-warning" style="display:none;margin-top:0.5rem;">
+                                <span id="delete-data-pending-text"></span>
+                                <div style="margin-top:0.5rem;"><button class="sp-btn sp-btn-secondary sp-btn-sm" type="button" onclick="cancelAccountDeletion()"><?php echo t('profile_delete_cancel_btn'); ?></button></div>
+                            </div>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('profile_delete_help'); ?></p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1823,6 +1831,65 @@ function exportProfileData() {
         });
     });
 }
+
+const ACCOUNT_DELETION_I18N = {
+    title: <?php echo json_encode(t('profile_delete_confirm_title')); ?>,
+    html: <?php echo json_encode(t('profile_delete_confirm_html')); ?>,
+    confirm: <?php echo json_encode(t('profile_delete_confirm_btn')); ?>,
+    keep: <?php echo json_encode(t('profile_delete_keep')); ?>,
+    pending: <?php echo json_encode(t('profile_delete_pending')); ?>,
+    error: <?php echo json_encode(t('profile_delete_err')); ?>
+};
+
+function renderAccountDeletion(data) {
+    const btn = document.getElementById('delete-data-profile-btn');
+    const box = document.getElementById('delete-data-pending');
+    if (!btn || !box) return;
+    btn.disabled = !data.allowed;
+    btn.style.display = data.pending ? 'none' : '';
+    box.style.display = data.pending ? '' : 'none';
+    if (data.pending) {
+        document.getElementById('delete-data-pending-text').textContent =
+            ACCOUNT_DELETION_I18N.pending.replace(':date', new Date(data.delete_after).toLocaleDateString());
+    }
+}
+
+function accountDeletionPost(action) {
+    return fetch('account_deletion.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: 'action=' + encodeURIComponent(action)
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (!data || !data.success) throw new Error((data && data.error) || ACCOUNT_DELETION_I18N.error);
+        renderAccountDeletion(data);
+        Swal.fire({ icon: 'success', text: data.message });
+    }).catch(function(e) {
+        Swal.fire({ icon: 'error', text: e.message || ACCOUNT_DELETION_I18N.error });
+    });
+}
+
+function requestAccountDeletion() {
+    Swal.fire({
+        title: ACCOUNT_DELETION_I18N.title,
+        html: ACCOUNT_DELETION_I18N.html,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: ACCOUNT_DELETION_I18N.confirm,
+        cancelButtonText: ACCOUNT_DELETION_I18N.keep
+    }).then(function(result) {
+        if (result.isConfirmed) accountDeletionPost('request');
+    });
+}
+
+function cancelAccountDeletion() {
+    accountDeletionPost('cancel');
+}
+
+fetch('account_deletion.php', { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data && data.success) renderAccountDeletion(data); })
+    .catch(function() {});
 </script>
 <?php
 $scripts = ob_get_clean();
