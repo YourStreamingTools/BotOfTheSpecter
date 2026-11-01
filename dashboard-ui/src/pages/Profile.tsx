@@ -4,6 +4,8 @@ import { get, post } from '../bot'
 import { getConsent, onConsentChange, setConsent } from '../consent'
 
 const API = '/api/profile/profile.php'
+const DELETION_API = '/api/profile/deletion.php'
+type Deletion = { success: boolean; error?: string; message?: string; allowed?: boolean; pending: boolean; requested_at?: string | null; delete_after?: string | null }
 const OLD = 'https://dashboard.botofthespecter.com'
 
 type Page = {
@@ -42,6 +44,8 @@ export default function Profile() {
   const [busy, setBusy] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [form, setForm] = useState({ timezone: '', weather: '', heart: '', language: '', pw: '', pw2: '', botName: '', botId: '' })
+  const [deletion, setDeletion] = useState<Deletion | null>(null)
+  useEffect(() => { get<Deletion>(DELETION_API).then((d) => { if (d.success) setDeletion(d) }).catch(() => {}) }, [])
 
   async function load() {
     try {
@@ -83,6 +87,21 @@ export default function Profile() {
       const r = await post<{ success: boolean; msg?: string }>('/api/profile/export_user_data.php', { username: page.username })
       setToast({ ok: !!r.success, text: r.success ? 'Your export has been queued. You will get an email when it is ready.' : (r.msg || 'Could not start the export.') })
     } catch { setToast({ ok: false, text: 'Could not start the export. Please contact support.' }) }
+    setBusy('')
+  }
+
+  // Request data deletion: carried out 30 days later unless cancelled (dashboard/includes/account_deletion.php).
+  async function deletionAct(action: 'request' | 'cancel') {
+    if (action === 'request' && !window.confirm('Delete your account and data? Your account, bot settings and stored data will be deleted in 30 days. Until then everything keeps working, and you can cancel the request on this page.')) return
+    setBusy('deletion')
+    try {
+      const r = await fetch(DELETION_API, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' }, body: new URLSearchParams({ action }).toString() })
+      if (r.status === 401) throw new Error('Your session expired. Sign in again.')
+      const d = (await r.json()) as Deletion
+      if (!d.success) throw new Error(d.error || 'Could not update your deletion request. Please try again.')
+      setDeletion(d)
+      setToast({ ok: true, text: d.message || 'Saved.' })
+    } catch (x) { setToast({ ok: false, text: (x as Error).message || 'Could not update your deletion request. Please try again.' }) }
     setBusy('')
   }
 
@@ -133,6 +152,11 @@ export default function Profile() {
             onChange={(e) => act('update_technical_mode', { is_technical: e.target.checked ? '1' : '0' })} />
             <span>Technical terms<small>Show technical details such as PIDs and raw status values.</small></span></label>
           <button className="btn btn-ghost" disabled={busy === 'export'} onClick={exportData}><i className="fa-solid fa-file-export" /> Export my data</button>
+          {deletion?.pending
+            ? <div className="notice notice-warn"><i className="fa-solid fa-trash-can" /> <span>Deletion requested. Your account and data will be deleted on {new Date(deletion.delete_after!).toLocaleDateString()}.
+                <button className="btn btn-ghost" disabled={busy === 'deletion'} onClick={() => deletionAct('cancel')}>Cancel deletion request</button></span></div>
+            : <button className="btn btn-danger" disabled={busy === 'deletion' || !deletion?.allowed} onClick={() => deletionAct('request')}><i className="fa-solid fa-trash-can" /> Request data deletion</button>}
+          <small className="muted">Deletes your account and data 30 days after you ask. You can cancel any time before then.</small>
         </div>
       </section>
 
