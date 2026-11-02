@@ -5,12 +5,14 @@ import base64
 import collections
 import functools
 import io
+import ipaddress
 import json
 import logging
 import logging.handlers
 import os
 import re
 import signal
+import socket
 import struct
 import subprocess
 import tempfile
@@ -41,6 +43,33 @@ from openai import AsyncOpenAI
 
 # Bot version
 VERSION = "6.5.2"
+
+# (customapi.) safety: only fetch public internet addresses, never this server or its network
+class BlockedAddressError(Exception):
+    pass
+
+def _is_public_ip(value):
+    try:
+        ip = ipaddress.ip_address(str(value).split('%', 1)[0])
+    except ValueError:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_global and not ip.is_multicast
+
+class _PublicOnlyResolver(aiohttp.abc.AbstractResolver):
+    def __init__(self):
+        self._resolver = aiohttp.DefaultResolver()
+
+    async def resolve(self, host, port=0, family=socket.AF_INET):
+        results = await self._resolver.resolve(host, port, family)
+        for info in results:
+            if not _is_public_ip(info['host']):
+                raise BlockedAddressError(f"{host} resolves to a non-public address")
+        return results
+
+    async def close(self):
+        await self._resolver.close()
 
 # Global configuration class
 class Config:
@@ -3653,21 +3682,63 @@ class BotOfTheSpecter(commands.Bot):
         return response, follow_up_commands
 
     async def fetch_api_response(self, url, json_flag=False):
+        # Only public http/https addresses are fetched. Loopback, private, link-local and
+        # other internal addresses are refused, including when a redirect points at them.
+        max_redirects = 5
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=5) as resp:
-                    if resp.status == 200:
-                        if json_flag:
-                            api_response = await resp.json()
-                            return str(api_response)[:200]  # Limit response length
-                        else:
+            connector = aiohttp.TCPConnector(resolver=_PublicOnlyResolver())
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                current_url = url
+                for _ in range(max_redirects + 1):
+                    if not self._customapi_url_allowed(current_url):
+                        self.logger.warning(f"Refused (customapi.) fetch of {current_url}: not a public http/https address")
+                        return "API URL not allowed"
+                    async with session.get(current_url, allow_redirects=False) as resp:
+                        if resp.status in (301, 302, 303, 307, 308):
+                            location = resp.headers.get('Location')
+                            if not location:
+                                return "API Error"
+                            current_url = str(resp.url.join(aiohttp.client.URL(location)))
+                            continue
+                        if resp.status == 200:
+                            if json_flag:
+                                api_response = await resp.json(content_type=None)
+                                return str(api_response)[:200]  # Limit response length
                             api_response = await resp.text()
                             return api_response.strip()[:200]  # Limit response length
-                    else:
                         return "API Error"
+                self.logger.warning(f"Refused (customapi.) fetch of {url}: too many redirects")
+                return "API Error"
+        except BlockedAddressError as e:
+            self.logger.warning(f"Refused (customapi.) fetch of {url}: {e}")
+            return "API URL not allowed"
+        except aiohttp.ClientConnectorError as e:
+            if isinstance(getattr(e, 'os_error', None), BlockedAddressError) or isinstance(e.__cause__, BlockedAddressError):
+                self.logger.warning(f"Refused (customapi.) fetch of {url}: {e}")
+                return "API URL not allowed"
+            self.logger.error(f"API fetch error: {e}")
+            return "API Unavailable"
         except Exception as e:
             self.logger.error(f"API fetch error: {e}")
             return "API Unavailable"
+
+    @staticmethod
+    def _customapi_url_allowed(url):
+        try:
+            parsed = urllib.parse.urlsplit(url)
+        except ValueError:
+            return False
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            return False
+        host = parsed.hostname.strip('[]').rstrip('.').lower()
+        if host == 'localhost' or host.endswith('.localhost'):
+            return False
+        try:
+            ipaddress.ip_address(host.split('%', 1)[0])
+        except ValueError:
+            return True  # A name; the resolver checks every address it resolves to
+        return _is_public_ip(host)
 
     async def update_presence(self):
         server_count = len(self.guilds)  # Get the number of servers the bot is in
