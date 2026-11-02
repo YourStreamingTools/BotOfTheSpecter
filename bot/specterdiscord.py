@@ -43,6 +43,16 @@ from openai import AsyncOpenAI
 # Bot version
 VERSION = "6.5.2"
 
+# Errors the bot deliberately carries on from still go into the Discord bot log, so failures aren't silent.
+# A message that was already deleted (NotFound) is skipped: there is nothing to fix.
+def log_ignored_error(logger, context, error):
+    if isinstance(error, discord.NotFound):
+        return
+    try:
+        (logger or logging.getLogger('discord')).warning(f"{context} failed: {type(error).__name__}: {error}")
+    except Exception:
+        pass
+
 # Mentions: by default the bot never pings @everyone, @here or roles, because custom command text,
 # (customapi.) responses and AI replies are sent as-is. Only bot-built stream alerts and ticket pings opt in.
 DEFAULT_ALLOWED_MENTIONS = discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=True)
@@ -440,7 +450,7 @@ class UserLogger:
                         self.username_cache[channel_code] = username
                         return username
                 except Exception as e:
-                    self.admin_logger.debug(f"[USER LOG] Error resolving username from channel_code {channel_code}: {e}")
+                    self.admin_logger.warning(f"[USER LOG] Error resolving username from channel_code {channel_code}: {e}")
         # Try guild_id if channel_code didn't work
         if guild_id and self.mysql_helper:
             try:
@@ -457,7 +467,7 @@ class UserLogger:
                     if user_row and user_row.get('username'):
                         return user_row['username']
             except Exception as e:
-                self.admin_logger.debug(f"[USER LOG] Error resolving username from guild_id {guild_id}: {e}")
+                self.admin_logger.warning(f"[USER LOG] Error resolving username from guild_id {guild_id}: {e}")
         return None
     
     async def log(self, level, message, channel_code=None, guild_id=None, username=None):
@@ -474,7 +484,7 @@ class UserLogger:
                 user_log_func = getattr(user_logger, level.lower(), user_logger.info)
                 user_log_func(message)
             except Exception as e:
-                self.admin_logger.debug(f"[USER LOG] Failed to write to user log for {username}: {e}")
+                self.admin_logger.warning(f"[USER LOG] Failed to write to user log for {username}: {e}")
     # Convenience methods for different log levels
     async def info(self, message, **kwargs):
         await self.log('INFO', message, **kwargs)
@@ -890,13 +900,13 @@ class WebsocketListener:
                             data['channel_code'] = resolved_code
                             self.logger.debug(f"Resolved missing channel_code for STREAM_ONLINE via username '{uname}' -> {resolved_code}")
                 except Exception as _e:
-                    self.logger.debug(f"Failed to resolve channel_code for STREAM_ONLINE event: {_e}")
+                    self.logger.warning(f"Failed to resolve channel_code for STREAM_ONLINE event: {_e}")
             await self.bot.handle_stream_event("ONLINE", data)
             try:
                 if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                     asyncio.create_task(self.bot.live_channel_manager.handle_stream_online(data))
             except Exception as e:
-                self.logger.debug(f"Error invoking LiveChannelManager.handle_stream_online: {e}")
+                self.logger.warning(f"Error invoking LiveChannelManager.handle_stream_online: {e}")
         # Event handlers for Twitch Stream Offline Events
         @self.specterSocket.event
         async def STREAM_OFFLINE(data):
@@ -910,14 +920,14 @@ class WebsocketListener:
                             data['channel_code'] = resolved_code
                             self.logger.debug(f"Resolved missing channel_code for STREAM_OFFLINE via username '{uname}' -> {resolved_code}")
                 except Exception as _e:
-                    self.logger.debug(f"Failed to resolve channel_code for STREAM_OFFLINE event: {_e}")
+                    self.logger.warning(f"Failed to resolve channel_code for STREAM_OFFLINE event: {_e}")
             await self.bot.handle_stream_event("OFFLINE", data)
             try:
                 channel_code = data.get('channel_code') or data.get('code')
                 if channel_code and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                     asyncio.create_task(self.bot.live_channel_manager.mark_offline(channel_code))
             except Exception as e:
-                self.logger.debug(f"Error invoking LiveChannelManager.mark_offline: {e}")
+                self.logger.warning(f"Error invoking LiveChannelManager.mark_offline: {e}")
         # Event handler for posting reaction roles message
         @self.specterSocket.on('POST_REACTION_ROLES_MESSAGE')
         async def post_reaction_roles_message(data):
@@ -1095,7 +1105,7 @@ class ChannelMapping:
                 try:
                     asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
                 except Exception as _e:
-                    self.logger.debug(f"Failed to schedule fallback check for new mapping {added_code}: {_e}")
+                    self.logger.warning(f"Failed to schedule fallback check for new mapping {added_code}: {_e}")
 
     async def get_mapping(self, channel_code):
         await self._ready.wait()
@@ -1124,7 +1134,7 @@ class ChannelMapping:
                     (channel_code,), database_name='specterdiscordbot', dict_cursor=True
                 )
         except Exception as e:
-            self.logger.debug(f"Database query failed for {channel_code}: {e}")
+            self.logger.warning(f"Database query failed for {channel_code}: {e}")
             row = None
         if row:
             self.mappings[channel_code] = dict(row)
@@ -1230,7 +1240,7 @@ class ChannelMapping:
                 if hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                     asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(mapping_data['channel_code']))
             except Exception as _e:
-                self.logger.debug(f"Could not schedule fallback_check_and_mark for {mapping_data['channel_code']}: {_e}")
+                self.logger.warning(f"Could not schedule fallback_check_and_mark for {mapping_data['channel_code']}: {_e}")
         except Exception as e:
             self.logger.error(f"Error inserting mapping to DB: {e}")
             # Fallback to basic schema if enhanced schema fails
@@ -1251,7 +1261,7 @@ class ChannelMapping:
                     if hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                         asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(mapping_data['channel_code']))
                 except Exception as _e:
-                    self.logger.debug(f"Could not schedule fallback_check_and_mark for {mapping_data['channel_code']} (fallback): {_e}")
+                    self.logger.warning(f"Could not schedule fallback_check_and_mark for {mapping_data['channel_code']} (fallback): {_e}")
             except Exception as e2:
                 self.logger.error(f"Error inserting mapping with basic schema fallback: {e2}")
 
@@ -1261,8 +1271,8 @@ class ChannelMapping:
                 "UPDATE channel_mappings SET last_seen_at = NOW() WHERE channel_code = %s",
                 (channel_code,), database_name='specterdiscordbot'
             )
-        except Exception:
-            pass  # Ignore if there's an error
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "ChannelMapping._update_last_seen: await self.mysql.execute", ignored_err)
 
     async def increment_event_count(self, channel_code, event_type):
         try:
@@ -1277,8 +1287,8 @@ class ChannelMapping:
                 self.mappings[channel_code]['event_count'] = self.mappings[channel_code].get('event_count', 0) + 1
                 self.mappings[channel_code]['last_event_type'] = event_type
                 self.mappings[channel_code]['last_seen_at'] = datetime.now()
-        except Exception:
-            pass  # Ignore if there's an error
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "ChannelMapping.increment_event_count: await self.mysql.execute", ignored_err)
 
     async def update_discord_info(self, channel_code, guild_name=None, channel_name=None):
         try:
@@ -1322,7 +1332,7 @@ class ChannelMapping:
             )
             return len(rows) > 0
         except Exception as e:
-            self.logger.debug(f"Could not check if table exists: {e}")
+            self.logger.warning(f"Could not check if table exists: {e}")
             return False
 
     async def _check_index_exists(self, index_name):
@@ -1333,7 +1343,7 @@ class ChannelMapping:
             )
             return len(rows) > 0
         except Exception as e:
-            self.logger.debug(f"Could not check if index {index_name} exists: {e}")
+            self.logger.warning(f"Could not check if index {index_name} exists: {e}")
             return False
 
     async def _get_table_columns(self):
@@ -1343,7 +1353,7 @@ class ChannelMapping:
             )
             return [row[0] for row in rows]
         except Exception as e:
-            self.logger.debug(f"Could not get table columns: {e}")
+            self.logger.warning(f"Could not get table columns: {e}")
             return ['channel_code', 'guild_id', 'channel_id', 'channel_name']  # Basic schema
 
     async def add_mapping(self, channel_code, guild_id, channel_id, channel_name):
@@ -1412,7 +1422,7 @@ class ChannelMapping:
                         if bot and hasattr(bot, 'live_channel_manager') and bot.live_channel_manager:
                             asyncio.create_task(bot.live_channel_manager.fallback_check_and_mark(channel_code))
                     except Exception as _e:
-                        self.logger.debug(f"Failed to schedule fallback check for auto-created mapping {channel_code}: {_e}")
+                        self.logger.warning(f"Failed to schedule fallback check for auto-created mapping {channel_code}: {_e}")
             if created_count > 0:
                 self.logger.info(f"Auto-created {created_count} missing channel mappings")
         except Exception as e:
@@ -1767,16 +1777,16 @@ class LiveChannelManager:
                 row = await self.mysql.fetchone("SELECT username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
                 if row and row.get('username'):
                     uname = row.get('username')
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "LiveChannelManager.mark_offline: row = await self.mysql.fetchone(SELECT username FROM channel_mappings", ignored_err)
             if not uname:
                 # Fall back to website users table
                 try:
                     user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
                     if user_row and user_row.get('username'):
                         uname = user_row.get('username')
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "LiveChannelManager.mark_offline: user_row = await self.mysql.fetchone(SELECT username FROM users WHERE", ignored_err)
             if uname:
                 # Only delete if it currently exists to avoid noisy logs
                 existing = await self.get_online_stream_by_username(uname)
@@ -1812,7 +1822,7 @@ class LiveChannelManager:
                         username = row.get('username')
                         self.logger.debug(f"Resolved username '{username}' from channel_mappings for channel_code {channel_code}")
                 except Exception as e:
-                    self.logger.debug(f"Error fetching username from channel_mappings: {e}")
+                    self.logger.warning(f"Error fetching username from channel_mappings: {e}")
                 if not username:
                     try:
                         user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
@@ -1820,7 +1830,7 @@ class LiveChannelManager:
                             username = user_row.get('username')
                             self.logger.debug(f"Resolved username '{username}' from users table for channel_code {channel_code}")
                     except Exception as e:
-                        self.logger.debug(f"Error fetching username from users table: {e}")
+                        self.logger.warning(f"Error fetching username from users table: {e}")
             
             if not username:
                 self.logger.warning(f"Could not resolve username for channel_code {channel_code} when clearing notifications")
@@ -1859,15 +1869,15 @@ class LiveChannelManager:
                 res = await self.mysql.fetchone("SELECT username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
                 if res and res.get('username'):
                     uname = res.get('username')
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "LiveChannelManager.get_online_stream: res = await self.mysql.fetchone(SELECT username FROM channel_mappings", ignored_err)
             if not uname:
                 try:
                     user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
                     if user_row and user_row.get('username'):
                         uname = user_row.get('username')
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "LiveChannelManager.get_online_stream: user_row = await self.mysql.fetchone(SELECT username FROM users WHERE", ignored_err)
             if not uname:
                 return None
             row = await self.mysql.fetchone(
@@ -1938,7 +1948,7 @@ class LiveChannelManager:
                 return row.get('channel_code')
             return None
         except Exception as e:
-            self.logger.debug(f"Error resolving channel_code for username {username}: {e}")
+            self.logger.warning(f"Error resolving channel_code for username {username}: {e}")
             return None
 
     async def handle_stream_online(self, data):
@@ -1968,9 +1978,8 @@ class LiveChannelManager:
                     details = {'game': game}
                     await self.mark_online(channel_code, username=username, twitch_user_id=twitch_user_id, stream_id=stream_id, started_at=started_at, details=details)
                     return
-                except Exception:
-                    # If get_stream_info fails, fallback to persisting websocket data
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "LiveChannelManager.handle_stream_online: game, stream_title = await self.bot.get_stream_info(username)", ignored_err)
             # If we reach here, persist what we have from websocket anyway
             details = data
             await self.mark_online(channel_code, username=username, twitch_user_id=twitch_user_id, stream_id=stream_id, started_at=started_at, details=details)
@@ -2031,7 +2040,7 @@ class LiveChannelManager:
                                 except Exception as voice_error:
                                     self.logger.error(f"Fallback: Failed to update voice channel for {username}: {voice_error}")
                     except Exception as e:
-                        self.logger.debug(f"Error determining existing online_streams entry for username {username}: {e}")
+                        self.logger.warning(f"Error determining existing online_streams entry for username {username}: {e}")
                     # Save full info now so we persist the online state
                     await self.mark_online(
                         channel_code,
@@ -2053,8 +2062,8 @@ class LiveChannelManager:
                             username = row.get('username')
                             if guild_id and username:
                                 await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "LiveChannelManager.fallback_check_and_mark: row = await self.mysql.fetchone(SELECT guild_id, username FROM channel", ignored_err)
                     # Update voice channel to show offline status
                     try:
                         mapping = await self.bot.channel_mapping.get_mapping(channel_code)
@@ -2130,7 +2139,7 @@ class LiveChannelManager:
                                                 self.logger.debug(f"Skipping offline mark for {uname}, record too recent ({time_diff.total_seconds()}s old)")
                                                 continue
                                 except Exception as e:
-                                    self.logger.debug(f"Error checking record age for {uname}: {e}")
+                                    self.logger.warning(f"Error checking record age for {uname}: {e}")
                                 # Mark offline by username
                                 await self.mark_offline_by_username(uname)
                     # Now also check channel owners that are not currently in online_streams but may have gone live
@@ -2184,7 +2193,7 @@ class LiveChannelManager:
                                                                 self.logger.debug(f"Live notification already posted for {uname} in guild {guild_id}, skipping duplicate in periodic fallback")
                                                                 should_post = False
                                                         except Exception as e:
-                                                            self.logger.debug(f"Error checking live_notifications for periodic fallback {code}: {e}")
+                                                            self.logger.warning(f"Error checking live_notifications for periodic fallback {code}: {e}")
                                                     if should_post:
                                                         # Build event data and trigger posting via bot
                                                         event_data = {
@@ -2200,19 +2209,19 @@ class LiveChannelManager:
                                                             if self.bot:
                                                                 await self.bot.handle_stream_event('ONLINE', event_data)
                                                         except Exception as inner_e:
-                                                            self.logger.debug(f"Error triggering periodic fallback announcement for {code}: {inner_e}")
+                                                            self.logger.warning(f"Error triggering periodic fallback announcement for {code}: {inner_e}")
                                                         # Mark online (persist) after posting
                                                         await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
                                                     else:
                                                         # Notification already exists, just update state without posting
                                                         await self.mark_online(code, username=s.get('user_login'), twitch_user_id=s.get('user_id'), stream_id=s.get('id'), started_at=s.get('started_at'), details=s)
                                             except Exception as inner_e:
-                                                self.logger.debug(f"Error checking existing online stream for periodic fallback {code}: {inner_e}")
+                                                self.logger.warning(f"Error checking existing online stream for periodic fallback {code}: {inner_e}")
                             except Exception as e:
-                                self.logger.debug(f"Error during periodic helix check for new live channels: {e}")
+                                self.logger.warning(f"Error during periodic helix check for new live channels: {e}")
                             await asyncio.sleep(0.2)
                     except Exception as e:
-                        self.logger.debug(f"Unexpected error in periodic fallback checks: {e}")
+                        self.logger.warning(f"Unexpected error in periodic fallback checks: {e}")
                 except Exception as e:
                     self.logger.error(f"LiveChannelManager validation loop error: {e}")
                 await asyncio.sleep(self.check_interval)
@@ -2280,7 +2289,7 @@ class LiveChannelManager:
                             )
                             has_notification = notification is not None
                         except Exception as e:
-                            self.logger.debug(f"Error checking notification for {username_lower}: {e}")
+                            self.logger.warning(f"Error checking notification for {username_lower}: {e}")
                     # Update voice channel
                     try:
                         guild = self.bot.get_guild(int(guild_id))
@@ -2300,7 +2309,7 @@ class LiveChannelManager:
                                         updated_voice_channels += 1
                                         self.logger.info(f"Updated voice channel for {username_lower} to: {channel_name}")
                     except Exception as e:
-                        self.logger.debug(f"Error updating voice channel for {username_lower}: {e}")
+                        self.logger.warning(f"Error updating voice channel for {username_lower}: {e}")
                     # Handle live streams
                     if is_live:
                         stream_data = live_usernames[username_lower]
@@ -2366,7 +2375,7 @@ class LiveChannelManager:
                                 cleaned_stale += 1
                                 self.logger.info(f"Cleaned stale notification for offline stream: {username_lower}")
                             except Exception as e:
-                                self.logger.debug(f"Error cleaning notification for {username_lower}: {e}")
+                                self.logger.warning(f"Error cleaning notification for {username_lower}: {e}")
                 except Exception as e:
                     self.logger.error(f"Error processing boot sync for {code} ({mapping.get('username', 'unknown')}): {e}")
             # Log summary
@@ -2417,7 +2426,7 @@ class LiveChannelManager:
                             self.logger.debug(f"Twitch Helix streams request failed: {resp.status} - {await resp.text()}")
                             api_error = True
                 except Exception as e:
-                    self.logger.debug(f"Twitch Helix request exception: {e}")
+                    self.logger.warning(f"Twitch Helix request exception: {e}")
                     api_error = True
                 # small sleep to avoid bursting if many chunks
                 await asyncio.sleep(0.5)
@@ -2450,7 +2459,8 @@ class TimeNowChannelManager:
         tz_name = common_zones.get((timezone_name or 'UTC').upper(), timezone_name or 'UTC')
         try:
             return pytz.timezone(tz_name)
-        except Exception:
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "TimeNowChannelManager._resolve_timezone: return pytz.timezone(tz_name)", ignored_err)
             return pytz.UTC
 
     def _format_time_now_name(self, timezone_name: str) -> str:
@@ -2488,8 +2498,8 @@ class TimeNowChannelManager:
                     )
                     if tz_row and tz_row.get('timezone'):
                         timezone_name = tz_row['timezone']
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "TimeNowChannelManager.refresh_configs: tz_row = await self.mysql.fetchone", ignored_err)
                 configs.append({
                     'username': username,
                     'guild_id': str(row['guild_id']),
@@ -2754,8 +2764,8 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ I don't have permission to manage this role.", ephemeral=True)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "BotOfTheSpecter.on_interaction: if not interaction.response.is_done():", ignored_err)
                     self.logger.error(f"[PERSISTENT_ROLE] Permission denied when managing role")
                 except Exception as e:
                     self.logger.error(f"[PERSISTENT_ROLE] Error: {e}")
@@ -2763,8 +2773,8 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ An error occurred. Please try again.", ephemeral=True)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "BotOfTheSpecter.on_interaction: if not interaction.response.is_done():", ignored_err)
             # Handle persistent rules buttons
             elif custom_id.startswith('rules_accept_'):
                 try:
@@ -2788,8 +2798,8 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ I don't have permission to assign this role.", ephemeral=True)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "BotOfTheSpecter.on_interaction: if not interaction.response.is_done():", ignored_err)
                     self.logger.error(f"[PERSISTENT_RULES] Permission denied when assigning role")
                 except Exception as e:
                     self.logger.error(f"[PERSISTENT_RULES] Error: {e}")
@@ -2797,8 +2807,8 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ An error occurred. Please try again.", ephemeral=True)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "BotOfTheSpecter.on_interaction: if not interaction.response.is_done():", ignored_err)
 
     async def on_member_join(self, member):
         self.logger.info(f"Member joined: {member.name}#{member.discriminator} (ID: {member.id}) in guild {member.guild.name}")
@@ -2833,7 +2843,7 @@ class BotOfTheSpecter(commands.Bot):
             try:
                 Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
             except Exception as e:
-                self.logger.debug(f"Could not create history directory {HISTORY_DIR}: {e}")
+                self.logger.warning(f"Could not create history directory {HISTORY_DIR}: {e}")
             # Build messages list starting from system instructions (with small local cache)
             messages = []
             global _cached_instructions, _cached_instructions_time
@@ -2878,7 +2888,7 @@ class BotOfTheSpecter(commands.Bot):
                 limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Discord message. If you need to be concise, prefer short sentences and avoid long lists."
                 messages.append({'role': 'system', 'content': limiter})
             except Exception as e:
-                self.logger.debug(f"Failed to build user context for AI: {e}")
+                self.logger.warning(f"Failed to build user context for AI: {e}")
             # Load per-channel/user chat history and insert as prior messages If guild_id is provided, use guild_id_user_id.json format, otherwise use channel_name.json
             try:
                 if guild_id:
@@ -2892,7 +2902,7 @@ class BotOfTheSpecter(commands.Bot):
                         with history_file.open('r', encoding='utf-8') as hf:
                             history = json.load(hf)
                     except Exception as e:
-                        self.logger.debug(f"Failed to read history for {history_filename}: {e}")
+                        self.logger.warning(f"Failed to read history for {history_filename}: {e}")
                 # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
                 if isinstance(history, list) and len(history) > 0:
                     recent = history[-8:]
@@ -2900,7 +2910,7 @@ class BotOfTheSpecter(commands.Bot):
                         if isinstance(item, dict) and 'role' in item and 'content' in item:
                             messages.append({'role': item['role'], 'content': item['content']})
             except Exception as e:
-                self.logger.debug(f"Error loading chat history: {e}")
+                self.logger.warning(f"Error loading chat history: {e}")
             # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
             # Ensure openai client is available
@@ -2956,7 +2966,7 @@ class BotOfTheSpecter(commands.Bot):
                         with history_file.open('r', encoding='utf-8') as hf:
                             history = json.load(hf)
                     except Exception as e:
-                        self.logger.debug(f"Failed to read existing history for append {history_filename}: {e}")
+                        self.logger.warning(f"Failed to read existing history for append {history_filename}: {e}")
                 history.append({'role': 'user', 'content': user_message})
                 history.append({'role': 'assistant', 'content': ai_text})
                 if len(history) > 200:
@@ -2965,9 +2975,9 @@ class BotOfTheSpecter(commands.Bot):
                     with history_file.open('w', encoding='utf-8') as hf:
                         json.dump(history, hf, ensure_ascii=False, indent=2)
                 except Exception as e:
-                    self.logger.debug(f"Failed to write history for {history_filename}: {e}")
+                    self.logger.warning(f"Failed to write history for {history_filename}: {e}")
             except Exception as e:
-                self.logger.debug(f"Error while persisting chat history: {e}")
+                self.logger.warning(f"Error while persisting chat history: {e}")
             # Split into chunks that fit within Discord's message limit and return
             try:
                 chunks = split_message_preserve_markdown(ai_text, MAX_CHAT_MESSAGE_LENGTH)
@@ -2985,7 +2995,7 @@ class BotOfTheSpecter(commands.Bot):
             try:
                 Path(HISTORY_DIR).mkdir(parents=True, exist_ok=True)
             except Exception as e:
-                self.logger.debug(f"Could not create history directory {HISTORY_DIR}: {e}")
+                self.logger.warning(f"Could not create history directory {HISTORY_DIR}: {e}")
             # Build messages list starting from system instructions (with small local cache)
             messages = []
             global _cached_instructions, _cached_instructions_time
@@ -3030,7 +3040,7 @@ class BotOfTheSpecter(commands.Bot):
                 limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Discord message. If you need to be concise, prefer short sentences and avoid long lists."
                 messages.append({'role': 'system', 'content': limiter})
             except Exception as e:
-                self.logger.debug(f"Failed to build user context for AI stream: {e}")
+                self.logger.warning(f"Failed to build user context for AI stream: {e}")
             # Load per-channel/user chat history and insert as prior messages
             try:
                 if guild_id:
@@ -3044,7 +3054,7 @@ class BotOfTheSpecter(commands.Bot):
                         with history_file.open('r', encoding='utf-8') as hf:
                             history = json.load(hf)
                     except Exception as e:
-                        self.logger.debug(f"Failed to read history for {history_filename}: {e}")
+                        self.logger.warning(f"Failed to read history for {history_filename}: {e}")
                 # History is expected to be a list of {role: 'user'|'assistant', content: '...'}
                 if isinstance(history, list) and len(history) > 0:
                     recent = history[-8:]
@@ -3052,7 +3062,7 @@ class BotOfTheSpecter(commands.Bot):
                         if isinstance(item, dict) and 'role' in item and 'content' in item:
                             messages.append({'role': item['role'], 'content': item['content']})
             except Exception as e:
-                self.logger.debug(f"Error loading chat history (stream): {e}")
+                self.logger.warning(f"Error loading chat history (stream): {e}")
             # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
             # Ensure openai client is available
@@ -3089,7 +3099,7 @@ class BotOfTheSpecter(commands.Bot):
                                     streamed = True
                                     yield delta
                     except Exception as e:
-                        self.logger.debug(f"Stream context failed for chat.completions.stream: {e}")
+                        self.logger.warning(f"Stream context failed for chat.completions.stream: {e}")
                 elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'stream'):
                     self.logger.debug("Using openai_client.chat_completions.stream for streaming response")
                     try:
@@ -3112,7 +3122,7 @@ class BotOfTheSpecter(commands.Bot):
                                     streamed = True
                                     yield delta
                     except Exception as e:
-                        self.logger.debug(f"Stream context failed for chat_completions.stream: {e}")
+                        self.logger.warning(f"Stream context failed for chat_completions.stream: {e}")
                 # If streaming wasn't used or yielded nothing, fall back to the non-streaming path
                 if not streamed:
                     self.logger.debug("Streaming not available or yielded no content; falling back to non-stream completion")
@@ -3159,7 +3169,7 @@ class BotOfTheSpecter(commands.Bot):
                                 with history_file.open('r', encoding='utf-8') as hf:
                                     history = json.load(hf)
                             except Exception as e:
-                                self.logger.debug(f"Failed to read existing history for append {history_filename}: {e}")
+                                self.logger.warning(f"Failed to read existing history for append {history_filename}: {e}")
                         history.append({'role': 'user', 'content': user_message})
                         history.append({'role': 'assistant', 'content': buffer})
                         if len(history) > 200:
@@ -3168,16 +3178,16 @@ class BotOfTheSpecter(commands.Bot):
                             with history_file.open('w', encoding='utf-8') as hf:
                                 json.dump(history, hf, ensure_ascii=False, indent=2)
                         except Exception as e:
-                            self.logger.debug(f"Failed to write history for {history_filename}: {e}")
+                            self.logger.warning(f"Failed to write history for {history_filename}: {e}")
                         else:
                             try:
                                 self.logger.info(f"Persisted AI history for {history_filename} (len={len(buffer)})")
                                 full_response = buffer.replace(os.linesep, ' ')
                                 self.logger.info(f"Final AI response for {history_filename}: {full_response}")
-                            except Exception:
-                                pass
+                            except Exception as ignored_err:
+                                log_ignored_error(self.logger, "BotOfTheSpecter.get_ai_response_stream: self.logger.info(fPersisted AI history for history_filename (len=len(b", ignored_err)
                 except Exception as e:
-                    self.logger.debug(f"Error while persisting streamed chat history: {e}")
+                    self.logger.warning(f"Error while persisting streamed chat history: {e}")
             except Exception as e:
                 self.logger.error(f"Error streaming chat completion: {e}")
                 yield "An error occurred while contacting the AI chat service."
@@ -3207,7 +3217,7 @@ class BotOfTheSpecter(commands.Bot):
                     )
                     await self.mysql_helper.track_message('discordbot')
                 except Exception as e:
-                    self.logger.debug(f"Could not notify non-owner about AI DM restriction: {e}")
+                    self.logger.warning(f"Could not notify non-owner about AI DM restriction: {e}")
                 self._mark_message_processed(message_id)
                 self.logger.info(
                     f"Blocked AI DM from non-owner {message.author} (id={message.author.id})"
@@ -3335,7 +3345,7 @@ class BotOfTheSpecter(commands.Bot):
                         )
                         await self.mysql_helper.track_message('discordbot')
                     except Exception as e:
-                        self.logger.debug(f"Could not notify non-owner about AI restriction: {e}")
+                        self.logger.warning(f"Could not notify non-owner about AI restriction: {e}")
                     self._mark_message_processed(message_id)
                     self.logger.info(
                         f"Blocked AI chat from non-owner {message.author} (id={message.author.id}) "
@@ -3392,14 +3402,14 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.error(f"Failed to send message: {e}")
                     try:
                         await message.reply("Sorry, I failed to send my response. Please try again.", mention_author=False)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "BotOfTheSpecter.on_message: await message.reply(Sorry, I failed to send my response. Please try ag", ignored_err)
                 except Exception as e:
                     self.logger.error(f"Unexpected error in AI chat for server: {e}")
                     try:
                         await message.reply("Sorry, an error occurred processing your request.", mention_author=False)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "BotOfTheSpecter.on_message: await message.reply(Sorry, an error occurred processing your request.,", ignored_err)
                 return  # Don't process further if we handled an AI request
             try:
                 # Auto-save logic for ticket channels - delegate to TicketCog
@@ -3948,7 +3958,7 @@ class BotOfTheSpecter(commands.Bot):
                         await self.live_channel_manager.clear_live_notifications_for_channel(channel_code)
                         self.logger.debug(f"Cleared all live notifications for channel_code {channel_code} across all guilds")
                 except Exception as e:
-                    self.logger.debug(f"Error clearing online state for {channel_code} during OFFLINE event: {e}")
+                    self.logger.warning(f"Error clearing online state for {channel_code} during OFFLINE event: {e}")
         else:
             self.logger.warning(f"No message formatted for {event_type} event")
 
@@ -4372,9 +4382,9 @@ class BotOfTheSpecter(commands.Bot):
                         else:
                             self.logger.debug(f"Twitch API request failed for {username}: {resp.status} - {await resp.text()}")
                 except asyncio.TimeoutError:
-                    self.logger.debug(f"Twitch API request timeout for profile image of {username}")
+                    self.logger.warning(f"Twitch API request timeout for profile image of {username}")
                 except Exception as e:
-                    self.logger.debug(f"Exception fetching profile image from Twitch API for {username}: {e}")
+                    self.logger.warning(f"Exception fetching profile image from Twitch API for {username}: {e}")
         except Exception as e:
             self.logger.error(f"Error in get_user_profile_image_from_twitch for {username}: {e}")
         return None
@@ -4628,11 +4638,11 @@ class BotOfTheSpecter(commands.Bot):
                                                                         details=age_streams[0]
                                                                     )
                                                             except Exception as silent_err:
-                                                                self.logger.debug(f"Error silently inserting live_notification for {account_username}: {silent_err}")
+                                                                self.logger.warning(f"Error silently inserting live_notification for {account_username}: {silent_err}")
                                                         else:
                                                             self.logger.info(f"Stream for {account_username} started {stream_age_minutes:.1f}m ago - fresh stream, proceeding with notification")
                             except Exception as age_check_err:
-                                self.logger.debug(f"Error checking stream age for {account_username}: {age_check_err}")
+                                self.logger.warning(f"Error checking stream age for {account_username}: {age_check_err}")
                         # Get user profile image and stream info
                         if skip_post:
                             self.logger.info(f"Skipping live notification for {account_username} - already posted to guild {guild.id}")
@@ -4719,7 +4729,7 @@ class BotOfTheSpecter(commands.Bot):
                                                             stream_data = data.get("data", [{}])[0]
                                                             stream_id = stream_data.get("id")
                                     except Exception as e:
-                                        self.logger.debug(f"Error fetching stream_id from Twitch API for {account_username}: {e}")
+                                        self.logger.warning(f"Error fetching stream_id from Twitch API for {account_username}: {e}")
                                     # Use stream_id or empty string as fallback (database may require non-null)
                                     stream_id = stream_id or ""
                                     await mysql_helper.insert_live_notification(guild.id, account_username, stream_id, started_at, posted_at)
@@ -4734,7 +4744,7 @@ class BotOfTheSpecter(commands.Bot):
                                             details=stream_data
                                         )
                                 except Exception as e:
-                                    self.logger.debug(f"Error persisting live notification or marking online for {code}: {e}")
+                                    self.logger.warning(f"Error persisting live notification or marking online for {code}: {e}")
                 else:
                     self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
                     await self._send_failure_dm(guild, "Stream alert post", account_username, f"The configured stream alert channel (ID: `{stream_channel_id}`) could not be found in the server. Please re-configure it in the BotOfTheSpecter dashboard.")
@@ -5543,8 +5553,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                 # A create for this user is already running; drop the duplicate
                 try:
                     await ctx.message.delete()
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "TicketCog.ticket_command: await ctx.message.delete()", ignored_err)
                 return
             try:
                 async with lock:
@@ -6413,8 +6423,8 @@ class MusicPlayer:
                 msg = await ctx.send(embed=embed)
                 try:
                     await msg.delete(delay=7)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "MusicPlayer.add_to_queue: await msg.delete(delay=7)", ignored_err)
                 return
             # Fetch YouTube info synchronously for title display
             file_path, info = await self.predownload_youtube(query)
@@ -6433,8 +6443,8 @@ class MusicPlayer:
                     try:
                         await msg.delete(delay=10)
                         await ctx.message.delete()
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "MusicPlayer.add_to_queue: await msg.delete(delay=10)", ignored_err)
                     return
         else:
             title = query if query.endswith('.mp3') else f'{query}.mp3'
@@ -6456,13 +6466,13 @@ class MusicPlayer:
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.add_to_queue: await msg.delete(delay=5)", ignored_err)
         else:
             try:
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.add_to_queue: await ctx.message.delete()", ignored_err)
         voice_client = ctx.guild.voice_client
         is_playing_flag = self.is_playing.get(guild_id, False)
         voice_is_playing = voice_client.is_playing() if voice_client else False
@@ -6542,8 +6552,8 @@ class MusicPlayer:
                         self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
                         try:
                             await ctx.send(f"Song skipped, can't play '{query}'.")
-                        except Exception:
-                            pass
+                        except Exception as ignored_err:
+                            log_ignored_error(self.logger, "MusicPlayer._play_next: await ctx.send(fSong skipped, can't play 'query'.)", ignored_err)
                         continue  # Skip to the next queued track.
                     self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
                     source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
@@ -6585,8 +6595,8 @@ class MusicPlayer:
                 self.is_playing[guild_id] = False
                 try:
                     source.cleanup()
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "MusicPlayer._play_next: source.cleanup()", ignored_err)
                 return
             try:
                 # Don't stop if this is being called while nothing should be playing
@@ -6608,8 +6618,8 @@ class MusicPlayer:
                 self.logger.error(f"[PLAY_NEXT] Failed to start playback for guild {guild_id}: {e}")
                 try:
                     source.cleanup()
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "MusicPlayer._play_next: source.cleanup()", ignored_err)
 
     async def skip(self, ctx):
         vc = ctx.voice_client
@@ -6623,8 +6633,8 @@ class MusicPlayer:
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.skip: await msg.delete(delay=5)", ignored_err)
             return
         vc.stop()
         embed = discord.Embed(
@@ -6636,8 +6646,8 @@ class MusicPlayer:
         try:
             await msg.delete(delay=5)
             await ctx.message.delete()
-        except Exception:
-            pass
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "MusicPlayer.skip: await msg.delete(delay=5)", ignored_err)
 
     async def stop(self, ctx):
         vc = ctx.voice_client
@@ -6652,8 +6662,8 @@ class MusicPlayer:
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.stop: await msg.delete(delay=5)", ignored_err)
             return
         vc.stop()
         self.queues[guild_id] = []
@@ -6668,8 +6678,8 @@ class MusicPlayer:
         try:
             await msg.delete(delay=5)
             await ctx.message.delete()
-        except Exception:
-            pass
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "MusicPlayer.stop: await msg.delete(delay=5)", ignored_err)
 
     async def get_queue(self, ctx):
         guild_id = ctx.guild.id
@@ -6684,8 +6694,8 @@ class MusicPlayer:
             try:
                 await msg.delete(delay=10)
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.get_queue: await msg.delete(delay=10)", ignored_err)
             return
         queue_list = []
         max_display = 5
@@ -6716,8 +6726,8 @@ class MusicPlayer:
         if success:
             try:
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.get_queue: await ctx.message.delete()", ignored_err)
 
     async def now_playing(self, ctx):
         guild_id = ctx.guild.id
@@ -6761,8 +6771,8 @@ class MusicPlayer:
         if success:
             try:
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "MusicPlayer.now_playing: await ctx.message.delete()", ignored_err)
 
     async def cleanup_cache(self):
         # Remove files not referenced in any queue or current_track.
@@ -6881,8 +6891,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                     try:
                         await msg.delete(delay=5)
                         await ctx.message.delete(delay=5)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
                     self.logger.info(f"User {ctx.author} not in voice channel")
                     return
                 channel = ctx.author.voice.channel
@@ -6898,8 +6908,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                 try:
                     await msg.delete(delay=5)
                     await ctx.message.delete(delay=5)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
                 return
             if not permissions.speak:
                 embed = discord.Embed(
@@ -6911,8 +6921,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                 try:
                     await msg.delete(delay=5)
                     await ctx.message.delete(delay=5)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
             # Check if bot is already connected to a voice channel in this guild
             if ctx.guild.id in self.voice_clients and self.voice_clients[ctx.guild.id].is_connected():
                 current_channel = self.voice_clients[ctx.guild.id].channel
@@ -6926,8 +6936,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                     try:
                         await msg.delete(delay=5)
                         await ctx.message.delete(delay=5)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
                     return
                 else:
                     # Move to the new channel
@@ -6941,8 +6951,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                     try:
                         await msg.delete(delay=5)
                         await ctx.message.delete(delay=5)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
                     self.logger.info(f"Moved voice connection from {current_channel.name} to {channel.name} in {ctx.guild.name}")
                     return
             # Connect to the voice channel Prevent concurrent connect attempts per guild using a per-guild lock
@@ -6964,8 +6974,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                 try:
                     await msg.delete(delay=5)
                     await ctx.message.delete(delay=5)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
                 self.logger.warning(f"Blocked repeated connect attempts to voice in guild {guild_id}")
                 return
             lock = self._connect_locks.get(ctx.guild.id)
@@ -6986,15 +6996,15 @@ class VoiceCog(commands.Cog, name='Voice'):
                     try:
                         await msg.delete(delay=5)
                         await ctx.message.delete(delay=5)
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "VoiceCog.connect_voice: await msg.delete(delay=5)", ignored_err)
                     return
                 # If we have a stale VoiceClient object (not connected), try to clean it up first
                 if existing_vc and not existing_vc.is_connected():
                     try:
                         await existing_vc.disconnect()
-                    except Exception:
-                        pass
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "VoiceCog.connect_voice: await existing_vc.disconnect()", ignored_err)
                     try:
                         del self.voice_clients[ctx.guild.id]
                     except KeyError:
@@ -7089,8 +7099,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                 try:
                     await msg.delete(delay=5)
                     await ctx.message.delete(delay=5)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "VoiceCog.disconnect_voice: await msg.delete(delay=5)", ignored_err)
                 return
             voice_client = self.voice_clients.get(ctx.guild.id)
             if not voice_client.is_connected():
@@ -7103,26 +7113,26 @@ class VoiceCog(commands.Cog, name='Voice'):
                 try:
                     await msg.delete(delay=5)
                     await ctx.message.delete(delay=5)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "VoiceCog.disconnect_voice: await msg.delete(delay=5)", ignored_err)
                 # cleanup stale voice_client mapping if present
                 try:
                     if ctx.guild.id in self.voice_clients:
                         try:
                             await voice_client.disconnect()
-                        except Exception:
-                            pass
+                        except Exception as ignored_err:
+                            log_ignored_error(self.logger, "VoiceCog.disconnect_voice: await voice_client.disconnect()", ignored_err)
                         del self.voice_clients[ctx.guild.id]
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "VoiceCog.disconnect_voice: if ctx.guild.id in self.voice_clients:", ignored_err)
                 return
             channel_name = voice_client.channel.name
             await voice_client.disconnect()
             try:
                 if ctx.guild.id in self.voice_clients:
                     del self.voice_clients[ctx.guild.id]
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.disconnect_voice: if ctx.guild.id in self.voice_clients:", ignored_err)
             embed = discord.Embed(
                 title="✅ Disconnected",
                 description=f"Successfully disconnected from {channel_name}.",
@@ -7186,8 +7196,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         if success:
             try:
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.voice_status: await ctx.message.delete(delay=5)", ignored_err)
 
     @connect_voice.error
     async def connect_error(self, ctx, error):
@@ -7222,11 +7232,11 @@ class VoiceCog(commands.Cog, name='Voice'):
                     if guild_id in self.voice_clients:
                         try:
                             del self.voice_clients[guild_id]
-                        except Exception:
-                            pass
+                        except Exception as ignored_err:
+                            log_ignored_error(self.logger, "VoiceCog.on_voice_state_update: del self.voice_clients[guild_id]", ignored_err)
                         self.logger.info(f"Voice client mapping for guild {guild_id} removed due to bot being disconnected from voice")
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.on_voice_state_update: before_channel = getattr(before, 'channel', None)", ignored_err)
             return
         # Check if the bot should auto-disconnect when alone
         for guild_id, voice_client in list(self.voice_clients.items()):
@@ -7276,8 +7286,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         if existing_vc:
             try:
                 await existing_vc.disconnect(force=True)
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog._handle_connect: await existing_vc.disconnect(force=True)", ignored_err)
             self.voice_clients.pop(guild_id, None)
         lock = self._connect_locks.get(guild_id)
         if not lock:
@@ -7340,8 +7350,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.skip_music: await msg.delete(delay=5)", ignored_err)
             return
         await self.music_player.skip(ctx)
 
@@ -7357,8 +7367,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete(delay=5)
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.stop_music: await msg.delete(delay=5)", ignored_err)
             return
         await self.music_player.stop(ctx)
 
@@ -7423,8 +7433,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         try:
             await msg.delete(delay=5)
             await ctx.message.delete(delay=5)
-        except Exception:
-            pass
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "VoiceCog.current_song: await msg.delete(delay=5)", ignored_err)
 
     @commands.command(name="volume")
     async def set_volume(self, ctx, volume: int = None):
@@ -7441,8 +7451,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.set_volume: await msg.delete(delay=5)", ignored_err)
             return
         # Validate volume range
         if volume < 0 or volume > 100:
@@ -7455,8 +7465,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             try:
                 await msg.delete(delay=5)
                 await ctx.message.delete()
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog.set_volume: await msg.delete(delay=5)", ignored_err)
             return
         # Set new volume
         vol = volume / 100
@@ -7474,8 +7484,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         try:
             await msg.delete(delay=5)
             await ctx.message.delete()
-        except Exception:
-            pass
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "VoiceCog.set_volume: await msg.delete(delay=5)", ignored_err)
 
     @commands.command(name="realtime", aliases=["talk", "voiceai", "gptvoice"])
     async def start_realtime(self, ctx):
@@ -7621,8 +7631,8 @@ class VoiceCog(commands.Cog, name='Voice'):
                         )
                         try:
                             vc.stop_listening()
-                        except Exception:
-                            pass
+                        except Exception as ignored_err:
+                            log_ignored_error(self.logger, "VoiceCog.listener_guardian: vc.stop_listening()", ignored_err)
                         try:
                             vc.listen(_make_listener())
                             self.logger.info("[REALTIME] Listener restarted successfully")
@@ -7635,8 +7645,8 @@ class VoiceCog(commands.Cog, name='Voice'):
             self.logger.error(f"[REALTIME] Session error: {e}", exc_info=True)
             try:
                 await ctx.send(f"⚠️ Realtime session ended with an error.")
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "VoiceCog._realtime_session: await ctx.send(f⚠️ Realtime session ended with an error.)", ignored_err)
         finally:
             if isinstance(vc, voice_recv.VoiceRecvClient) and vc.is_listening():
                 vc.stop_listening()
@@ -7889,7 +7899,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 dict_cursor=True
             )
         except Exception as e:
-            self.logger.debug(f"Error checking live_notifications for guild {guild_id}, user {user_login}: {e}")
+            self.logger.warning(f"Error checking live_notifications for guild {guild_id}, user {user_login}: {e}")
             ln_row = None
         # Determine candidate stream ID
         stream_id = stream_data.get('id') or stream_data.get('stream_id')
@@ -7925,12 +7935,12 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                     details=stream_data
                                 )
                         except Exception as silent_err:
-                            self.logger.debug(f"Error silently inserting tracked streamer notification for {user_login}: {silent_err}")
+                            self.logger.warning(f"Error silently inserting tracked streamer notification for {user_login}: {silent_err}")
                         return False
                     else:
                         self.logger.info(f"Tracked streamer {user_login} started {stream_age_minutes:.1f}m ago - fresh stream, proceeding with notification")
             except Exception as age_err:
-                self.logger.debug(f"Error checking stream age for tracked streamer {user_login}: {age_err}")
+                self.logger.warning(f"Error checking stream age for tracked streamer {user_login}: {age_err}")
         # If there's an old notification for a different stream_id, we should post this new one
         title = stream_data['title']
         game_name = stream_data['game_name']
@@ -8034,7 +8044,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                             details=stream
                         )
                 except Exception as e:
-                    self.logger.debug(f"Error marking online for {username} via live_channel_manager: {e}")
+                    self.logger.warning(f"Error marking online for {username} via live_channel_manager: {e}")
         # Check for users who went offline
         previously_live = set(guild_live_users.keys())
         went_offline = previously_live - current_live_usernames
@@ -8052,7 +8062,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                 self.logger.debug(f"Skipping offline mark for {username} in guild {guild_id}, stream record too recent ({time_diff.total_seconds()}s old)")
                                 continue
             except Exception as e:
-                self.logger.debug(f"Error checking stream age for {username}: {e}")
+                self.logger.warning(f"Error checking stream age for {username}: {e}")
             try:
                 verify_auth, verify_cid = await self.mysql.get_bot_access_token()
                 if verify_auth and verify_cid:
@@ -8093,7 +8103,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                     # Fallback: delete just this guild's notification if live_channel_manager isn't available
                     await self.mysql.delete_live_notification(guild_id, username)
             except Exception as e:
-                self.logger.debug(f"Error marking offline via live_channel_manager for {username}: {e}")
+                self.logger.warning(f"Error marking offline via live_channel_manager for {username}: {e}")
             guild = self.bot.get_guild(guild_id)
             guild_name = guild.name if guild else f"Unknown Guild ({guild_id})"
             self.logger.info(f"User {username} went offline for guild {guild_name} (ID: {guild_id}, removed from DB)")
@@ -10921,8 +10931,8 @@ class AdminCog(commands.Cog, name='Admin'):
                     try:
                         progress_text = f"🔍 Checking linked users and assigning roles... ({i}/{total_users} processed)"
                         await status_msg.edit(content=progress_text)
-                    except Exception:
-                        pass  # Ignore edit failures
+                    except Exception as ignored_err:
+                        log_ignored_error(self.logger, "AdminCog.perform_linked_check: progress_text = f🔍 Checking linked users and assigning roles... (i/tot", ignored_err)
                 # Check each user in the batch
                 tasks = []
                 for member in batch:
@@ -11015,8 +11025,8 @@ class AdminCog(commands.Cog, name='Admin'):
             # Delete status message and send results
             try:
                 await status_msg.delete()
-            except Exception:
-                pass  # Ignore delete failures
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "AdminCog.perform_linked_check: await status_msg.delete()", ignored_err)
             await ctx.send(embed=embed)
             completion_msg = f"Link check completed: {len(linked_users)} linked, {len(unlinked_users)} unlinked, {len(error_users)} errors, {roles_assigned} roles assigned"
             self.logger.info(completion_msg)
@@ -11063,8 +11073,8 @@ class AdminCog(commands.Cog, name='Admin'):
         if ctx.channel.id != ADMIN_CHANNEL_ID:
             try:
                 await ctx.message.add_reaction("❌")
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "AdminCog.online_streams: await ctx.message.add_reaction(❌)", ignored_err)
             return await ctx.send("Sorry, you can't run the command.")
         # Fetch all online streams and render as embed(s)
         try:
@@ -11133,8 +11143,8 @@ class AdminCog(commands.Cog, name='Admin'):
         if ctx.channel.id != ADMIN_CHANNEL_ID:
             try:
                 await ctx.message.add_reaction("❌")
-            except Exception:
-                pass
+            except Exception as ignored_err:
+                log_ignored_error(self.logger, "AdminCog.live_status: await ctx.message.add_reaction(❌)", ignored_err)
             return await ctx.send("Sorry, you can't run the command.")
         if not username:
             return await ctx.send("Please provide a username, e.g. `!live_status someuser`.")
@@ -11186,8 +11196,8 @@ class AdminCog(commands.Cog, name='Admin'):
             if thumbnail:
                 try:
                     embed.set_thumbnail(url=thumbnail)
-                except Exception:
-                    pass
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "AdminCog.live_status: embed.set_thumbnail(url=thumbnail)", ignored_err)
             embed.set_footer(text=f"BotOfTheSpecter - live status for {username}")
             await ctx.send(embed=embed)
         except Exception as e:
