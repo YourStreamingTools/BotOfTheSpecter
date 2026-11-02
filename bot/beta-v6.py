@@ -8,7 +8,8 @@ from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode, quote, urlsplit
+import ipaddress, socket
 from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import WatchedFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
@@ -24,6 +25,9 @@ from websockets import ConnectionClosedError as WebSocketConnectionClosedError
 from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
 from aiohttp import ClientTimeout
+from aiohttp import TCPConnector, DefaultResolver
+from aiohttp.abc import AbstractResolver
+from yarl import URL
 from socketio import AsyncClient
 from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
@@ -14730,17 +14734,79 @@ async def user_is_seen(username):
             await connection.release()
 
 # Function to fetch custom API responses
-async def fetch_api_response(url, json_flag=False, return_json_obj=False):
+# (customapi.) safety: only fetch public internet addresses, never this server or its network
+class BlockedAddressError(Exception):
+    pass
+
+def is_public_ip(value):
     try:
-        async with httpClientSession() as session:
-            async with session.get(url) as resp:
-                if json_flag:
-                    data = await resp.json()
-                    if return_json_obj:
-                        return data
-                    return json.dumps(data, ensure_ascii=False)
-                else:
-                    return await resp.text()
+        ip = ipaddress.ip_address(str(value).split('%', 1)[0])
+    except ValueError:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_global and not ip.is_multicast
+
+class PublicOnlyResolver(AbstractResolver):
+    def __init__(self):
+        self._resolver = DefaultResolver()
+
+    async def resolve(self, host, port=0, family=socket.AF_INET):
+        results = await self._resolver.resolve(host, port, family)
+        for info in results:
+            if not is_public_ip(info['host']):
+                raise BlockedAddressError(f"{host} resolves to a non-public address")
+        return results
+
+    async def close(self):
+        await self._resolver.close()
+
+def customapi_url_allowed(url):
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+        return False
+    host = parsed.hostname.strip('[]').rstrip('.').lower()
+    if host == 'localhost' or host.endswith('.localhost'):
+        return False
+    try:
+        ipaddress.ip_address(host.split('%', 1)[0])
+    except ValueError:
+        return True  # A name; PublicOnlyResolver checks every address it resolves to
+    return is_public_ip(host)
+
+async def fetch_api_response(url, json_flag=False, return_json_obj=False):
+    # Only public http/https addresses are fetched. Loopback, private, link-local and
+    # other internal addresses are refused, including when a redirect points at them.
+    max_redirects = 5
+    try:
+        async with httpClientSession(connector=TCPConnector(resolver=PublicOnlyResolver())) as session:
+            current_url = url
+            for _ in range(max_redirects + 1):
+                if not customapi_url_allowed(current_url):
+                    api_logger.warning(f"Refused (customapi.) fetch of {current_url}: not a public http/https address")
+                    return "Error"
+                async with session.get(current_url, allow_redirects=False) as resp:
+                    if resp.status in (301, 302, 303, 307, 308):
+                        location = resp.headers.get('Location')
+                        if not location:
+                            return "Error"
+                        current_url = str(resp.url.join(URL(location)))
+                        continue
+                    if json_flag:
+                        data = await resp.json()
+                        if return_json_obj:
+                            return data
+                        return json.dumps(data, ensure_ascii=False)
+                    else:
+                        return await resp.text()
+            api_logger.warning(f"Refused (customapi.) fetch of {url}: too many redirects")
+            return "Error"
+    except BlockedAddressError as e:
+        api_logger.warning(f"Refused (customapi.) fetch of {url}: {e}")
+        return "Error"
     except Exception:
         return "Error"
 
