@@ -14,7 +14,6 @@ import re
 import signal
 import socket
 import struct
-import subprocess
 import tempfile
 import time
 import traceback
@@ -6194,9 +6193,47 @@ class MusicPlayer:
         os.makedirs(self.download_dir, exist_ok=True)
         # Initialize the periodic cleanup task
         asyncio.create_task(self.periodic_cleanup())
-        self.play_lock = asyncio.Lock()
+        # One lock per server, so a slow download in one server doesn't hold up music in the others
+        self._play_locks = {}
+        # Downloads in progress; the cache cleanup waits while any are running so it can't delete a file mid-download
+        self._active_downloads = 0
+
+    def _get_play_lock(self, guild_id):
+        lock = self._play_locks.get(guild_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._play_locks[guild_id] = lock
+        return lock
+
+    async def _probe_duration(self, path):
+        # Runs ffprobe without blocking the event loop; returns whole seconds or None
+        try:
+            self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
+            proc = await asyncio.create_subprocess_exec(
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            )
+            try:
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                self.logger.error(f"[FFMPEG] ffprobe timed out for {path}")
+                return None
+            return int(float(stdout)) if stdout and stdout.strip() else None
+        except Exception as e:
+            self.logger.error(f"[FFMPEG] Error getting duration: {e}")
+            return None
 
     async def predownload_youtube(self, url):
+        self._active_downloads += 1
+        try:
+            return await self._predownload_youtube(url)
+        finally:
+            self._active_downloads -= 1
+
+    async def _predownload_youtube(self, url):
         loop = asyncio.get_event_loop()
         info = None
         file_path = None
@@ -6376,7 +6413,7 @@ class MusicPlayer:
         await self.add_to_queue(ctx, query)
 
     async def _play_next(self, ctx):
-        async with self.play_lock:
+        async with self._get_play_lock(ctx.guild.id):
             guild_id = ctx.guild.id
             vc = ctx.guild.voice_client
             self.logger.info(f"[PLAY_NEXT] Called for guild {guild_id}")
@@ -6430,16 +6467,7 @@ class MusicPlayer:
                     self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
                     source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
                     # Try to get duration
-                    try:
-                        self.logger.info(f"[FFMPEG] ffprobe for duration: {file_path}")
-                        result = subprocess.run([
-                            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                            '-of', 'default=noprint_wrappers=1:nokey=1', file_path
-                        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                        duration = int(float(result.stdout)) if result.stdout else None
-                    except Exception as e:
-                        self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-                        duration = None
+                    duration = await self._probe_duration(file_path)
                 else:
                     path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
                     if not os.path.exists(path):
@@ -6451,16 +6479,7 @@ class MusicPlayer:
                         continue  # Skip to the next queued track.
                     self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
                     source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
-                    try:
-                        self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
-                        result = subprocess.run([
-                            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                            '-of', 'default=noprint_wrappers=1:nokey=1', path
-                        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                        duration = int(float(result.stdout)) if result.stdout else None
-                    except Exception as e:
-                        self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-                        duration = None
+                    duration = await self._probe_duration(path)
                 # We have a playable source; leave the selection loop.
                 break
             self.track_duration[guild_id] = duration
@@ -6678,7 +6697,12 @@ class MusicPlayer:
                 pass
 
     async def cleanup_cache(self):
-        # Remove files not referenced in any queue or current_track
+        # Remove files not referenced in any queue or current_track.
+        # Skipped while a download is running: its file (and yt-dlp's .part file) isn't in a queue yet.
+        if self._active_downloads > 0:
+            self.logger.info(f"Skipping music cache cleanup: {self._active_downloads} download(s) in progress")
+            return
+        recent_cutoff = time.time() - 600  # also leave files touched in the last 10 minutes
         referenced = set()
         for q in self.queues.values():
             for t in q:
@@ -6691,6 +6715,8 @@ class MusicPlayer:
             fpath = os.path.join(self.download_dir, fname)
             if fpath not in referenced:
                 try:
+                    if os.path.getmtime(fpath) > recent_cutoff:
+                        continue
                     os.remove(fpath)
                     self.logger.info(f"Removed unused cached file: {fpath}")
                 except Exception as e:
@@ -6703,7 +6729,8 @@ class MusicPlayer:
 
     async def play_random_cdn_mp3(self, ctx):
         music_dir = config.music_directory
-        mp3_files = [f for f in os.listdir(music_dir) if f.lower().endswith('.mp3')]
+        # The music folder is a network mount, so list it off the event loop
+        mp3_files = [f for f in await asyncio.to_thread(os.listdir, music_dir) if f.lower().endswith('.mp3')]
         random_mp3 = random.choice(mp3_files)
         path = os.path.join(music_dir, random_mp3)
         vc = ctx.voice_client
@@ -6750,16 +6777,7 @@ class MusicPlayer:
             'file_path': path
         }
         vc.play(source, after=after_play)
-        try:
-            self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
-            result = subprocess.run([
-                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', path
-            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            duration = int(float(result.stdout)) if result.stdout else None
-        except Exception as e:
-            self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-            duration = None
+        duration = await self._probe_duration(path)
         self.track_duration[ctx.guild.id] = duration
         self.track_start[ctx.guild.id] = time.time()
 
