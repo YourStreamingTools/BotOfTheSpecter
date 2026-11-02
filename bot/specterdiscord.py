@@ -5224,6 +5224,51 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.pool = None
         self.mysql_helper = MySQLHelper(self.logger)
+        self._create_locks = {}  # (guild_id, user_id) -> Lock, so two quick !ticket create can't both get through
+
+    @staticmethod
+    def _is_ticket_admin(member, settings):
+        # Ticket admins: the support role, anyone with Manage Server or Administrator, and the ticket system owner
+        perms = getattr(member, 'guild_permissions', None)
+        if perms and (perms.manage_guild or perms.administrator):
+            return True
+        if settings and settings.get('owner_id') and str(member.id) == str(settings.get('owner_id')):
+            return True
+        if settings and settings.get('support_role_id'):
+            return any(str(role.id) == str(settings['support_role_id']) for role in getattr(member, 'roles', []))
+        return False
+
+    async def get_open_ticket_channel(self, guild, user_id: int):
+        # Returns (ticket_id, channel) for the user's open ticket in this server, or None.
+        # A ticket whose channel was deleted without being closed doesn't count, so nobody gets stuck.
+        if not self.pool:
+            self.pool = await aiomysql.create_pool(
+                host=config.sql_host,
+                user=config.sql_user,
+                password=config.sql_password,
+                db='specterdiscordbot',
+                autocommit=True
+            )
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT ticket_id, channel_id FROM tickets WHERE guild_id = %s AND user_id = %s "
+                    "AND (status IS NULL OR status <> 'closed') ORDER BY ticket_id DESC",
+                    (guild.id, user_id)
+                )
+                rows = await cur.fetchall()
+        for row in rows:
+            channel = None
+            if row.get('channel_id'):
+                try:
+                    channel = guild.get_channel(int(row['channel_id']))
+                except (ValueError, TypeError):
+                    channel = None
+            if channel is None:
+                channel = discord.utils.get(guild.text_channels, name=f"ticket-{row['ticket_id']}")
+            if channel is not None:
+                return row['ticket_id'], channel
+        return None
 
     async def validate_ticket_command_channel(self, ctx, action):
         if action != "create":
@@ -5492,16 +5537,39 @@ class TicketCog(commands.Cog, name='Tickets'):
             # Validate if the command is being used in the correct channel
             if not await self.validate_ticket_command_channel(ctx, action.lower()):
                 return  # validation method handles the error response
+            lock_key = (ctx.guild.id, ctx.author.id)
+            lock = self._create_locks.setdefault(lock_key, asyncio.Lock())
+            if lock.locked():
+                # A create for this user is already running; drop the duplicate
+                try:
+                    await ctx.message.delete()
+                except Exception:
+                    pass
+                return
             try:
-                # Remove the command message for a clear channel
-                await ctx.message.delete()
-                ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
-                channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
-                await ctx.send(
-                    f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
-                    delete_after=10
-                )
-                self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
+                async with lock:
+                    # Remove the command message for a clear channel
+                    await ctx.message.delete()
+                    # One open ticket per member; ticket admins can open more
+                    settings = await self.get_settings(ctx.guild.id)
+                    if not self._is_ticket_admin(ctx.author, settings):
+                        existing = await self.get_open_ticket_channel(ctx.guild, ctx.author.id)
+                        if existing:
+                            existing_id, existing_channel = existing
+                            await ctx.send(
+                                f"{ctx.author.mention} You already have an open ticket: {existing_channel.mention}. "
+                                f"Please use that one. You can open a new ticket once it's closed.",
+                                delete_after=15
+                            )
+                            self.logger.info(f"Refused new ticket for {ctx.author} in guild {ctx.guild.id}: ticket #{existing_id} is still open")
+                            return
+                    ticket_id = await self.create_ticket(ctx.guild.id, ctx.author.id, str(ctx.author))
+                    channel = await self.create_ticket_channel(ctx.guild.id, ctx.author.id, ticket_id)
+                    await ctx.send(
+                        f"✅ Your ticket has been created! Please check {channel.mention} to provide your issue details.",
+                        delete_after=10
+                    )
+                    self.logger.info(f"Ticket #{ticket_id} created by {ctx.author} with channel {channel.name}")
             except ValueError as e:
                 self.logger.error(f"Error: {str(e)}")
                 await ctx.send(
