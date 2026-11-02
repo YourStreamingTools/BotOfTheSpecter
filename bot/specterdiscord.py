@@ -44,6 +44,11 @@ from openai import AsyncOpenAI
 # Bot version
 VERSION = "6.5.2"
 
+# Mentions: by default the bot never pings @everyone, @here or roles, because custom command text,
+# (customapi.) responses and AI replies are sent as-is. Only bot-built stream alerts and ticket pings opt in.
+DEFAULT_ALLOWED_MENTIONS = discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=True)
+ALERT_ALLOWED_MENTIONS = discord.AllowedMentions(everyone=True, roles=True, users=True, replied_user=True)
+
 # (customapi.) safety: only fetch public internet addresses, never this server or its network
 class BlockedAddressError(Exception):
     pass
@@ -2567,6 +2572,7 @@ class BotOfTheSpecter(commands.Bot):
         intents.message_content = True
         intents.voice_states = True
         intents.members = True
+        kwargs.setdefault("allowed_mentions", DEFAULT_ALLOWED_MENTIONS)
         super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
         self.logger = discord_logger
@@ -3765,7 +3771,9 @@ class BotOfTheSpecter(commands.Bot):
         self.logger.info(f"Left guild: {guild.name} ({guild.id})")
         await self.update_presence()
 
-    async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", content=None, logger_context=""):
+    async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", content=None, logger_context="", allowed_mentions=None):
+        # allowed_mentions is only passed for bot-built pings (stream alerts); everything else uses the bot default
+        send_kwargs = {"allowed_mentions": allowed_mentions} if allowed_mentions is not None else {}
         max_retries = 3
         retry_count = 0
         backoff = 1
@@ -3775,17 +3783,18 @@ class BotOfTheSpecter(commands.Bot):
                 if embed:
                     # If both content and embed provided, include both
                     if content:
-                        sent = await channel.send(content=content, embed=embed)
+                        sent = await channel.send(content=content, embed=embed, **send_kwargs)
                     else:
                         sent = await channel.send(embed=embed)
                 else:
                     # Prefer explicit content over fallback_text
-                    sent = await channel.send(sent_content)
+                    sent = await channel.send(sent_content, **send_kwargs)
                 # Track the message
                 await self.mysql_helper.track_message('discordbot')
-                await self._notify_if_mention_suppressed(
-                    channel, sent, sent_content, logger_context or "Discord message"
-                )
+                if allowed_mentions is not None:
+                    await self._notify_if_mention_suppressed(
+                        channel, sent, sent_content, logger_context or "Discord message"
+                    )
                 return True
             except discord.RateLimited as e:
                 retry_after = e.retry_after
@@ -3822,12 +3831,13 @@ class BotOfTheSpecter(commands.Bot):
                 fallback = content if content is not None else fallback_text
                 if fallback and embed:  # Only try fallback if we were trying to send an embed
                     try:
-                        sent = await channel.send(fallback)
+                        sent = await channel.send(fallback, **send_kwargs)
                         self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
                         await self.mysql_helper.track_message('discordbot')
-                        await self._notify_if_mention_suppressed(
-                            channel, sent, fallback, logger_context or "Discord message"
-                        )
+                        if allowed_mentions is not None:
+                            await self._notify_if_mention_suppressed(
+                                channel, sent, fallback, logger_context or "Discord message"
+                            )
                         return True
                     except Exception as fallback_error:
                         self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
@@ -3926,7 +3936,8 @@ class BotOfTheSpecter(commands.Bot):
                 channel=channel,
                 embed=message,
                 content=content,
-                logger_context=f"{event_type} event"
+                logger_context=f"{event_type} event",
+                allowed_mentions=ALERT_ALLOWED_MENTIONS if mention_everyone else None
             )
             # For OFFLINE events, ensure the online status is cleared in the LiveChannelManager
             if event_type == "OFFLINE":
@@ -4660,7 +4671,7 @@ class BotOfTheSpecter(commands.Bot):
                             self.logger.info(f"Attempting to send live notification to #{stream_channel.name} (ID: {stream_channel.id}) with mention: '{mention_text.strip() or 'none'}'")
                             sent_success = False
                             try:
-                                message = await stream_channel.send(content=mention_text, embed=embed)
+                                message = await stream_channel.send(content=mention_text, embed=embed, allowed_mentions=ALERT_ALLOWED_MENTIONS)
                                 sent_success = True
                                 self.logger.info(f"✅ SUCCESS: Sent live notification (message ID: {message.id}) for {account_username} in #{stream_channel.name}")
                                 await self._notify_if_mention_suppressed(
@@ -4960,7 +4971,7 @@ class BotOfTheSpecter(commands.Bot):
             embed.set_thumbnail(url=profile_image_to_use)
             embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
             # Send notification
-            sent_alert = await stream_channel.send(content=mention_text, embed=embed)
+            sent_alert = await stream_channel.send(content=mention_text, embed=embed, allowed_mentions=ALERT_ALLOWED_MENTIONS)
             self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
             await self._notify_if_mention_suppressed(
                 stream_channel, sent_alert, mention_text, "Stream alert mention"
@@ -5319,7 +5330,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         await channel.send(embed=embed)  # Send the embed message to the channel
         # Notify the support team about the new ticket
         if support_role:
-            await channel.send(f"{support_role.mention} A new support ticket has been created!")
+            await channel.send(f"{support_role.mention} A new support ticket has been created!", allowed_mentions=discord.AllowedMentions(roles=[support_role], everyone=False))
         return channel
 
     async def create_ticket(self, guild_id: int, user_id: int, username: str) -> int:
@@ -5558,7 +5569,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                     await ctx.send(embed=embed)
                     # Notify the support team if one is configured.
                     if support_role:
-                        await ctx.channel.send(f"{support_role.mention} requested ticket closure.")
+                        await ctx.channel.send(f"{support_role.mention} requested ticket closure.", allowed_mentions=discord.AllowedMentions(roles=[support_role], everyone=False))
                     return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason, ctx.guild.id)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
