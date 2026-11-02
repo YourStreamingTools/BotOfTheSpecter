@@ -8031,6 +8031,34 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self._cache_refresh_task = asyncio.create_task(self._refresh_reaction_roles_cache())
         self._schedule_resume_task = asyncio.create_task(self._resume_stream_schedule_updates())
 
+    @staticmethod
+    def _loggable_event_data(data):
+        # channel_code is the sender's API key. Keep it out of the logs.
+        if not isinstance(data, dict):
+            return data
+        return {k: v for k, v in data.items() if k not in ('channel_code', 'code')}
+
+    async def _sender_owns_server(self, data, server_id, action):
+        # Dashboard post events reach the bot through /notify with the sender's API key as channel_code.
+        # Only act when that key's account has this server saved (the same rule the dashboard enforces).
+        channel_code = str((data or {}).get('channel_code') or '').strip()
+        server_id = str(server_id or '').strip()
+        if not channel_code or not server_id.isdigit():
+            self.logger.warning(f"Refused {action}: missing sender key or invalid server_id '{server_id}'")
+            return False
+        row = await self.mysql.fetchone(
+            """SELECT 1 FROM discord_users du
+               INNER JOIN users u ON u.id = du.user_id
+               WHERE u.api_key = %s AND du.guild_id = %s
+               LIMIT 1""",
+            (channel_code, server_id),
+            database_name='website',
+        )
+        if not row:
+            self.logger.warning(f"Refused {action} for server {server_id}: the sending account does not have this server saved")
+            return False
+        return True
+
     def _seconds_until_next_schedule_hour(self, schedule_timezone: str) -> float:
         tz = self._resolve_schedule_timezone(schedule_timezone)
         now = datetime.now(tz)
@@ -8174,7 +8202,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     async def post_reaction_roles_message(self, data):
         try:
-            self.logger.info(f"post_reaction_roles_message called with data: {data}")
+            self.logger.info(f"post_reaction_roles_message called with data: {self._loggable_event_data(data)}")
             server_id = data.get('server_id')
             channel_id = data.get('channel_id')
             message = data.get('message', '')
@@ -8183,6 +8211,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
             self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, message length: {len(message)}, mappings length: {len(mappings)}")
             if not server_id or not channel_id:
                 self.logger.error("Missing server_id or channel_id in reaction roles message data")
+                return
+            if not await self._sender_owns_server(data, server_id, "post_reaction_roles_message"):
                 return
             # Get the guild
             try:
@@ -8380,7 +8410,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     async def post_rules_message(self, data):
         try:
-            self.logger.info(f"post_rules_message called with data: {data}")
+            self.logger.info(f"post_rules_message called with data: {self._loggable_event_data(data)}")
             server_id = data.get('server_id')
             channel_id = data.get('channel_id')
             title = data.get('title', 'Server Rules')
@@ -8390,6 +8420,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
             self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, title: {title}, color: {color_hex}, accept_role_id: {accept_role_id}")
             if not server_id or not channel_id:
                 self.logger.error("Missing server_id or channel_id in rules message data")
+                return
+            if not await self._sender_owns_server(data, server_id, "post_rules_message"):
                 return
             # Get the guild
             try:
@@ -8953,7 +8985,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     async def post_stream_schedule_message(self, data):
         try:
-            self.logger.info(f"post_stream_schedule_message called with data: {data}")
+            self.logger.info(f"post_stream_schedule_message called with data: {self._loggable_event_data(data)}")
             server_id = data.get('server_id')
             channel_id = data.get('channel_id')
             title = data.get('title', 'Stream Schedule')
@@ -8963,6 +8995,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
             self.logger.info(f"Parsed data - server_id: {server_id}, channel_id: {channel_id}, title: {title}, color: {color_hex}, timezone: {timezone}")
             if not server_id or not channel_id:
                 self.logger.error("Missing server_id or channel_id in stream schedule message data")
+                return
+            if not await self._sender_owns_server(data, server_id, "post_stream_schedule_message"):
                 return
             # Get the guild
             try:
@@ -9130,7 +9164,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     async def post_custom_embed(self, data):
         try:
-            self.logger.info(f"post_custom_embed called with data: {data}")
+            self.logger.info(f"post_custom_embed called with data: {self._loggable_event_data(data)}")
             # Extract data
             server_id = data.get('server_id')
             channel_id = data.get('channel_id')
@@ -9151,6 +9185,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
             fields_json = data.get('fields', '[]')
             if not server_id or not channel_id:
                 self.logger.error("Missing server_id or channel_id in custom embed data")
+                return
+            if not await self._sender_owns_server(data, server_id, "post_custom_embed"):
                 return
             # Get guild
             guild = self.bot.get_guild(int(server_id))
