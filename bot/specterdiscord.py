@@ -590,10 +590,13 @@ class MySQLHelper:
             if conn:
                 conn.close()
 
-    async def fetchall(self, query, params=None, database_name='website', dict_cursor=False):
+    async def fetchall(self, query, params=None, database_name='website', dict_cursor=False, raise_on_error=False):
+        # raise_on_error lets a caller tell "the query failed" apart from "no rows", e.g. so a cache isn't wiped by a DB blip
         conn = await self.get_connection(database_name)
         if conn is None:
             self.logger.error(f"Failed to get connection for database: {database_name}")
+            if raise_on_error:
+                raise ConnectionError(f"Failed to get connection for database: {database_name}")
             return []
         try:
             if dict_cursor:
@@ -608,6 +611,8 @@ class MySQLHelper:
                     return rows
         except Exception as e:
             self.logger.error(f"MySQL fetchall error: {e}")
+            if raise_on_error:
+                raise
             return []
         finally:
             if conn:
@@ -1039,6 +1044,7 @@ class ChannelMapping:
         self.logger = logger
         self.mysql = MySQLHelper(logger)
         self.mappings = {}  # Memory cache: channel_code -> full mapping data
+        self._loaded_once = False  # True after the first refresh that actually read the database
         self._refresh_task = None
         self._ready = asyncio.Event()
         self._init_task = asyncio.create_task(self._init_and_start_refresh())
@@ -1054,9 +1060,9 @@ class ChannelMapping:
             await self.refresh_mappings()
 
     async def refresh_mappings(self, is_initial_load=False):
+        # If the database can't be read, the current cache is kept as it is. Replacing it with an
+        # empty result would make every channel look new on the next refresh and fire a Twitch check for all of them.
         try:
-            # Since we ensure schema exists, always try enhanced schema first
-            old_keys = set(self.mappings.keys()) if self.mappings else set()
             rows = await self.mysql.fetchall(
                 """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
                           guild_id, guild_name, channel_id, channel_name,
@@ -1064,39 +1070,33 @@ class ChannelMapping:
                           online_text, offline_text, is_active, event_count, last_event_type,
                           last_seen_at, created_at, updated_at
                    FROM channel_mappings WHERE is_active = 1""",
-                database_name='specterdiscordbot', dict_cursor=True
+                database_name='specterdiscordbot', dict_cursor=True, raise_on_error=True
             )
-            new_mappings = {row['channel_code']: dict(row) for row in rows}
-            self.mappings = new_mappings
-            # fallback checks here would race against it (both make independent API calls concurrently).
-            added_keys = set(self.mappings.keys()) - old_keys
-            if added_keys and not is_initial_load and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
-                for added_code in added_keys:
-                    try:
-                        asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
-                    except Exception as _e:
-                        self.logger.debug(f"Failed to schedule fallback check for new mapping {added_code}: {_e}")
         except Exception as e:
             self.logger.error(f"Error loading channel mappings from DB: {e}")
             # Fallback to basic schema if there's still an issue
             try:
-                old_keys = set(self.mappings.keys()) if self.mappings else set()
                 rows = await self.mysql.fetchall(
                     "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings",
-                    database_name='specterdiscordbot', dict_cursor=True
+                    database_name='specterdiscordbot', dict_cursor=True, raise_on_error=True
                 )
-                new_mappings = {row['channel_code']: dict(row) for row in rows}
-                self.mappings = new_mappings
-                added_keys = set(self.mappings.keys()) - old_keys
-                if added_keys and not is_initial_load and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
-                    for added_code in added_keys:
-                        try:
-                            asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
-                        except Exception as _e:
-                            self.logger.debug(f"Failed to schedule fallback check for new mapping {added_code} (basic): {_e}")
             except Exception as e2:
-                self.logger.error(f"Error loading channel mappings with basic schema: {e2}")
-                self.mappings = {}
+                self.logger.error(f"Error loading channel mappings with basic schema: {e2}; keeping the {len(self.mappings)} cached mappings")
+                return
+        old_keys = set(self.mappings.keys())
+        self.mappings = {row['channel_code']: dict(row) for row in rows}
+        # The first successful load counts as the initial load, even if an earlier attempt failed,
+        # so a bot that started during a DB outage doesn't fire a check for every channel at once.
+        first_load = is_initial_load or not self._loaded_once
+        self._loaded_once = True
+        # fallback checks here would race against it (both make independent API calls concurrently).
+        added_keys = set(self.mappings.keys()) - old_keys
+        if added_keys and not first_load and self.bot and getattr(self.bot, 'live_channel_manager', None):
+            for added_code in added_keys:
+                try:
+                    asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
+                except Exception as _e:
+                    self.logger.debug(f"Failed to schedule fallback check for new mapping {added_code}: {_e}")
 
     async def get_mapping(self, channel_code):
         await self._ready.wait()
@@ -2472,6 +2472,7 @@ class TimeNowChannelManager:
                      AND du.guild_id IS NOT NULL AND du.guild_id != ''""",
                 database_name='website',
                 dict_cursor=True,
+                raise_on_error=True,  # a DB blip keeps the current configs instead of emptying them
             )
             configs = []
             for row in rows:
@@ -2499,7 +2500,7 @@ class TimeNowChannelManager:
             self._configs = configs
             self.logger.info(f"Loaded {len(configs)} Time Now channel config(s)")
         except Exception as e:
-            self.logger.error(f"Error loading Time Now channel configs: {e}")
+            self.logger.error(f"Error loading Time Now channel configs: {e}; keeping the {len(self._configs)} loaded config(s)")
 
     async def _update_all_channels(self):
         for cfg in self._configs:
