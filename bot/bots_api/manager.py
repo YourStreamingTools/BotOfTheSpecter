@@ -998,8 +998,8 @@ async def start_bot(
         return {"success": False, "state": "error", "message": f"Invalid bot_type: {bot_type}"}
     if custom and self_mode:
         return {"success": False, "state": "error", "message": "custom and self are mutually exclusive"}
-    if self_mode and bot_type not in ("beta", "stable"):
-        return {"success": False, "state": "error", "message": "self is only valid for bot_type=stable or beta"}
+    if self_mode and bot_type not in ("beta", "stable", "v6"):
+        return {"success": False, "state": "error", "message": "self is only valid for bot_type=stable, beta or v6"}
     if custom and bot_type not in ("beta", "stable", "v6"):
         return {"success": False, "state": "error", "message": "custom is only valid for bot_type=stable, beta or v6"}
 

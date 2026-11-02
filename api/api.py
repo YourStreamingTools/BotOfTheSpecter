@@ -1732,13 +1732,15 @@ class VersionControlResponse(BaseModel):
     stable_version: str
     discord_bot: str
     kick_bot: str
+    v6_version: str | None = None
     class Config:
         json_schema_extra = {
             "example": {
                 "beta_version": "5.5",
                 "stable_version": "5.4",
                 "discord_bot": "5.3.0",
-                "kick_bot": "1.0.0"
+                "kick_bot": "1.0.0",
+                "v6_version": "6.0.0"
             }
         }
 
@@ -1835,6 +1837,7 @@ class BotStatusResponse(BaseModel):
     last_run_mtime: int | None = Field(None, description="Unix mtime of the channel version-control file.")
     status_check_ok: bool = Field(True, description="False when the bots control API was unreachable.")
     status_message: str | None = Field(None, description="Human-readable note when status_check_ok is False.")
+    custom_module_available: bool | None = Field(None, description="True when this channel has a custom module on the bot host; null when the check failed.")
     class Config:
         json_schema_extra = {
             "example": {
@@ -1850,6 +1853,7 @@ class BotStatusResponse(BaseModel):
                 "last_run_mtime": 1709000000,
                 "status_check_ok": True,
                 "status_message": None,
+                "custom_module_available": False,
             }
         }
 
@@ -3624,7 +3628,7 @@ async def fortune(api_key: str = Query(...), channel: str = Query(None)):
     "/versions",
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
-    description="Fetch the beta, stable, and discord bot version numbers.",
+    description="Fetch the beta, stable, V6, Kick and discord bot version numbers.",
     tags=["Public"],
     operation_id="get_bot_versions"
 )
@@ -7334,6 +7338,7 @@ async def get_bot_status_via_bots_api(username: str) -> dict:
             "last_run_mtime": last_run_mtime,
             "status_check_ok": True,
             "status_message": None,
+            "custom_module_available": bool(data.get("custom_module_available")),
         }
     except HTTPException as e:
         logging.error(f"[bot_status] bots API error for '{username}': {e.detail}")
@@ -7365,32 +7370,41 @@ async def bot_status(api_key: str = Query(..., description="Your API key for aut
 
 class BotActionResponse(BaseModel):
     success: bool = Field(..., example=True)
-    state: str = Field(..., example="started", description="Discriminator for the result. One of: started, already_running, stopped, already_stopped, start_pending.")
+    state: str = Field(..., example="started", description="Discriminator for the result. One of: started, restarted, already_running, stopped, already_stopped, start_pending.")
     running: bool = Field(..., example=True, description="Whether the bot is currently running after the action.")
     pid: int | None = Field(None, example=12345, description="PID of the running bot process, if any.")
-    bot_type: str = Field(..., example="stable", description="Bot variant (stable or beta).")
+    bot_type: str = Field(..., example="stable", description="Bot variant (stable, beta, v6, custom or kick).")
     version: str | None = Field(None, example="6.7", description="Version of the running bot, if known.")
     message: str = Field(..., example="Bot started successfully")
 
-@app.post(
-    "/bot/start",
-    summary="Start the chat bot",
-    description="Start the chat bot for the authenticated user. Validates the user's Twitch access token (refreshing it via the user's refresh token if expired) before launching, and stops any other bot variant that is running for this user. Idempotent - if the requested bot variant is already running, returns success with the existing PID.",
-    tags=["User Account"],
-    operation_id="start_bot",
-    response_model=BotActionResponse,
-)
-async def start_bot(
-    api_key: str = Query(..., description="Your API key for authentication"),
-    bot_type: str = Query("stable", description="Bot variant to start (stable, beta, v6, or kick)."),
-    custom: bool = Query(False, description="Beta only: launch with -custom mode using the channel's verified custom bot account. Mutually exclusive with self."),
-    self_mode: bool = Query(False, alias="self", description="Beta only: launch with the -self flag. Mutually exclusive with custom."),
-    channel: str = Query(None),
-):
-    key_info = await verify_key(api_key)
-    if not key_info:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    username = resolve_username(key_info, channel)
+
+def _bot_action_response(data: dict, bot_type: str, default_state: str) -> BotActionResponse:
+    return BotActionResponse(
+        success=bool(data.get("success", True)),
+        state=str(data.get("state") or default_state),
+        running=bool(data.get("running")),
+        pid=data.get("pid"),
+        bot_type=str(data.get("bot_type") or bot_type),
+        version=data.get("version"),
+        message=str(data.get("message") or "OK"),
+    )
+
+
+# Twitch bot variants that take the custom bot name, Use Self and the custom channel module.
+TWITCH_BOT_TYPES = ("stable", "beta", "v6")
+
+
+async def _launch_bot(
+    host_path: str,
+    username: str,
+    bot_type: str,
+    custom: bool,
+    self_mode: bool,
+    custom_module: bool | None,
+) -> BotActionResponse:
+    """Build the bot-host start body and POST it to host_path (/api/bot/start or /api/bot/restart)."""
+    action = "restart" if host_path.endswith("/restart") else "start"
+    default_state = "restarted" if action == "restart" else "started"
     if bot_type not in BOT_SCRIPT_PATHS:
         raise HTTPException(
             status_code=400,
@@ -7401,10 +7415,10 @@ async def start_bot(
             status_code=400,
             detail="custom and self are mutually exclusive. Provide only one.",
         )
-    if bot_type != "beta" and (custom or self_mode):
+    if bot_type not in TWITCH_BOT_TYPES and (custom or self_mode):
         raise HTTPException(
             status_code=400,
-            detail="custom and self flags are only valid when bot_type=beta.",
+            detail="custom and self flags are only valid when bot_type is stable, beta or v6.",
         )
     creds = await _get_user_bot_launch_credentials(username)
     if not creds:
@@ -7439,21 +7453,13 @@ async def start_bot(
             "client_secret": KICK_CLIENT_SECRET,
         }
         try:
-            data = await _bots_api_request("POST", "/api/bot/start", json_body=body)
-            return BotActionResponse(
-                success=bool(data.get("success", True)),
-                state=str(data.get("state") or "started"),
-                running=bool(data.get("running")),
-                pid=data.get("pid"),
-                bot_type=str(data.get("bot_type") or bot_type),
-                version=data.get("version"),
-                message=str(data.get("message") or "OK"),
-            )
+            data = await _bots_api_request("POST", host_path, json_body=body)
+            return _bot_action_response(data, bot_type, default_state)
         except HTTPException:
             raise
         except Exception as e:
-            logging.error(f"Bot start failed for '{username}' ({bot_type}): {e}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Bot start failed: {e}")
+            logging.error(f"Bot {action} failed for '{username}' ({bot_type}): {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Bot {action} failed: {e}")
     missing = [k for k in ("twitch_user_id", "access_token", "refresh_token", "api_key") if not creds.get(k)]
     if missing:
         raise HTTPException(status_code=400, detail=f"Missing required user data: {', '.join(missing)}")
@@ -7465,23 +7471,18 @@ async def start_bot(
             status_code=401,
             detail="Twitch access token is expired and refresh failed; user must re-authorize.",
         )
-    if bot_type == "beta":
-        if custom:
-            beta_params = await _get_user_custom_bot_params(
-                creds["user_id"], creds["twitch_user_id"],
-                use_custom=True, use_self=False,
+    if custom:
+        launch_params = await _get_user_custom_bot_params(
+            creds["user_id"], creds["twitch_user_id"],
+            use_custom=True, use_self=False,
+        )
+        if not launch_params["use_custom_bot"]:
+            raise HTTPException(
+                status_code=400,
+                detail="custom mode requested but no verified custom bot is configured for this channel.",
             )
-            if not beta_params["use_custom_bot"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail="custom mode requested but no verified custom bot is configured for this channel.",
-                )
-        elif self_mode:
-            beta_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": True}
-        else:
-            beta_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": False}
     else:
-        beta_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": False}
+        launch_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": bool(self_mode)}
 
     # Optional published version for version-control file on bot host
     latest = _load_latest_bot_versions()
@@ -7494,6 +7495,8 @@ async def start_bot(
     else:
         version = latest.get("stable_version")
 
+    # No custom_module given: use the saved setting (users.use_custom_module), like the dashboard
+    load_module = creds.get("use_custom_module") if custom_module is None else custom_module
     body = {
         "channel": username,
         "bot_type": bot_type,
@@ -7501,53 +7504,89 @@ async def start_bot(
         "token": fresh_access,
         "refresh": fresh_refresh,
         "apitoken": creds["api_key"],
-        "custom": bool(bot_type == "beta" and beta_params.get("use_custom_bot")),
-        "botusername": beta_params.get("custom_bot_username") if bot_type == "beta" else None,
-        "self": bool(bot_type == "beta" and beta_params.get("use_self")),
+        "custom": bool(launch_params.get("use_custom_bot")),
+        "botusername": launch_params.get("custom_bot_username"),
+        "self": bool(launch_params.get("use_self")),
         "version": version,
-        "load_custom_module": bool(
-            creds.get("use_custom_module") and bot_type in ("beta", "v6")
-        ),
+        "load_custom_module": bool(load_module and bot_type in TWITCH_BOT_TYPES),
     }
     try:
-        data = await _bots_api_request("POST", "/api/bot/start", json_body=body)
-        return BotActionResponse(
-            success=bool(data.get("success", True)),
-            state=str(data.get("state") or "started"),
-            running=bool(data.get("running")),
-            pid=data.get("pid"),
-            bot_type=str(data.get("bot_type") or bot_type),
-            version=data.get("version"),
-            message=str(data.get("message") or "OK"),
-        )
+        data = await _bots_api_request("POST", host_path, json_body=body)
+        return _bot_action_response(data, bot_type, default_state)
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Bot start failed for '{username}' ({bot_type}): {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Bot start failed: {e}")
+        logging.error(f"Bot {action} failed for '{username}' ({bot_type}): {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Bot {action} failed: {e}")
 
 
 @app.post(
-    "/bot/stop",
-    summary="Stop the chat bot",
-    description="Stop the chat bot for the authenticated user via the private bot-host control API.",
+    "/bot/start",
+    summary="Start the chat bot",
+    description="Start the chat bot for the authenticated user. Validates the user's Twitch access token (refreshing it via the user's refresh token if expired) before launching, and stops any other bot variant that is running for this user. Idempotent - if the requested bot variant is already running, returns success with the existing PID. custom, self and custom_module apply to stable, beta and v6.",
     tags=["User Account"],
-    operation_id="stop_bot",
+    operation_id="start_bot",
     response_model=BotActionResponse,
 )
-async def stop_bot(
+async def start_bot(
     api_key: str = Query(..., description="Your API key for authentication"),
-    bot_type: str = Query("stable", description="Bot variant to stop (stable, beta, v6, or kick)."),
+    bot_type: str = Query("stable", description="Bot variant to start (stable, beta, v6, or kick)."),
+    custom: bool = Query(False, description="Stable, beta or v6: launch with -custom mode using the channel's verified custom bot account. Mutually exclusive with self."),
+    self_mode: bool = Query(False, alias="self", description="Stable, beta or v6: launch with the -self flag (messages are sent from the broadcaster's account). Mutually exclusive with custom."),
+    custom_module: bool | None = Query(None, description="Stable, beta or v6: load the channel's custom module, if it has one. Leave out to use the saved setting."),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API key")
     username = resolve_username(key_info, channel)
-    if bot_type not in BOT_SCRIPT_PATHS:
+    return await _launch_bot("/api/bot/start", username, bot_type, custom, self_mode, custom_module)
+
+
+@app.post(
+    "/bot/restart",
+    summary="Restart the chat bot",
+    description="Stop the chat bot, then start it again with the given options, in one call on the bot host. Takes the same options as /bot/start. Use it to apply a new version or changed settings.",
+    tags=["User Account"],
+    operation_id="restart_bot",
+    response_model=BotActionResponse,
+)
+async def restart_bot(
+    api_key: str = Query(..., description="Your API key for authentication"),
+    bot_type: str = Query("stable", description="Bot variant to restart (stable, beta, v6, or kick)."),
+    custom: bool = Query(False, description="Stable, beta or v6: launch with -custom mode using the channel's verified custom bot account. Mutually exclusive with self."),
+    self_mode: bool = Query(False, alias="self", description="Stable, beta or v6: launch with the -self flag. Mutually exclusive with custom."),
+    custom_module: bool | None = Query(None, description="Stable, beta or v6: load the channel's custom module, if it has one. Leave out to use the saved setting."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    username = resolve_username(key_info, channel)
+    return await _launch_bot("/api/bot/restart", username, bot_type, custom, self_mode, custom_module)
+
+
+@app.post(
+    "/bot/stop",
+    summary="Stop the chat bot",
+    description="Stop the chat bot for the authenticated user via the private bot-host control API. bot_type=custom stops a bot started with a custom bot name (/bot/status reports those as custom).",
+    tags=["User Account"],
+    operation_id="stop_bot",
+    response_model=BotActionResponse,
+)
+async def stop_bot(
+    api_key: str = Query(..., description="Your API key for authentication"),
+    bot_type: str = Query("stable", description="Bot variant to stop (stable, beta, v6, custom, or kick)."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    username = resolve_username(key_info, channel)
+    if bot_type not in BOT_SCRIPT_PATHS and bot_type != "custom":
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid bot_type. Must be one of: {', '.join(BOT_SCRIPT_PATHS.keys())}",
+            detail=f"Invalid bot_type. Must be one of: {', '.join(list(BOT_SCRIPT_PATHS.keys()) + ['custom'])}",
         )
     try:
         data = await _bots_api_request(
@@ -7555,20 +7594,128 @@ async def stop_bot(
             "/api/bot/stop",
             json_body={"channel": username, "bot_type": bot_type},
         )
-        return BotActionResponse(
-            success=bool(data.get("success", True)),
-            state=str(data.get("state") or "stopped"),
-            running=bool(data.get("running")),
-            pid=data.get("pid"),
-            bot_type=str(data.get("bot_type") or bot_type),
-            version=data.get("version"),
-            message=str(data.get("message") or "OK"),
-        )
+        return _bot_action_response(data, bot_type, "stopped")
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Bot stop failed for '{username}' ({bot_type}): {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Bot stop failed: {e}")
+
+
+class BotSettingsResponse(BaseModel):
+    use_custom: bool = Field(..., description="Start the bot with the channel's custom bot name.")
+    use_self: bool = Field(..., description="Start the bot with Use Self (messages come from the broadcaster's account).")
+    use_custom_module: bool = Field(..., description="Load the channel's custom module when the bot starts.")
+    has_verified_custom_bot: bool = Field(..., description="True when the channel has a verified custom bot account.")
+    custom_bot_username: str | None = Field(None, description="The verified custom bot's username.")
+
+
+async def _read_bot_settings(username: str) -> BotSettingsResponse:
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT id, twitch_user_id, use_custom, use_self, use_custom_module FROM users WHERE username = %s LIMIT 1",
+                (username,),
+            )
+            user = await cur.fetchone()
+            if not user:
+                raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+            # custom_bots.channel_id is the users.id; older rows used the Twitch user id
+            row = None
+            for lookup in (str(user.get("id") or ""), str(user.get("twitch_user_id") or "")):
+                if not lookup:
+                    continue
+                await cur.execute(
+                    "SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = %s LIMIT 1",
+                    (lookup,),
+                )
+                row = await cur.fetchone()
+                if row:
+                    break
+    finally:
+        conn.close()
+    custom_name = ((row or {}).get("bot_username") or "").strip()
+    verified = bool(row) and int(row.get("is_verified") or 0) == 1 and bool(custom_name)
+    return BotSettingsResponse(
+        use_custom=int(user.get("use_custom") or 0) == 1,
+        use_self=int(user.get("use_self") or 0) == 1,
+        use_custom_module=int(user.get("use_custom_module") or 0) == 1,
+        has_verified_custom_bot=verified,
+        custom_bot_username=custom_name if verified else None,
+    )
+
+
+@app.get(
+    "/bot/settings",
+    summary="Get chat bot start options",
+    description="The saved bot start options (custom bot name, Use Self, custom module) and whether the channel has a verified custom bot. The same settings the dashboard's Bot Control page shows. Whether a custom module exists is custom_module_available on /bot/status.",
+    tags=["User Account"],
+    operation_id="get_bot_settings",
+    response_model=BotSettingsResponse,
+)
+async def get_bot_settings(
+    api_key: str = Query(..., description="Your API key for authentication"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    username = resolve_username(key_info, channel)
+    return await _read_bot_settings(username)
+
+
+@app.post(
+    "/bot/settings",
+    summary="Save chat bot start options",
+    description="Save any of the bot start options. use_custom and use_self cannot both be on: turning one on turns the other off. Changes apply the next time the bot starts or restarts.",
+    tags=["User Account"],
+    operation_id="update_bot_settings",
+    response_model=BotSettingsResponse,
+)
+async def update_bot_settings(
+    api_key: str = Query(..., description="Your API key for authentication"),
+    use_custom: bool | None = Query(None, description="Start with the channel's custom bot name."),
+    use_self: bool | None = Query(None, description="Start with Use Self."),
+    use_custom_module: bool | None = Query(None, description="Load the channel's custom module on start."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    username = resolve_username(key_info, channel)
+    if use_custom and use_self:
+        raise HTTPException(status_code=400, detail="use_custom and use_self cannot both be on.")
+    updates: dict[str, int] = {}
+    if use_custom is not None:
+        updates["use_custom"] = int(use_custom)
+        if use_custom:
+            updates["use_self"] = 0
+    if use_self is not None:
+        updates["use_self"] = int(use_self)
+        if use_self:
+            updates["use_custom"] = 0
+    if use_custom_module is not None:
+        updates["use_custom_module"] = int(use_custom_module)
+    if not updates:
+        raise HTTPException(status_code=400, detail="Provide use_custom, use_self or use_custom_module.")
+    if updates.get("use_custom") == 1:
+        current = await _read_bot_settings(username)
+        if not current.has_verified_custom_bot:
+            raise HTTPException(status_code=400, detail="No verified custom bot is set up for this channel.")
+    # Column names come from the fixed keys above, never from the request
+    assignments = ", ".join(f"{column} = %s" for column in updates)
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                f"UPDATE users SET {assignments} WHERE username = %s LIMIT 1",
+                (*updates.values(), username),
+            )
+        await conn.commit()
+    finally:
+        conn.close()
+    return await _read_bot_settings(username)
 
 
 # ─── Twitch Extension Endpoints ──────────────────────────────────────────────
