@@ -162,7 +162,7 @@ function performBotAction($action, $botType, $params) {
             'apitoken'    => $apiKey,
             'custom'      => (bool)($useCustomBot && in_array($botType, ['stable', 'beta', 'v6'], true)),
             'botusername' => ($useCustomBot && in_array($botType, ['stable', 'beta', 'v6'], true)) ? $customBotUsername : null,
-            'self'        => (bool)($useSelf && in_array($botType, ['stable', 'beta'], true)),
+            'self'        => (bool)($useSelf && in_array($botType, ['stable', 'beta', 'v6'], true)),
             'version'     => $version,
             // stable/beta/v6 only; bots API also requires the {channel}.py file on the host
             'load_custom_module' => (bool)($loadCustomModule && in_array($botType, ['stable', 'beta', 'v6'], true)),
