@@ -4959,14 +4959,13 @@ class UtilityCog(commands.Cog, name='Utility'):
         self.admin_key = config.admin_key
 
     async def _create_twitch_link_request(self, discord_user_id: int):
-        url = f"{self.api_base_url}/discord/twitch-link/request"
-        params = {
-            "api_key": self.admin_key,
-            "discord_user_id": str(discord_user_id)
-        }
+        # Admin key goes in the X-API-KEY header (API /v2 layer), never the URL, so it stays out of access/proxy logs.
+        url = f"{self.api_base_url}/v2/discord/twitch-link/request"
+        params = {"discord_user_id": str(discord_user_id)}
+        headers = {"X-API-KEY": self.admin_key}
         timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, params=params) as response:
+            async with session.post(url, params=params, headers=headers) as response:
                 data = await response.json(content_type=None)
                 if response.status != 200:
                     detail = data.get("detail") if isinstance(data, dict) else None
@@ -4974,14 +4973,13 @@ class UtilityCog(commands.Cog, name='Utility'):
                 return data
 
     async def _unlink_twitch_link(self, discord_user_id: int):
-        url = f"{self.api_base_url}/discord/twitch-link/unlink"
-        params = {
-            "api_key": self.admin_key,
-            "discord_user_id": str(discord_user_id)
-        }
+        # Admin key goes in the X-API-KEY header (API /v2 layer), never the URL, so it stays out of access/proxy logs.
+        url = f"{self.api_base_url}/v2/discord/twitch-link/unlink"
+        params = {"discord_user_id": str(discord_user_id)}
+        headers = {"X-API-KEY": self.admin_key}
         timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, params=params) as response:
+            async with session.post(url, params=params, headers=headers) as response:
                 data = await response.json(content_type=None)
                 if response.status != 200:
                     detail = data.get("detail") if isinstance(data, dict) else None
