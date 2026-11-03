@@ -3315,26 +3315,14 @@ class BotOfTheSpecter(commands.Bot):
         # If the message is in a server channel (text or voice), check for tickets first, then custom commands
         elif isinstance(message.channel, (discord.TextChannel, discord.VoiceChannel)):
             try:
-                # TICKET SYSTEM LOGIC - Check if this is a ticket-info channel
+                # TICKET SYSTEM LOGIC - the Tickets cog's on_message deletes stray messages in the ticket-info
+                # channel and posts the warning. Here we only stop custom commands and AI from also handling them,
+                # so members get one warning, not two.
                 ticket_cog = self.get_cog('Tickets')
                 if ticket_cog:
                     settings = await ticket_cog.get_settings(message.guild.id)
-                    if settings and message.channel.id == settings['info_channel_id']:
-                        # Check if message is a ticket command
-                        is_ticket_command = message.content.startswith('!ticket')
-                        if not is_ticket_command:
-                            # Delete non-ticket messages
-                            await message.delete()
-                            # Send a temporary warning message
-                            warning = await message.channel.send(
-                                f"{message.author.mention} This channel is for ticket commands only. "
-                                "Please use `!ticket create` to open a ticket."
-                            )
-                            await self.mysql_helper.track_message('discordbot')
-                            # Set a delay before deleting the warning message
-                            await asyncio.sleep(10)  # Wait for 10 seconds
-                            await warning.delete()  # Delete the warning message after the delay
-                            self.logger.info(f"Deleted non-ticket message from {message.author} in ticket-info channel")
+                    if settings and settings.get('info_channel_id') is not None and str(message.channel.id) == str(settings['info_channel_id']):
+                        if not message.content.startswith('!ticket'):
                             return
             except Exception as e:
                 self.logger.error(f"Error in ticket-info message watcher: {e}")
