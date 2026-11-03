@@ -7142,6 +7142,11 @@ class VoiceCog(commands.Cog, name='Voice'):
                     log_ignored_error(self.logger, "VoiceCog.disconnect_voice: await msg.delete(delay=5)", ignored_err)
                 return
             voice_client = self.voice_clients.get(ctx.guild.id)
+            if voice_client.is_connected():
+                denied = self._music_control_denied(ctx)
+                if denied:
+                    await self._send_music_denied(ctx, denied, "disconnect")
+                    return
             if not voice_client.is_connected():
                 embed = discord.Embed(
                     title="ℹ️ Not Connected",
@@ -7304,6 +7309,9 @@ class VoiceCog(commands.Cog, name='Voice'):
         if not ctx.author.voice or not ctx.author.voice.channel:
             return False
         voice_channel = ctx.author.voice.channel
+        # Typing in the voice channel's own built-in chat
+        if ctx.channel.id == voice_channel.id:
+            return True
         # Discord voice channels can have a linked text channel (voice_channel.guild.text_channels)
         linked_text_channel = getattr(voice_channel, 'linked_text_channel', None)
         # If using Discord's new voice chat text channel feature
@@ -7315,6 +7323,29 @@ class VoiceCog(commands.Cog, name='Voice'):
                 return True
         # If no linked text channel, allow everywhere (legacy behavior)
         return True
+
+    def _music_control_denied(self, ctx):
+        # Returns None when the member may control the music (skip, stop, volume, disconnect), else the reason.
+        # Members with Move Members, Manage Server or Administrator can always control it.
+        perms = getattr(ctx.author, 'guild_permissions', None)
+        if perms and (perms.move_members or perms.manage_guild or perms.administrator):
+            return None
+        member_voice = getattr(getattr(ctx.author, 'voice', None), 'channel', None)
+        if member_voice is None:
+            return "You need to be in the voice channel with the bot to control the music."
+        bot_vc = ctx.guild.voice_client
+        if bot_vc and bot_vc.channel and bot_vc.channel.id != member_voice.id:
+            return f"You need to be in {bot_vc.channel.mention} with the bot to control the music."
+        return None
+
+    async def _send_music_denied(self, ctx, reason, command):
+        self.logger.info(f"Refused !{command} from {ctx.author} in guild {ctx.guild.id}: {reason}")
+        msg = await ctx.send(embed=discord.Embed(title="❌ Can't Control Music", description=reason, color=discord.Color.red()))
+        try:
+            await msg.delete(delay=5)
+            await ctx.message.delete(delay=5)
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, f"VoiceCog.{command}: delete refused command message", ignored_err)
 
     async def _handle_connect(self, ctx, channel):
         guild_id = ctx.guild.id
@@ -7392,6 +7423,10 @@ class VoiceCog(commands.Cog, name='Voice'):
             except Exception as ignored_err:
                 log_ignored_error(self.logger, "VoiceCog.skip_music: await msg.delete(delay=5)", ignored_err)
             return
+        denied = self._music_control_denied(ctx)
+        if denied:
+            await self._send_music_denied(ctx, denied, "skip")
+            return
         await self.music_player.skip(ctx)
 
     @commands.command(name="stop", aliases=["pause"])
@@ -7408,6 +7443,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                 await ctx.message.delete(delay=5)
             except Exception as ignored_err:
                 log_ignored_error(self.logger, "VoiceCog.stop_music: await msg.delete(delay=5)", ignored_err)
+            return
+        denied = self._music_control_denied(ctx)
+        if denied:
+            await self._send_music_denied(ctx, denied, "stop")
             return
         await self.music_player.stop(ctx)
 
@@ -7506,6 +7545,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                 await ctx.message.delete()
             except Exception as ignored_err:
                 log_ignored_error(self.logger, "VoiceCog.set_volume: await msg.delete(delay=5)", ignored_err)
+            return
+        denied = self._music_control_denied(ctx)
+        if denied:
+            await self._send_music_denied(ctx, denied, "volume")
             return
         # Set new volume
         vol = volume / 100
