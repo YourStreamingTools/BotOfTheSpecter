@@ -5692,27 +5692,11 @@ class TicketCog(commands.Cog, name='Tickets'):
                     )
                 async with self.pool.acquire() as conn:
                     async with conn.cursor(aiomysql.DictCursor) as cur:
-                        # Check if the channel_id in the database is correct
-                        await cur.execute("SELECT channel_id FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                        # Only this server's ticket, and only from its own channel
+                        await cur.execute("SELECT channel_id, user_id FROM tickets WHERE ticket_id = %s AND guild_id = %s", (ticket_id, ctx.guild.id))
                         ticket = await cur.fetchone()
                         correct_channel = ctx.channel.id
-                        if ticket:
-                            current_channel = ticket.get("channel_id")
-                            if current_channel is None or current_channel != correct_channel:
-                                # Update both issue and channel_id
-                                await cur.execute(
-                                    "UPDATE tickets SET issue = %s, channel_id = %s WHERE ticket_id = %s",
-                                    (reason, correct_channel, ticket_id)
-                                )
-                                self.logger.info(f"Ticket #{ticket_id} channel_id updated from {current_channel} to {correct_channel}")
-                            else:
-                                # Only update the issue as channel_id is correct
-                                await cur.execute(
-                                    "UPDATE tickets SET issue = %s WHERE ticket_id = %s",
-                                    (reason, ticket_id)
-                                )
-                                self.logger.info(f"Ticket #{ticket_id} issue updated with correct channel_id {correct_channel}")
-                        else:
+                        if not ticket:
                             embed = discord.Embed(
                                 title="Ticket Update Error",
                                 description="Ticket not found.",
@@ -5720,6 +5704,36 @@ class TicketCog(commands.Cog, name='Tickets'):
                             )
                             await ctx.send(embed=embed)
                             return
+                        current_channel = ticket.get("channel_id")
+                        if current_channel and str(current_channel) != str(correct_channel) and ctx.guild.get_channel(int(current_channel)) is not None:
+                            # The ticket already belongs to another channel that still exists; a copy-named channel can't take it over
+                            self.logger.warning(f"Refused !ticket issue for #{ticket_id} from #{ctx.channel.name} ({correct_channel}) in guild {ctx.guild.id}: ticket belongs to channel {current_channel}")
+                            await ctx.send(embed=discord.Embed(
+                                title="Ticket Update Error",
+                                description="This channel isn't the channel for that ticket.",
+                                color=discord.Color.yellow()
+                            ), delete_after=10)
+                            return
+                        settings = await self.get_settings(ctx.guild.id)
+                        if str(ticket.get("user_id")) != str(ctx.author.id) and not self._is_ticket_admin(ctx.author, settings):
+                            await ctx.send(embed=discord.Embed(
+                                title="Ticket Update Error",
+                                description="Only the person who opened this ticket, or the support team, can change its issue.",
+                                color=discord.Color.yellow()
+                            ), delete_after=10)
+                            return
+                        if current_channel is None or str(current_channel) != str(correct_channel):
+                            await cur.execute(
+                                "UPDATE tickets SET issue = %s, channel_id = %s WHERE ticket_id = %s AND guild_id = %s",
+                                (reason, correct_channel, ticket_id, ctx.guild.id)
+                            )
+                            self.logger.info(f"Ticket #{ticket_id} channel_id updated from {current_channel} to {correct_channel}")
+                        else:
+                            await cur.execute(
+                                "UPDATE tickets SET issue = %s WHERE ticket_id = %s AND guild_id = %s",
+                                (reason, ticket_id, ctx.guild.id)
+                            )
+                            self.logger.info(f"Ticket #{ticket_id} issue updated with correct channel_id {correct_channel}")
                 embed = discord.Embed(
                     title="Ticket Updated",
                     description=f"✅ Ticket #{ticket_id} issue updated.",
