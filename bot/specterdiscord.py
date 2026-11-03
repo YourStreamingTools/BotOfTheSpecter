@@ -2582,6 +2582,9 @@ class BotOfTheSpecter(commands.Bot):
         intents.message_content = True
         intents.voice_states = True
         intents.members = True
+        # Needed for the user tracking "status changed" log (on_presence_update). This is a privileged
+        # intent: Presence Intent must be turned on for the bot in the Discord Developer Portal.
+        intents.presences = True
         kwargs.setdefault("allowed_mentions", DEFAULT_ALLOWED_MENTIONS)
         super().__init__(command_prefix="!", intents=intents, **kwargs)
         self.discord_token = discord_token
@@ -10738,6 +10741,19 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
+        self._presence_settings_cache = {}  # server_id -> (fetched_at, settings); presence events are very frequent
+
+    async def _get_settings_cached(self, server_id: str, max_age: float = 60.0):
+        # Used by on_presence_update so status changes don't open a database connection every time.
+        # Dashboard changes to user tracking reach the presence log within a minute.
+        key = str(server_id)
+        cached = self._presence_settings_cache.get(key)
+        now = time.monotonic()
+        if cached and now - cached[0] < max_age:
+            return cached[1]
+        settings = await self._get_settings(key)
+        self._presence_settings_cache[key] = (now, settings)
+        return settings
 
     async def _get_settings(self, server_id: str):
         try:
@@ -10900,7 +10916,7 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
         try:
             if before.status == after.status:
                 return
-            settings = await self._get_settings(str(after.guild.id))
+            settings = await self._get_settings_cached(str(after.guild.id))
             if not settings['enabled'] or not settings['log_channel_id'] or not settings['track_status']:
                 return
             status_map = {
@@ -11454,7 +11470,15 @@ class DiscordBotRunner:
         mysql_helper = MySQLHelper(logger=self.logger)
         user_logger = UserLogger(self.logger, mysql_helper)
         self.bot = BotOfTheSpecter(self.discord_token, self.logger, user_logger)
-        await self.bot.start(self.discord_token)
+        try:
+            await self.bot.start(self.discord_token)
+        except discord.PrivilegedIntentsRequired:
+            self.logger.critical(
+                "Discord refused to connect: a privileged intent isn't enabled for this bot. "
+                "Turn on Presence Intent, Server Members Intent and Message Content Intent under Bot in the "
+                "Discord Developer Portal, then restart the bot."
+            )
+            raise
 
 def main():
     bot_log_file = os.path.join(config.discord_logs, f"discordbot.txt")
