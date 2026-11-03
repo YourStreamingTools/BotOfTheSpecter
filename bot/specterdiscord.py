@@ -3084,7 +3084,10 @@ class BotOfTheSpecter(commands.Bot):
                                 # chunk shapes vary; try common fields
                                 delta = ""
                                 try:
-                                    if isinstance(chunk, dict):
+                                    # openai's chat.completions.stream() yields events; text arrives as 'content.delta' events with a .delta string
+                                    if getattr(chunk, 'type', None) == 'content.delta' and isinstance(getattr(chunk, 'delta', None), str):
+                                        delta = chunk.delta
+                                    elif isinstance(chunk, dict):
                                         choice = chunk.get('choices', [None])[0]
                                         if choice:
                                             delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
@@ -3108,7 +3111,10 @@ class BotOfTheSpecter(commands.Bot):
                             async for chunk in stream:
                                 delta = ""
                                 try:
-                                    if isinstance(chunk, dict):
+                                    # openai's chat.completions.stream() yields events; text arrives as 'content.delta' events with a .delta string
+                                    if getattr(chunk, 'type', None) == 'content.delta' and isinstance(getattr(chunk, 'delta', None), str):
+                                        delta = chunk.delta
+                                    elif isinstance(chunk, dict):
                                         choice = chunk.get('choices', [None])[0]
                                         if choice:
                                             delta = (choice.get('delta') or {}).get('content') or choice.get('text', '')
