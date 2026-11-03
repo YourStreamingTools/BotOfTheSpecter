@@ -5832,28 +5832,54 @@ def get_wind_direction(deg):
                 return direction
     return "N/A"
 
-# WebSocket TTS Trigger
-@app.get(
-    "/websocket/tts",
-    summary="Trigger TTS via API",
-    description="Send a text-to-speech (TTS) event to the WebSocket server. If voice or language are omitted, the user's saved TTS settings are used (defaulting to Alloy/en).",
-    tags=["WebSocket Triggers"],
-    response_model=StatusResponse,
-    operation_id="trigger_websocket_tts"
-)
-async def websocket_tts(
-    api_key: str = Query(...),
-    text: str = Query(...),
-    voice: str = Query(None, description="TTS voice to use. Defaults to the voice saved in the user's TTS settings."),
-    language: str = Query(None, description="TTS language to use. Defaults to the language saved in the user's TTS settings."),
-):
-    valid = await verify_api_key(api_key)
-    if not valid:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
-    username = valid
-    tts_style = "normal"
-    expressive_voice = None
-    # If either setting is missing, load defaults from the user's tts_settings table
+TTS_STYLES = ("normal", "expressive")
+# Expressive TTS (ElevenLabs) voice used when none is saved, as on the dashboard
+TTS_DEFAULT_EXPRESSIVE_NAME = "Callum"
+_EXPRESSIVE_VOICE_ID_RE = re.compile(r"^[A-Za-z0-9]{1,64}$")
+_expressive_voices_cache: dict = {"at": 0.0, "voices": []}
+_EXPRESSIVE_VOICES_TTL = 600
+
+
+async def _expressive_tts_voices() -> list[dict]:
+    """ElevenLabs voices for Expressive TTS, cached for 10 minutes. Empty when the key is missing or the call fails."""
+    now = _time.monotonic()
+    if _expressive_voices_cache["voices"] and now - _expressive_voices_cache["at"] < _EXPRESSIVE_VOICES_TTL:
+        return _expressive_voices_cache["voices"]
+    key = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
+    if not key:
+        logging.warning("ELEVENLABS_API_KEY is not set; no expressive TTS voices to list")
+        return []
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.elevenlabs.io/v1/voices",
+                headers={"xi-api-key": key},
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp:
+                if resp.status != 200:
+                    logging.warning(f"ElevenLabs voices request failed: HTTP {resp.status}")
+                    return _expressive_voices_cache["voices"]
+                data = await resp.json(content_type=None)
+    except Exception as e:
+        logging.warning(f"ElevenLabs voices request failed: {e}")
+        return _expressive_voices_cache["voices"]
+    voices = []
+    for voice in (data or {}).get("voices") or []:
+        if isinstance(voice, dict) and voice.get("voice_id") and voice.get("name"):
+            voices.append({"id": str(voice["voice_id"]), "name": str(voice["name"])})
+    _expressive_voices_cache.update(at=now, voices=voices)
+    return voices
+
+
+def _default_expressive_voice_id(voices: list[dict]) -> str | None:
+    for voice in voices:
+        if voice["name"].lower() == TTS_DEFAULT_EXPRESSIVE_NAME.lower():
+            return voice["id"]
+    return None
+
+
+async def _load_tts_settings(username: str) -> dict:
+    """The channel's saved TTS settings: voice, language, style and expressive_voice (any may be None)."""
     try:
         conn = await get_mysql_connection_user(username)
         try:
@@ -5865,17 +5891,98 @@ async def websocket_tts(
                 row = await cur.fetchone()
         finally:
             conn.close()
-        if row:
-            if not voice:
-                voice = row.get("voice") or "Alloy"
-            if not language:
-                language = row.get("language") or "en"
-            tts_style = row.get("style") or "normal"
-            expressive_voice = row.get("expressive_voice")
     except Exception as e:
         logging.warning(f"Could not load TTS settings for '{username}': {e}")
-    voice = voice or "Alloy"
-    language = language or "en"
+        row = None
+    row = row or {}
+    style = (row.get("style") or "normal").strip().lower()
+    return {
+        "voice": row.get("voice") or None,
+        "language": row.get("language") or None,
+        "style": style if style in TTS_STYLES else "normal",
+        "expressive_voice": row.get("expressive_voice") or None,
+    }
+
+
+class TTSExpressiveVoice(BaseModel):
+    id: str = Field(..., description="ElevenLabs voice id.")
+    name: str = Field(..., example="Callum")
+
+
+class TTSVoicesResponse(BaseModel):
+    expressive_voices: list[TTSExpressiveVoice] = Field(..., description="ElevenLabs voices for Expressive TTS. Empty when none are available.")
+    default_expressive_voice: str | None = Field(None, description="The Expressive voice used when none is saved.")
+    style: str = Field(..., description="The channel's saved TTS style: normal or expressive.")
+    voice: str = Field(..., description="The channel's saved Normal voice.")
+    expressive_voice: str | None = Field(None, description="The channel's saved Expressive voice id.")
+
+
+@app.get(
+    "/tts/voices",
+    summary="Get Expressive TTS voices and saved TTS settings",
+    description="The ElevenLabs voices for Expressive TTS, plus the channel's saved TTS style and voices. Use these with /websocket/tts.",
+    tags=["WebSocket Triggers"],
+    response_model=TTSVoicesResponse,
+    operation_id="get_tts_voices"
+)
+async def tts_voices(api_key: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    saved = await _load_tts_settings(valid)
+    voices = await _expressive_tts_voices()
+    return TTSVoicesResponse(
+        expressive_voices=voices,
+        default_expressive_voice=_default_expressive_voice_id(voices),
+        style=saved["style"],
+        voice=saved["voice"] or "Alloy",
+        expressive_voice=saved["expressive_voice"],
+    )
+
+
+# WebSocket TTS Trigger
+@app.get(
+    "/websocket/tts",
+    summary="Trigger TTS via API",
+    description=(
+        "Send a text-to-speech (TTS) event to the WebSocket server. style picks Normal (OpenAI) or Expressive "
+        "(ElevenLabs) TTS. Anything left out comes from the user's saved TTS settings (defaulting to Normal, "
+        "Alloy, en). Expressive needs an expressive_voice id from /tts/voices, or a saved one; if Expressive "
+        "fails, the message is read with Normal TTS instead."
+    ),
+    tags=["WebSocket Triggers"],
+    response_model=StatusResponse,
+    operation_id="trigger_websocket_tts"
+)
+async def websocket_tts(
+    api_key: str = Query(...),
+    text: str = Query(...),
+    voice: str = Query(None, description="Normal TTS voice. Defaults to the voice saved in the user's TTS settings."),
+    language: str = Query(None, description="TTS language to use. Defaults to the language saved in the user's TTS settings."),
+    style: str = Query(None, description="normal (OpenAI) or expressive (ElevenLabs). Defaults to the saved style."),
+    expressive_voice: str = Query(None, description="Expressive TTS voice id from /tts/voices. Defaults to the saved expressive voice."),
+):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = valid
+    if style is not None:
+        style = style.strip().lower()
+        if style not in TTS_STYLES:
+            raise HTTPException(status_code=400, detail="style must be normal or expressive")
+    if expressive_voice is not None:
+        expressive_voice = expressive_voice.strip()
+        if not _EXPRESSIVE_VOICE_ID_RE.match(expressive_voice):
+            raise HTTPException(status_code=400, detail="Unknown expressive voice")
+    saved = await _load_tts_settings(username)
+    voice = voice or saved["voice"] or "Alloy"
+    language = language or saved["language"] or "en"
+    tts_style = style or saved["style"]
+    expressive_voice = expressive_voice or saved["expressive_voice"]
+    if tts_style == "expressive" and not expressive_voice:
+        expressive_voice = _default_expressive_voice_id(await _expressive_tts_voices())
+        if not expressive_voice:
+            raise HTTPException(status_code=400, detail="No expressive voice is set. Pick one from /tts/voices.")
     params = {"event": "TTS", "text": text, "voice": voice, "language": language, "style": tts_style}
     if expressive_voice:
         params["expressive_voice"] = expressive_voice
