@@ -4433,24 +4433,28 @@ class BotOfTheSpecter(commands.Bot):
                 if early_user_row and early_user_row.get('username'):
                     early_username = early_user_row['username']
                     early_auth, early_cid = await early_verify_mysql.get_bot_access_token()
-                    if early_auth and early_cid:
-                        async with aiohttp.ClientSession() as early_session:
-                            early_headers = {"Client-ID": early_cid, "Authorization": f"Bearer {early_auth}"}
-                            async with early_session.get(
-                                f"https://api.twitch.tv/helix/streams?user_login={early_username}&type=live&first=1",
-                                headers=early_headers
-                            ) as early_resp:
-                                if early_resp.status == 200:
-                                    early_data = await early_resp.json()
-                                    if early_data.get("data"):
-                                        self.logger.info(
-                                            f"OFFLINE event for {early_username} (code: {code}) but Twitch API confirms "
-                                            f"stream is still live - ignoring entire false offline event"
-                                        )
-                                        self._stream_online_in_flight.discard(code)
-                                        return
+                    # Offline only counts when Twitch answers 200 with no live stream. No token, an expired
+                    # token, a 429 or any other error means it can't be checked, so the event is ignored.
+                    if not (early_auth and early_cid):
+                        raise RuntimeError("no Twitch bot access token to verify with")
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as early_session:
+                        early_headers = {"Client-ID": early_cid, "Authorization": f"Bearer {early_auth}"}
+                        async with early_session.get(
+                            f"https://api.twitch.tv/helix/streams?user_login={early_username}&type=live&first=1",
+                            headers=early_headers
+                        ) as early_resp:
+                            if early_resp.status != 200:
+                                raise RuntimeError(f"Twitch API answered {early_resp.status}")
+                            early_data = await early_resp.json()
+                            if early_data.get("data"):
+                                self.logger.info(
+                                    f"OFFLINE event for {early_username} (code: {code}) but Twitch API confirms "
+                                    f"stream is still live - ignoring entire false offline event"
+                                )
+                                self._stream_online_in_flight.discard(code)
+                                return
             except Exception as early_verify_err:
-                self.logger.debug(f"Error in early offline verification for {code}: {early_verify_err}")
+                self.logger.warning(f"Error in early offline verification for {code}: {early_verify_err}")
                 self.logger.info(f"Cannot verify offline for {code} - ignoring event to prevent false offline processing")
                 self._stream_online_in_flight.discard(code)
                 return
@@ -8196,26 +8200,29 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 self.logger.warning(f"Error checking stream age for {username}: {e}")
             try:
                 verify_auth, verify_cid = await self.mysql.get_bot_access_token()
-                if verify_auth and verify_cid:
-                    async with aiohttp.ClientSession() as verify_session:
-                        verify_headers = {"Client-ID": verify_cid, "Authorization": f"Bearer {verify_auth}"}
-                        async with verify_session.get(
-                            f"https://api.twitch.tv/helix/streams?user_login={username}&type=live&first=1",
-                            headers=verify_headers
-                        ) as verify_resp:
-                            if verify_resp.status == 200:
-                                verify_data = await verify_resp.json()
-                                if verify_data.get("data"):
-                                    notice_key = (guild_id, username)
-                                    if notice_key not in self._still_live_notice:
-                                        self.logger.info(
-                                            f"Tracked streamer {username} missing from batch check but direct API confirms still live "
-                                            f"in guild {guild_id} - skipping offline to prevent duplicate notification"
-                                        )
-                                        self._still_live_notice.add(notice_key)
-                                    continue
+                # Offline only counts when Twitch answers 200 with no live stream; any API error keeps the live state
+                if not (verify_auth and verify_cid):
+                    raise RuntimeError("no Twitch bot access token to verify with")
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as verify_session:
+                    verify_headers = {"Client-ID": verify_cid, "Authorization": f"Bearer {verify_auth}"}
+                    async with verify_session.get(
+                        f"https://api.twitch.tv/helix/streams?user_login={username}&type=live&first=1",
+                        headers=verify_headers
+                    ) as verify_resp:
+                        if verify_resp.status != 200:
+                            raise RuntimeError(f"Twitch API answered {verify_resp.status}")
+                        verify_data = await verify_resp.json()
+                        if verify_data.get("data"):
+                            notice_key = (guild_id, username)
+                            if notice_key not in self._still_live_notice:
+                                self.logger.info(
+                                    f"Tracked streamer {username} missing from batch check but direct API confirms still live "
+                                    f"in guild {guild_id} - skipping offline to prevent duplicate notification"
+                                )
+                                self._still_live_notice.add(notice_key)
+                            continue
             except Exception as verify_err:
-                self.logger.debug(f"Error verifying tracked streamer offline status for {username}: {verify_err}")
+                self.logger.warning(f"Error verifying tracked streamer offline status for {username}: {verify_err}")
                 # If we can't verify, skip clearing to be safe
                 self.logger.info(f"Cannot verify offline for tracked streamer {username} - keeping live state")
                 continue
