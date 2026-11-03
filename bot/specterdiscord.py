@@ -3457,13 +3457,13 @@ class BotOfTheSpecter(commands.Bot):
             if not discord_info:
                 self.logger.warning(f"No Discord info found for guild {guild_id}")
                 return False
-            # Get the Twitch display name to use as database name
-            twitch_display_name = discord_info.get('twitch_display_name')
-            if not twitch_display_name:
-                self.logger.warning(f"No Twitch display name found for guild {guild_id}")
+            # Each streamer's database is named after their username (Twitch login), like everywhere else.
+            # The display name can differ (non-Latin names, different capitalisation), so it isn't used.
+            username = discord_info.get('username')
+            if not username:
+                self.logger.warning(f"No username found for guild {guild_id}")
                 return False
-            # Convert display name to database name format (lowercase, no spaces)
-            database_name = twitch_display_name.lower().replace(' ', '')
+            database_name = str(username).lower()
             # Query the custom_commands table in the user's database
             mysql_helper = MySQLHelper(self.logger)
             custom_command = await mysql_helper.fetchone(
@@ -11383,10 +11383,12 @@ class DiscordChannelResolver:
         user_id = row['user_id']
         # Get twitch_display_name from users table
         user_row = await self.mysql.fetchone(
-            "SELECT twitch_display_name FROM users WHERE id = %s", (user_id,), database_name='website', dict_cursor=True)
+            "SELECT username, twitch_display_name FROM users WHERE id = %s", (user_id,), database_name='website', dict_cursor=True)
         if user_row:
+            row['username'] = user_row.get('username')
             row['twitch_display_name'] = user_row['twitch_display_name']
         else:
+            row['username'] = None
             row['twitch_display_name'] = None
         return row
 
