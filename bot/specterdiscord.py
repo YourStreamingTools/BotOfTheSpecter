@@ -4299,7 +4299,12 @@ class BotOfTheSpecter(commands.Bot):
                 timezone = timezone_info.get("timezone")
             else:
                 timezone = 'UTC'
-        tz = pytz.timezone(timezone)
+        try:
+            tz = pytz.timezone(str(timezone).strip())
+        except Exception:
+            # An unknown time zone in the profile falls back to UTC instead of stopping the event embed
+            self.logger.warning(f"Unknown profile time zone '{timezone}' for channel_code {channel_code}; using UTC for the event embed")
+            tz = pytz.UTC
         current_time = datetime.now(tz)
         time_format_date = current_time.strftime("%B %d, %Y")
         time_format_time = current_time.strftime("%I:%M %p")
