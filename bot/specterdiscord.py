@@ -2609,7 +2609,7 @@ class BotOfTheSpecter(commands.Bot):
             'voice_status', 'vstatus',
             # Music commands
             'play', 'skip', 's', 'next',
-            'stop', 'pause', 'queue', 'q', 'playlist',
+            'stop', 'pause', 'resume', 'unpause', 'queue', 'q', 'playlist',
             'song', 'volume',
             # Utility commands
             'quote', 'ticket', 'setuptickets', 'settings',
@@ -7429,7 +7429,44 @@ class VoiceCog(commands.Cog, name='Voice'):
             return
         await self.music_player.skip(ctx)
 
-    @commands.command(name="stop", aliases=["pause"])
+    @commands.command(name="pause")
+    async def pause_music(self, ctx):
+        # Pauses the current song without clearing the queue or leaving; !resume carries on
+        denied = self._music_control_denied(ctx)
+        if denied:
+            await self._send_music_denied(ctx, denied, "pause")
+            return
+        vc = ctx.voice_client
+        if not vc or not vc.is_playing():
+            msg = await ctx.send(embed=discord.Embed(title="⏸️ Nothing Playing", description="There's nothing playing to pause.", color=discord.Color.orange()))
+        else:
+            vc.pause()
+            msg = await ctx.send(embed=discord.Embed(title="⏸️ Paused", description="Paused the music. Use `!resume` to carry on.", color=discord.Color.blue()))
+        try:
+            await msg.delete(delay=5)
+            await ctx.message.delete(delay=5)
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "VoiceCog.pause_music: delete messages", ignored_err)
+
+    @commands.command(name="resume", aliases=["unpause"])
+    async def resume_music(self, ctx):
+        denied = self._music_control_denied(ctx)
+        if denied:
+            await self._send_music_denied(ctx, denied, "resume")
+            return
+        vc = ctx.voice_client
+        if not vc or not vc.is_paused():
+            msg = await ctx.send(embed=discord.Embed(title="▶️ Not Paused", description="The music isn't paused.", color=discord.Color.orange()))
+        else:
+            vc.resume()
+            msg = await ctx.send(embed=discord.Embed(title="▶️ Resumed", description="Carrying on with the music.", color=discord.Color.green()))
+        try:
+            await msg.delete(delay=5)
+            await ctx.message.delete(delay=5)
+        except Exception as ignored_err:
+            log_ignored_error(self.logger, "VoiceCog.resume_music: delete messages", ignored_err)
+
+    @commands.command(name="stop")
     async def stop_music(self, ctx):
         if not ctx.author.voice or not self._user_in_linked_voice_text_channel(ctx):
             embed = discord.Embed(
