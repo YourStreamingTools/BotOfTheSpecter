@@ -2709,6 +2709,12 @@ class BotOfTheSpecter(commands.Bot):
         await self.add_cog(ModerationCog(self, self.logger))
         await self.add_cog(AdminCog(self, self.logger))
         await self.add_cog(UserTrackingCog(self, self.logger))
+        # Sync slash commands only after the cogs are added, so commands they register (like /quote) are included
+        try:
+            synced = await self.tree.sync()
+            self.logger.info(f"Successfully synced {len(synced)} slash command(s): {', '.join(c.name for c in synced) or 'none'}")
+        except Exception as e:
+            self.logger.error(f"Error syncing slash commands: {e}")
         self.logger.info("BotOfTheSpecter Discord Bot has started.")
         asyncio.create_task(discord_daily_log_rotate(self.logger))
         # Start websocket listener in the background
@@ -2718,12 +2724,7 @@ class BotOfTheSpecter(commands.Bot):
         asyncio.create_task(self.live_channel_manager.start_periodic_validation())
 
     async def setup_hook(self):
-        # Sync the slash commands when the bot starts
-        try:
-            await self.tree.sync()
-            self.logger.info("Successfully synced slash commands.")
-        except Exception as e:
-            self.logger.error(f"Error syncing slash commands: {e}")
+        # Slash commands are synced in on_ready, after the cogs that register them are added
         # Add error handler for command tree
         self.tree.on_error = self.on_app_command_error
         self.logger.info("Registered persistent button handlers for role and rules buttons")
