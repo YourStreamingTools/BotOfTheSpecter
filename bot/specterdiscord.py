@@ -6276,6 +6276,17 @@ class MusicPlayer:
         # Downloads in progress; the cache cleanup waits while any are running so it can't delete a file mid-download
         self._active_downloads = 0
 
+    @staticmethod
+    def _resolve_cdn_track(query):
+        # Returns the full path of a song in the music folder, or None when the name would point
+        # outside it (../, an absolute path, or a link that leads elsewhere). Stops !play reading other files.
+        name = query if query.lower().endswith('.mp3') else f'{query}.mp3'
+        music_root = os.path.realpath(config.music_directory)
+        candidate = os.path.realpath(os.path.join(music_root, name))
+        if os.path.commonpath([music_root, candidate]) != music_root or candidate == music_root:
+            return None
+        return candidate
+
     def _get_play_lock(self, guild_id):
         lock = self._play_locks.get(guild_id)
         if lock is None:
@@ -6447,6 +6458,20 @@ class MusicPlayer:
                         log_ignored_error(self.logger, "MusicPlayer.add_to_queue: await msg.delete(delay=10)", ignored_err)
                     return
         else:
+            if self._resolve_cdn_track(query) is None:
+                self.logger.warning(f"[QUEUE] Refused !play '{query}' from {user} in guild {guild_id}: outside the music folder")
+                embed = discord.Embed(
+                    title="❌ Song Not Found",
+                    description="That song isn't in the music library.",
+                    color=discord.Color.red()
+                )
+                msg = await ctx.send(embed=embed)
+                try:
+                    await msg.delete(delay=7)
+                    await ctx.message.delete()
+                except Exception as ignored_err:
+                    log_ignored_error(self.logger, "MusicPlayer.add_to_queue: delete refused !play message", ignored_err)
+                return
             title = query if query.endswith('.mp3') else f'{query}.mp3'
         track_info = {
             'query': query,
@@ -6547,8 +6572,8 @@ class MusicPlayer:
                     # Try to get duration
                     duration = await self._probe_duration(file_path)
                 else:
-                    path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
-                    if not os.path.exists(path):
+                    path = self._resolve_cdn_track(query)
+                    if not path or not os.path.isfile(path):
                         self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
                         try:
                             await ctx.send(f"Song skipped, can't play '{query}'.")
