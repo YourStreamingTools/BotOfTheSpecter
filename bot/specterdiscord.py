@@ -4390,6 +4390,22 @@ class BotOfTheSpecter(commands.Bot):
         return None
 
     async def handle_stream_event(self, event_type, data):
+        # ONLINE events for the same channel are handled one at a time. The in-flight mark is always
+        # cleared when handling ends, even after an error, so one failure can't block that channel's alerts.
+        code = data.get("channel_code", "unknown")
+        if event_type != "ONLINE":
+            await self._handle_stream_event_body(event_type, data)
+            return
+        if code in self._stream_online_in_flight:
+            self.logger.info(f"ONLINE event for {code} is already being handled; skipping duplicate")
+            return
+        self._stream_online_in_flight.add(code)
+        try:
+            await self._handle_stream_event_body(event_type, data)
+        finally:
+            self._stream_online_in_flight.discard(code)
+
+    async def _handle_stream_event_body(self, event_type, data):
         code = data.get("channel_code", "unknown")
         self.logger.info(f"Processing {event_type} event for channel_code: {code}")
         # Use enhanced caching system - this will auto-create mapping if needed
@@ -4407,10 +4423,6 @@ class BotOfTheSpecter(commands.Bot):
         if not channel:
             self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name}")
             return
-        if event_type == "ONLINE":
-            if code in self._stream_online_in_flight:
-                return
-            self._stream_online_in_flight.add(code)
         if event_type == "OFFLINE":
             try:
                 early_verify_mysql = MySQLHelper(self.logger)
