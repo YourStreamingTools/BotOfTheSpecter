@@ -43,6 +43,9 @@ button { font: inherit; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-x: clip; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
 .topbar h1 { font-size: 18px; }
+.dev-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; background: rgba(145, 70, 255, 0.12); color: #c084fc; border: 1px solid rgba(145, 70, 255, 0.4); text-decoration: none; }
+.dev-pill:hover { background: rgba(145, 70, 255, 0.2); }
+[data-theme='light'] .dev-pill { color: #7c3aed; }
 .actions { display: flex; gap: 10px; align-items: center; }
 .content { padding: 28px; width: 100%; min-width: 0; }
 
@@ -331,6 +334,7 @@ body.no-scroll { overflow: hidden; }
   .brand-mobile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar h1 { display: none; }
   .topbar .actions { gap: 8px; flex-shrink: 0; }
+  .dev-pill-ch { display: none; }
   .seg button { min-width: 40px; min-height: 40px; justify-content: center; }
   .user img { width: 34px; height: 34px; }
   .sidebar { position: fixed; top: 0; left: 0; bottom: 0; z-index: 60; width: min(300px, 86vw); height: 100%; transform: translateX(-105%); transition: transform .22s ease; box-shadow: var(--shadow); padding-top: max(18px, env(safe-area-inset-top)); padding-bottom: max(18px, env(safe-area-inset-bottom)); padding-left: max(14px, env(safe-area-inset-left)); overflow-y: auto; overscroll-behavior: contain; align-self: auto; display: flex; }
