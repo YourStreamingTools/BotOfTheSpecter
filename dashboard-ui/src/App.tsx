@@ -6,6 +6,7 @@ import Home from './pages/Home'
 import Landing from './pages/Landing'
 import Bot from './pages/Bot'
 import Callback from './pages/Callback'
+import KeyLogin from './pages/KeyLogin'
 import NotFound from './pages/NotFound'
 import Profile from './pages/Profile'
 import Media from './pages/Media'
@@ -99,12 +100,15 @@ export default function App() {
   useEffect(() => (saved ? undefined : onOsChange(() => setSys(osTheme()))), [saved])
   const choose = (t: ThemeName) => { saveTheme(t); setSaved(t) }
   useEffect(() => {
-    if (path === '/auth/callback') return
+    if (path === '/auth/callback' || path === '/login/key') return
     fetchMe().then((m) => { if (m) markSignedIn(); else if (wasSignedIn()) markExpired(); setMe(m) }).catch(() => setMe(null))
-  }, [path === '/auth/callback'])
+  }, [path === '/auth/callback' || path === '/login/key'])
 
   if (path === '/auth/callback') {
     return <Callback onDone={() => { setMe(undefined); const to = takeReturn(); window.history.replaceState({}, '', to); go(to) }} />
+  }
+  if (path === '/login/key') {
+    return <KeyLogin onDone={() => { setMe(undefined); window.history.replaceState({}, '', '/'); go('/') }} />
   }
   if (me === undefined) return <div className="center"><i className="fa-solid fa-spinner fa-spin" /></div>
   if (me === null) {

@@ -28,6 +28,8 @@ beta_json(200, [
     'profile_image' => $_SESSION['profile_image'] ?? null,
     'twitch_user_id' => $_SESSION['twitchUserId'],
     'is_admin' => $isAdmin,
+    // Signed in with /login/key as an API key's demo account.
+    'is_demo' => !empty($_SESSION['is_demo']),
     'dashboard_version' => BETA_DASHBOARD_VERSION,
     // Admin Act As (started from beta.admin Users): who is being viewed.
     'acting_as' => !empty($_SESSION['admin_act_as_active']) ? [

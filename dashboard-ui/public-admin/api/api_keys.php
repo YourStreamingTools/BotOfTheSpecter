@@ -214,6 +214,148 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['regenerate_key'])) {
 }
 
 // ---- beta admin tail (scripts/admin-tails) ----
+// Shared: the page's lang strings by prefix (prefix stripped), dashes normalised.
+if (!function_exists('badm_lang')) {
+    function badm_lang(string $prefix): array {
+        global $translations;
+        $out = [];
+        foreach (($translations ?? []) as $k => $v) {
+            if (is_string($v) && strncmp($k, $prefix, strlen($prefix)) === 0) {
+                $out[substr($k, strlen($prefix))] = str_replace(["\u{2014}", "\u{2013}"], '-', $v);
+            }
+        }
+        return $out;
+    }
+}
+// Beta only: Admin access (every channel), Mobile app access and Dashboard
+// access. App and Dashboard sign in as the key's demo account (a users row
+// with is_demo = 1, made here the first time either is switched on) with the
+// key's password. The live page knows nothing of these columns.
+function badm_keys_ensure_access_columns(mysqli $conn): void {
+    // Same change as migrations/website/20261104_0001_admin_api_keys_app_dashboard_access.php.
+    $cols = [
+        'admin_access' => "TINYINT(1) NOT NULL DEFAULT 1",
+        'app_access' => "TINYINT(1) NOT NULL DEFAULT 0",
+        'dashboard_access' => "TINYINT(1) NOT NULL DEFAULT 0",
+        'channel' => "VARCHAR(64) NULL DEFAULT NULL",
+        'password' => "VARCHAR(255) NULL DEFAULT NULL",
+    ];
+    foreach ($cols as $name => $def) {
+        if (!admin_api_keys_column_exists($conn, $name)) $conn->query("ALTER TABLE admin_api_keys ADD COLUMN `$name` $def");
+    }
+    $r = $conn->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_demo'");
+    if ($r && $r->num_rows === 0) $conn->query("ALTER TABLE users ADD COLUMN is_demo TINYINT(1) NOT NULL DEFAULT 0");
+    if ($r) $r->free();
+}
+function badm_keys_json(array $body): never {
+    ob_end_clean();
+    header('Content-Type: application/json');
+    echo json_encode($body);
+    exit;
+}
+function badm_keys_row(mysqli $conn, string $service): ?array {
+    $st = $conn->prepare('SELECT service, admin_access, app_access, dashboard_access, channel, password FROM admin_api_keys WHERE service = ? LIMIT 1');
+    $st->bind_param('s', $service);
+    $st->execute();
+    $row = $st->get_result()->fetch_assoc();
+    $st->close();
+    return $row ?: null;
+}
+function badm_keys_access_out(array $row): array {
+    return [
+        'admin_access' => (int) $row['admin_access'],
+        'app_access' => (int) $row['app_access'],
+        'dashboard_access' => (int) $row['dashboard_access'],
+        'channel' => $row['channel'],
+        'password_set' => empty($row['password']) ? 0 : 1,
+    ];
+}
+// Makes the demo account: a users row with no Twitch account, so it shows on
+// User Management. Returns [error, username].
+function badm_keys_make_demo(mysqli $conn, string $name): array {
+    $name = strtolower(trim($name));
+    // The username is also the channel's database name (usr_database.php).
+    if (!preg_match('/^[a-z0-9_]{3,25}$/', $name)) return ['The demo account name must be 3 to 25 letters, numbers or underscores.', null];
+    $st = $conn->prepare('SELECT 1 FROM users WHERE LOWER(username) = ? LIMIT 1');
+    $st->bind_param('s', $name);
+    $st->execute();
+    $taken = $st->get_result()->num_rows > 0;
+    $st->close();
+    if ($taken) return ['A user named "' . $name . '" already exists. Pick another demo account name.', null];
+    $apiKey = bin2hex(random_bytes(16));
+    $image = 'https://cdn.botofthespecter.com/logo.png';
+    $st = $conn->prepare("INSERT INTO users (username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin, new_media, is_demo) VALUES (?, '', '', ?, ?, '', ?, '', 0, 1, 1)");
+    if (!$st) return ['Could not create the demo account: ' . $conn->error, null];
+    $st->bind_param('ssss', $name, $apiKey, $image, $name);
+    $ok = $st->execute();
+    $err = $st->error;
+    $st->close();
+    if (!$ok) return ['Could not create the demo account: ' . $err, null];
+    admin_audit_log('admin_demo_account_create', 'info', ['username' => $name], 'user', $name);
+    return [null, $name];
+}
+// Applies the posted access fields to a key. $row is the key's current row.
+function badm_keys_apply(mysqli $conn, array $row): array {
+    $admin = admin_api_keys_flag($_POST['admin_access'] ?? 1);
+    $app = admin_api_keys_flag($_POST['app_access'] ?? 0);
+    $dash = admin_api_keys_flag($_POST['dashboard_access'] ?? 0);
+    $password = (string) ($_POST['password'] ?? '');
+    $channel = $row['channel'] ?? null;
+    if ($password !== '' && strlen($password) < 6) return ['The password must be at least 6 characters.', null];
+    if (($app || $dash) && empty($row['password']) && $password === '') return ['Set a password for Mobile app or Dashboard access.', null];
+    if (($app || $dash) && empty($channel)) {
+        [$err, $channel] = badm_keys_make_demo($conn, (string) ($_POST['demo_name'] ?? ''));
+        if ($err !== null) return [$err, null];
+    }
+    $hash = $password !== '' ? password_hash($password, PASSWORD_ARGON2ID) : null;
+    // A blank password keeps the stored one.
+    $st = $conn->prepare('UPDATE admin_api_keys SET admin_access = ?, app_access = ?, dashboard_access = ?, channel = ?, password = COALESCE(?, password) WHERE service = ?');
+    $st->bind_param('iiisss', $admin, $app, $dash, $channel, $hash, $row['service']);
+    $ok = $st->execute();
+    $st->close();
+    if (!$ok) return ['Could not update key access.', null];
+    admin_audit_log('admin_api_key_access', 'info', [
+        'service' => $row['service'], 'admin_access' => $admin, 'app_access' => $app, 'dashboard_access' => $dash,
+        'channel' => $channel, 'password_changed' => $hash !== null,
+    ], 'admin_api_key', $row['service']);
+    return [null, badm_keys_row($conn, $row['service'])];
+}
+badm_keys_ensure_access_columns($conn);
+// POST create_key_access: create_key plus the access fields, in one go.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_key_access'])) {
+    $service = trim((string) ($_POST['service'] ?? ''));
+    if ($service === '') badm_keys_json(['success' => false, 'message' => t('admin_api_keys_error_service_empty')]);
+    if (badm_keys_row($conn, $service)) badm_keys_json(['success' => false, 'message' => 'A key for "' . $service . '" already exists.']);
+    $app = admin_api_keys_flag($_POST['app_access'] ?? 0);
+    $dash = admin_api_keys_flag($_POST['dashboard_access'] ?? 0);
+    $password = (string) ($_POST['password'] ?? '');
+    // Checked before anything is written, so a bad form makes no key.
+    if (($app || $dash) && strlen($password) < 6) badm_keys_json(['success' => false, 'message' => $password === '' ? 'Set a password for Mobile app or Dashboard access.' : 'The password must be at least 6 characters.']);
+    $apiKey = bin2hex(random_bytes(16));
+    $wsA = admin_api_keys_flag($_POST['websocket_access'] ?? 0);
+    $wsG = $wsA ? admin_api_keys_flag($_POST['websocket_global'] ?? 0) : 0;
+    $st = $conn->prepare('INSERT INTO admin_api_keys (service, api_key, websocket_access, websocket_global) VALUES (?, ?, ?, ?)');
+    $st->bind_param('ssii', $service, $apiKey, $wsA, $wsG);
+    $ok = $st->execute();
+    $err = $st->error;
+    $st->close();
+    if (!$ok) badm_keys_json(['success' => false, 'message' => t('admin_api_keys_error_create_failed', [$err])]);
+    admin_audit_log('admin_api_key_create', 'info', ['service' => $service, 'websocket_access' => $wsA, 'websocket_global' => $wsG], 'admin_api_key', $service);
+    [$err, $row] = badm_keys_apply($conn, badm_keys_row($conn, $service));
+    if ($err !== null) {
+        // The key exists now, without the access that failed.
+        badm_keys_json(['success' => true, 'message' => t('admin_api_keys_msg_created') . ' ' . $err, 'api_key' => $apiKey, 'warning' => $err]);
+    }
+    badm_keys_json(['success' => true, 'message' => t('admin_api_keys_msg_created'), 'api_key' => $apiKey]);
+}
+// POST update_access: the Admin / Mobile app / Dashboard switches and the password.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_access'])) {
+    $row = badm_keys_row($conn, trim((string) ($_POST['service'] ?? '')));
+    if (!$row) badm_keys_json(['success' => false, 'message' => 'Key not found.']);
+    [$err, $row] = badm_keys_apply($conn, $row);
+    if ($err !== null) badm_keys_json(['success' => false, 'message' => $err]);
+    badm_keys_json(['success' => true, 'message' => 'Key access updated', 'access' => badm_keys_access_out($row)]);
+}
 // GET ?reveal=<service>: one key, fetched only when Reveal / Copy is pressed (audited).
 // GET: the table without the key values (the old page printed them into the HTML).
 ob_end_clean();
@@ -231,10 +373,20 @@ if (isset($_GET['reveal'])) {
 }
 $api_keys = [];
 $api_keys_error = '';
-$result = $conn->query("SELECT service, websocket_access, websocket_global FROM admin_api_keys ORDER BY service");
+$result = $conn->query("SELECT service, websocket_access, websocket_global, admin_access, app_access, dashboard_access, channel, password FROM admin_api_keys ORDER BY service");
 if ($result) {
     while ($row = $result->fetch_assoc()) {
-        $api_keys[] = ['service' => $row['service'], 'websocket_access' => (int) $row['websocket_access'], 'websocket_global' => (int) $row['websocket_global']];
+        $api_keys[] = [
+            'service' => $row['service'],
+            'websocket_access' => (int) $row['websocket_access'],
+            'websocket_global' => (int) $row['websocket_global'],
+            'admin_access' => (int) $row['admin_access'],
+            'app_access' => (int) $row['app_access'],
+            'dashboard_access' => (int) $row['dashboard_access'],
+            'channel' => $row['channel'],
+            // Never the hash itself.
+            'password_set' => empty($row['password']) ? 0 : 1,
+        ];
     }
     $result->free();
 } else {

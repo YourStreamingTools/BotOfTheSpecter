@@ -186,6 +186,7 @@ if ($isListAjax) {
             'beta_access' => (int) ($row['beta_access'] ?? 0),
             'beta_programs' => $row['beta_programs'] ?? '[]',
             'is_deceased' => (int) ($row['is_deceased'] ?? 0),
+            'is_demo' => (int) ($row['is_demo'] ?? 0),
             'deceased_date' => $row['deceased_date'] ?? null,
             'signup_date' => $row['signup_date'] ?? null,
             'last_login' => $row['last_login'] ?? null,
