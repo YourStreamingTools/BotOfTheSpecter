@@ -193,9 +193,29 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
                 textShadow = '2px 2px 4px rgba(255,255,255,0.8)';
             }
             nowPlayingDiv.style.textShadow = textShadow;
-            nowPlayingDiv.style.top = '50%';
-            nowPlayingDiv.style.left = '50%';
-            nowPlayingDiv.style.transform = 'translate(-50%, -50%)';
+            // &align=left|center|right and &valign=top|middle|bottom place the text in the source (default: centred).
+            const alignParam = (urlParams.get('align') || 'center').toLowerCase();
+            const valignParam = (urlParams.get('valign') || 'middle').toLowerCase();
+            const hAlign = ['left', 'right'].includes(alignParam) ? alignParam : 'center';
+            const vAlign = ['top', 'bottom'].includes(valignParam) ? valignParam : 'middle';
+            let translateX = '0', translateY = '0';
+            if (hAlign === 'left') {
+                nowPlayingDiv.style.left = '0';
+            } else if (hAlign === 'right') {
+                nowPlayingDiv.style.right = '0';
+            } else {
+                nowPlayingDiv.style.left = '50%';
+                translateX = '-50%';
+            }
+            if (vAlign === 'top') {
+                nowPlayingDiv.style.top = '0';
+            } else if (vAlign === 'bottom') {
+                nowPlayingDiv.style.bottom = '0';
+            } else {
+                nowPlayingDiv.style.top = '50%';
+                translateY = '-50%';
+            }
+            nowPlayingDiv.style.transform = `translate(${translateX}, ${translateY})`;
         } else {
             nowPlayingDiv.style.display = 'none';
         }

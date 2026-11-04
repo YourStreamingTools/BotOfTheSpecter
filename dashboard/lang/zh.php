@@ -2577,7 +2577,10 @@ return [
     'overlays_credits_slow' => '慢的',
     'overlays_credits_fast' => '快速地',
     'overlays_chat_overlay_note' => '使用 <code> &amp; max=30</code> 自定义消息上限（默认值：20）。 <br> 在任意多个 OBS 场景中添加相同的 URL 作为聊天叠加源 - 它们都共享一个聊天历史记录，因此当您切换场景时它会保留下来。',
-    'overlays_music_overlay_note' => '将 <code>&amp;nowplaying</code> 添加到 URL 以显示正在播放的文本。<br> 示例：《3》music.php?code=API_KEY_HERE《9》正在播放《10》颜色=白色《4》.《5》 使用 <code>&amp;color=white</code> 自定义颜色。',
+    'overlays_music_overlay_note' => '将 <code>&amp;nowplaying</code> 添加到 URL 以显示正在播放的文本。<br>
+                示例：<code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>。<br>
+                使用 <code>&amp;color=white</code> 自定义颜色。<br>
+                使用 <code>&amp;align=left</code>、<code>center</code> 或 <code>right</code> 以及 <code>&amp;valign=top</code>、<code>middle</code> 或 <code>bottom</code> 设置文本位置（默认：居中）。长标题保持单行并滚动显示。',
     'overlays_counter_display' => '柜台展示',
     'overlays_counter_display_desc' => '显示任何计数器的实时值 - 非常适合屏幕上的“猫被发现：7”之类的内容。在下面输入计数器名称，根据需要调整颜色，然后将 URL 放入 OBS 作为浏览器源。',
     'overlays_counter_builtin_note' => '您可以立即使用的内置计数器：《0》死亡数《1》、《2》stream_deaths《3》、《4》拥抱《5》、《6》亲吻《7》、《8》高五数《9》、《10》打字错误《11》、《12》潜伏者《13》。任何其他名称均从您的自定义《14》《16》《15》计数器中提取。',

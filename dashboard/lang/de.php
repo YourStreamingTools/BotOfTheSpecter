@@ -2576,7 +2576,8 @@ return [
                 Füge dieselbe URL als Chat-Overlay-Quelle in beliebig vielen OBS-Szenen hinzu - sie teilen sich alle denselben Chatverlauf, der somit beim Szenenwechsel erhalten bleibt.',
     'overlays_music_overlay_note' => 'Füge <code>&amp;nowplaying</code> zur URL hinzu, um den Text „Aktuell läuft" anzuzeigen.<br>
                 Beispiel: <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
-                Passe die Farbe mit <code>&amp;color=white</code> an.',
+                Passe die Farbe mit <code>&amp;color=white</code> an.<br>
+                Positioniere den Text mit <code>&amp;align=left</code>, <code>center</code> oder <code>right</code> und <code>&amp;valign=top</code>, <code>middle</code> oder <code>bottom</code> (Standard: mittig). Lange Titel bleiben einzeilig und laufen durch.',
     'overlays_counter_display' => 'Zähleranzeige',
     'overlays_counter_display_desc' => 'Zeige den Live-Wert eines beliebigen Zählers an &mdash; ideal für Dinge wie „gesichtete Katzen: 7" auf dem Bildschirm. Gib unten einen Zählernamen ein, passe bei Bedarf die Farben an und füge die URL als Browserquelle in OBS ein.',
     'overlays_counter_builtin_note' => 'Integrierte Zähler, die du sofort verwenden kannst: <code>deaths</code>, <code>stream_deaths</code>, <code>hugs</code>, <code>kisses</code>, <code>highfives</code>, <code>typos</code>, <code>lurkers</code>. Jeder andere Name greift auf deine benutzerdefinierten <code>!count</code>-Zähler zu.',

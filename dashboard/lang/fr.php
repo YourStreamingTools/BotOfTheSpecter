@@ -2576,7 +2576,8 @@ return [
                 Ajoutez cette même URL comme source d\'overlay de chat dans autant de scènes OBS que vous le souhaitez - elles partagent toutes le même historique de chat, qui est donc conservé lorsque vous changez de scène.',
     'overlays_music_overlay_note' => 'Ajoutez <code>&amp;nowplaying</code> à l\'URL pour afficher le texte « En cours de lecture ».<br>
                 Exemple : <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
-                Personnalisez la couleur avec <code>&amp;color=white</code>.',
+                Personnalisez la couleur avec <code>&amp;color=white</code>.<br>
+                Placez le texte avec <code>&amp;align=left</code>, <code>center</code> ou <code>right</code> et <code>&amp;valign=top</code>, <code>middle</code> ou <code>bottom</code> (par défaut : centré). Les titres longs restent sur une ligne et défilent.',
     'overlays_counter_display' => 'Affichage de compteur',
     'overlays_counter_display_desc' => 'Affichez la valeur en direct de n\'importe quel compteur &mdash; parfait pour des choses comme « chats repérés : 7 » à l\'écran. Saisissez un nom de compteur ci-dessous, ajustez les couleurs si vous le souhaitez, puis ajoutez l\'URL dans OBS comme source navigateur.',
     'overlays_counter_builtin_note' => 'Compteurs intégrés que vous pouvez utiliser immédiatement : <code>deaths</code>, <code>stream_deaths</code>, <code>hugs</code>, <code>kisses</code>, <code>highfives</code>, <code>typos</code>, <code>lurkers</code>. Tout autre nom récupère vos compteurs personnalisés <code>!count</code>.',
