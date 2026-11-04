@@ -10,30 +10,37 @@ $in = json_decode((string) file_get_contents('php://input'), true);
 if (!is_array($in)) $in = [];
 $key = trim((string) ($in['api_key'] ?? ''));
 $password = (string) ($in['password'] ?? '');
-// The same answer for every failure, after a pause, so guesses learn nothing.
-$fail = function (): never {
+// Each failure says which check failed (keys are 32 random hex characters, so
+// this gives guessing nothing), after a pause, and is logged without secrets.
+$fail = function (string $why, string $service = ''): never {
+    error_log('beta key_login failed: ' . $why . ($service !== '' ? ' (service ' . $service . ')' : '') . ' from ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     usleep(750000);
-    beta_json(401, ['ok' => false, 'error' => 'invalid']);
+    beta_json(401, ['ok' => false, 'error' => $why]);
 };
-if ($key === '' || $password === '' || strlen($key) > 128) $fail();
+if ($key === '' || $password === '' || strlen($key) > 128) $fail('missing');
 
 require_once '/var/www/config/db_connect.php';
 mysqli_report(MYSQLI_REPORT_OFF);
-$st = $conn->prepare('SELECT service, channel, password FROM admin_api_keys WHERE api_key = ? AND dashboard_access = 1 LIMIT 1');
-if (!$st) $fail();
+$st = $conn->prepare('SELECT service, dashboard_access, channel, password FROM admin_api_keys WHERE api_key = ? LIMIT 1');
+if (!$st) { error_log('beta key_login db: ' . $conn->error); $fail('db'); }
 $st->bind_param('s', $key);
 $st->execute();
 $k = $st->get_result()->fetch_assoc();
 $st->close();
-if (!$k || empty($k['channel']) || empty($k['password']) || !password_verify($password, $k['password'])) $fail();
+if (!$k) $fail('key');
+if ((int) $k['dashboard_access'] !== 1) $fail('no_dashboard_access', (string) $k['service']);
+if (empty($k['channel'])) $fail('no_demo_account', (string) $k['service']);
+if (empty($k['password'])) $fail('no_password', (string) $k['service']);
+if (!password_verify($password, $k['password'])) $fail('password', (string) $k['service']);
 
-$st = $conn->prepare('SELECT * FROM users WHERE username = ? AND is_demo = 1 LIMIT 1');
-if (!$st) $fail();
+$st = $conn->prepare('SELECT * FROM users WHERE username = ? LIMIT 1');
+if (!$st) { error_log('beta key_login db: ' . $conn->error); $fail('db'); }
 $st->bind_param('s', $k['channel']);
 $st->execute();
 $u = $st->get_result()->fetch_assoc();
 $st->close();
-if (!$u) $fail();
+if (!$u) $fail('no_demo_account', (string) $k['service']);
+if ((int) ($u['is_demo'] ?? 0) !== 1) $fail('not_demo', (string) $k['service']);
 
 beta_session_start();
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
