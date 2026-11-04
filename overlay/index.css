@@ -3156,3 +3156,18 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .pet-overlay-page-status[data-state="error"] {
     color: #ff6555;
 }
+
+/* Music overlay (?nowplaying): long titles stay on one line and scroll as a loop. */
+.now-playing-track {
+    display: inline-block;
+    white-space: nowrap;
+}
+.now-playing-track.now-playing-scroll {
+    animation-name: nowPlayingScroll;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+@keyframes nowPlayingScroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(var(--np-distance)); }
+}

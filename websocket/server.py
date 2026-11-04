@@ -964,8 +964,9 @@ class BotOfTheSpecter_WebsocketServer:
         self.pomo_ticker_task = asyncio.create_task(pomo_ticker())
         self.logger.info("Pomo ticker task started")
 
-    async def event(self, sid, event, data):
-        # Handle generic events for SocketIO.
+    async def event(self, event, sid, data=None):
+        # Catch-all ("*") handler for SocketIO: python-socketio calls it as (event, sid, data).
+        # The order matters - with sid and event swapped, NOW_PLAYING and MUSIC_SETTINGS were never relayed.
         self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
         # Timer-specific events - route only to Dashboard and Overlay timer clients
         timer_events = [
