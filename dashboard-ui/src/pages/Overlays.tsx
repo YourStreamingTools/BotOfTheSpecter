@@ -99,7 +99,7 @@ export default function Overlays() {
 // Same colours overlay/counters.php accepts: 3 or 6 digit hex, or its named list.
 const NAMED = ['white', 'black', 'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'cyan', 'magenta', 'gray', 'grey', 'brown', 'transparent', 'aqua', 'lime', 'maroon', 'navy', 'olive', 'silver', 'teal', 'gold', 'indigo', 'violet']
 const HEX_RE = /^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/
-const colourOk = (v: string) => HEX_RE.test(v) || NAMED.includes(v.toLowerCase())
+export const colourOk = (v: string) => HEX_RE.test(v) || NAMED.includes(v.toLowerCase())
 // Swatch value for the native picker: hex as is, named colours resolved by the browser.
 function toHex(v: string): string | null {
   const t = v.trim(); if (!t) return null
@@ -115,7 +115,7 @@ const TYPES = [
   { value: 'name', label: 'Name', hint: 'Event Name' },
   { value: 'json', label: 'JSON', hint: 'For your own code' },
 ]
-function ColourField({ id, label, help, value, set, ph, transparent }: { id: string; label: string; help: ReactNode; value: string; set: (s: string) => void; ph: string; transparent?: boolean }) {
+export function ColourField({ id, label, help, value, set, ph, transparent }: { id: string; label: string; help: ReactNode; value: string; set: (s: string) => void; ph: string; transparent?: boolean }) {
   const bad = value.trim() !== '' && !colourOk(value.trim())
   const hex = toHex(value), clear = transparent && (value.trim() === '' || value.trim().toLowerCase() === 'transparent')
   return (

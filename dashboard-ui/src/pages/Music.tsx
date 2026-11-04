@@ -3,6 +3,8 @@ import Modal from '../components/Modal'
 import Combobox from '../components/Combobox'
 import { get } from '../bot'
 import { Switch, ToastBar, send, type Toast } from './commands/shared'
+import { UrlReveal } from '../components/UrlReveal'
+import { ColourField, colourOk } from './Overlays'
 
 // Port of dashboard/music.php via public/api/music/ (scripts/sync-live-api.sh).
 const API = '/api/music/music.php'
@@ -175,6 +177,7 @@ export default function Music() {
         <audio ref={audio} onEnded={ended} onError={() => { if (local && cur) { setPlaying(false); setToast({ kind: 'err', text: 'This song could not be loaded.' }) } }} />
       </section>
       {err && <div className="notice notice-err"><i className="fas fa-triangle-exclamation" /> <span>{err}</span></div>}
+      <OverlayLinkCard toast={setToast} />
       {list && <LibraryCard list={list} onSource={saveSource} post={post} toast={setToast} reload={load} />}
       {list && <PlaylistCard list={list} tracks={tracks} inSource={inSource} excl={excl} setFilter={setFilter} curKey={curKey} playing={playing} busy={busy} play={playSong} post={post} toast={setToast} reload={load} />}
       {!list && !err && <section className="card"><div className="cmd-list">{[0, 1, 2, 3].map((i) => <div key={i} className="cmd-row"><span className="skel skel-line" /></div>)}</div></section>}
@@ -311,6 +314,42 @@ function PlaylistCard({ list, tracks, inSource, excl, setFilter, curKey, playing
         <p><b>{del.title}</b> is removed from your uploads and the overlay. This cannot be undone.</p>
         <div className="modal-acts"><button type="button" className="btn btn-ghost" data-autofocus onClick={() => setDel(null)}>Keep song</button><button type="button" className="btn btn-danger" disabled={dbusy} onClick={doDelete}><i className={dbusy ? 'fas fa-spinner fa-spin' : 'fas fa-trash'} /> Delete</button></div>
       </Modal>}
+    </section>
+  )
+}
+
+// Overlay link with the now-playing options built in, so the copied URL already has them.
+const H_ALIGN = [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }]
+const V_ALIGN = [{ value: 'top', label: 'Top' }, { value: 'middle', label: 'Middle' }, { value: 'bottom', label: 'Bottom' }]
+function OverlayLinkCard({ toast }: { toast: (t: Toast) => void }) {
+  const [show, setShow] = useState(true), [color, setColor] = useState(''), [align, setAlign] = useState('center'), [valign, setValign] = useState('middle')
+  const badC = show && color.trim() !== '' && !colourOk(color.trim())
+  async function overlayUrl() {
+    const r = await get<{ success: boolean; url?: string; message?: string }>(`/api/overlays/overlays.php?${new URLSearchParams({ beta: 'url', o: 'music' })}`)
+    if (!r.success || !r.url) throw new Error(r.message || 'Could not get the overlay URL.')
+    let u = r.url
+    if (show) {
+      u += '&nowplaying'
+      if (color.trim()) u += '&color=' + encodeURIComponent(color.trim().replace(/^#/, ''))
+      if (align !== 'center') u += '&align=' + align
+      if (valign !== 'middle') u += '&valign=' + valign
+    }
+    return u
+  }
+  return (
+    <section className="card" aria-label="Overlay link">
+      <div className="card-title-row"><h3 className="card-h"><i className="fas fa-link" /> Overlay link</h3></div>
+      <div className="mp-rows">
+        <div className="mp-row"><div className="mp-row-l"><span className="mp-lbl">Show the song title</span><span className="muted">Long titles stay on one line and scroll.</span></div><div className="mp-row-r"><Switch on={show} label="Show the song title" onChange={setShow} /></div></div>
+        {show && <>
+          <ColourField id="mu-oc" label="Text colour" help="White unless you pick one." value={color} set={setColor} ph="white or ffffff" />
+          <div className="mp-row"><div className="mp-row-l"><span className="mp-lbl">Horizontal</span><span className="muted">Where the title sits across the source.</span></div><div className="mp-row-r mp-sel"><Combobox label="Horizontal" searchable={false} value={align} onChange={setAlign} options={H_ALIGN} /></div></div>
+          <div className="mp-row"><div className="mp-row-l"><span className="mp-lbl">Vertical</span><span className="muted">Where the title sits up and down the source.</span></div><div className="mp-row-r mp-sel"><Combobox label="Vertical" searchable={false} value={valign} onChange={setValign} options={V_ALIGN} /></div></div>
+        </>}
+        <div className="mp-row"><div className="mp-row-l"><span className="mp-lbl">Overlay URL</span><span className="muted">Add as a browser source in OBS.</span></div>
+          <div className="mp-row-r mp-urlbox"><UrlReveal name="Music overlay" mask="https://overlay.botofthespecter.com/music.php?code=••••••••••••" copied="Music overlay URL copied." disabled={badC} toast={toast}
+            resetKey={[show, color, align, valign].join('|')} fetchUrl={overlayUrl} /></div></div>
+      </div>
     </section>
   )
 }
