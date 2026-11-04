@@ -193,7 +193,13 @@ export default function App() {
         </header>
         {me.acting_as && <div className="notice notice-warn act-as-bar" role="status"><i className="fas fa-user-secret" /> <span>Viewing as <strong>{me.acting_as.display_name || me.acting_as.username || 'the selected user'}</strong></span> <a className="btn" href="/api/stop_act_as.php"><i className="fas fa-arrow-right-from-bracket" /> Stop Acting As</a></div>}
         <ActAsNote />
-        <main className="content">{page}</main>
+        <main className="content">{me.is_demo ? (
+          <>
+            <div className="card notice notice-info demo-note"><i className="fa-solid fa-circle-info" /> <span>This is a demo account and has no operational control.</span></div>
+            {/* Every button, switch and field on the page is shown but disabled. */}
+            <fieldset disabled className="demo-lock">{page}</fieldset>
+          </>
+        ) : page}</main>
       </div>
     </div>
   )

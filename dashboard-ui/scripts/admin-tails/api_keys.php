@@ -70,7 +70,7 @@ function badm_keys_make_demo(mysqli $conn, string $name): array {
 // The demo channel's own database, made the way the old dashboard makes one for
 // every signed-in channel (same as User Databases). The admin session was
 // already closed, so swapping the username here is never saved.
-function badm_keys_demo_database(string $name): void {
+function badm_keys_demo_database(string $name): array {
     $prev = $_SESSION['username'] ?? null;
     $_SESSION['username'] = $name;
     ob_start();
@@ -81,6 +81,92 @@ function badm_keys_demo_database(string $name): void {
     }
     ob_end_clean();
     $_SESSION['username'] = $prev;
+    return badm_keys_demo_seed($name);
+}
+// Sample data in the demo channel's own tables, so the pages it can see have
+// something in them: custom commands, commands from made-up viewers, timed
+// messages and known users with welcome messages. A table that already has rows
+// is left alone, so running it again never duplicates or overwrites anything.
+function badm_keys_demo_seed(string $name): array {
+    if (!preg_match('/^[a-z0-9_]{3,25}$/', $name)) return [];
+    include '/var/www/config/database.php';
+    mysqli_report(MYSQLI_REPORT_OFF);
+    $db = @new mysqli($db_servername ?? '', $db_username ?? '', $db_password ?? '', $name);
+    if ($db->connect_error) {
+        error_log('api_keys demo seed for ' . $name . ': ' . $db->connect_error);
+        return [];
+    }
+    $db->set_charset('utf8mb4');
+    $empty = function (string $table) use ($db): bool {
+        $r = $db->query("SELECT 1 FROM `$table` LIMIT 1");
+        if (!$r) return false;
+        $none = $r->num_rows === 0;
+        $r->free();
+        return $none;
+    };
+    $added = [];
+    if ($empty('custom_commands')) {
+        $st = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, ?, ?, ?)");
+        foreach ([
+            ['hello', 'Hello and welcome to the stream! Grab a drink and say hi in chat.', 'Enabled', 15, 'everyone'],
+            ['discord', 'Join the community Discord to hang out between streams.', 'Enabled', 30, 'everyone'],
+            ['schedule', 'We stream Monday, Wednesday and Friday evenings.', 'Enabled', 30, 'everyone'],
+            ['socials', 'Follow along on all the socials, links are in the panels below the stream.', 'Enabled', 30, 'everyone'],
+            ['hydrate', 'Time for a water break! Stay hydrated, chat.', 'Enabled', 60, 'mod'],
+            ['oldgiveaway', 'The giveaway has ended. Thanks to everyone who entered!', 'Disabled', 15, 'everyone'],
+        ] as [$c, $r, $stt, $cd, $perm]) {
+            $st->bind_param('sssis', $c, $r, $stt, $cd, $perm);
+            $st->execute();
+        }
+        $st->close();
+        $added[] = 'custom commands';
+    }
+    if ($empty('custom_user_commands')) {
+        $st = $db->prepare("INSERT INTO custom_user_commands (command, response, status, cooldown, user_id) VALUES (?, ?, 'Enabled', ?, ?)");
+        foreach ([
+            ['panda', 'PixelPanda rolls into chat!', 15, 'pixelpanda'],
+            ['owl', 'NightOwl is watching... always watching.', 30, 'nightowl_gg'],
+            ['speedrun', 'RetroRunner says: any% or bust!', 15, 'retrorunner'],
+            ['cozy', 'CozyCatLady brought snacks for everyone.', 20, 'cozycatlady'],
+        ] as [$c, $r, $cd, $u]) {
+            $st->bind_param('ssis', $c, $r, $cd, $u);
+            $st->execute();
+        }
+        $st->close();
+        $added[] = 'user commands';
+    }
+    if ($empty('timed_messages')) {
+        $st = $db->prepare("INSERT INTO timed_messages (interval_count, chat_line_trigger, message, status, trigger_type) VALUES (?, ?, ?, ?, ?)");
+        foreach ([
+            [15, null, 'Enjoying the stream? Hit follow so you never miss one!', '1', 'timer'],
+            [null, 40, 'Join the community Discord, type !discord for the link.', '1', 'chat_lines'],
+            [30, 60, 'Remember to stretch and drink some water!', '1', 'both'],
+            [45, null, 'Old sponsor message, switched off.', '0', 'timer'],
+        ] as [$every, $lines, $msg, $stt, $type]) {
+            $st->bind_param('iisss', $every, $lines, $msg, $stt, $type);
+            $st->execute();
+        }
+        $st->close();
+        $added[] = 'timed messages';
+    }
+    if ($empty('seen_users')) {
+        $st = $db->prepare("INSERT INTO seen_users (username, welcome_message, status, first_seen, last_seen) VALUES (?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY))");
+        foreach ([
+            ['pixelpanda', 'Welcome back PixelPanda, the bamboo is ready!', 'True', 120, 1],
+            ['nightowl_gg', 'The night owl has landed. Welcome back!', 'True', 90, 2],
+            ['retrorunner', 'RetroRunner is here, time to go fast!', 'True', 60, 3],
+            ['cozycatlady', 'Welcome back CozyCatLady, make yourself at home.', 'True', 45, 5],
+            ['lurkingluke', null, 'True', 30, 7],
+            ['bannedbob', 'This welcome message is switched off.', 'False', 20, 10],
+        ] as [$u, $w, $stt, $first, $last]) {
+            $st->bind_param('sssii', $u, $w, $stt, $first, $last);
+            $st->execute();
+        }
+        $st->close();
+        $added[] = 'known users';
+    }
+    $db->close();
+    return $added;
 }
 // Applies the posted access fields to a key. $row is the key's current row.
 function badm_keys_apply(mysqli $conn, array $row): array {
@@ -135,6 +221,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_key_access']))
         badm_keys_json(['success' => true, 'message' => t('admin_api_keys_msg_created') . ' ' . $err, 'api_key' => $apiKey, 'warning' => $err]);
     }
     badm_keys_json(['success' => true, 'message' => t('admin_api_keys_msg_created'), 'api_key' => $apiKey]);
+}
+// POST demo_data: fill (or finish making) the key's demo account: its channel
+// database and the sample data in empty tables.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demo_data'])) {
+    $row = badm_keys_row($conn, trim((string) ($_POST['service'] ?? '')));
+    if (!$row || empty($row['channel'])) badm_keys_json(['success' => false, 'message' => 'This key has no demo account.']);
+    $added = badm_keys_demo_database((string) $row['channel']);
+    admin_audit_log('admin_demo_account_seed', 'info', ['username' => $row['channel'], 'added' => $added], 'user', (string) $row['channel']);
+    badm_keys_json(['success' => true, 'message' => $added ? 'Added demo ' . implode(', ', $added) . '.' : 'The demo account already has data in every table, so nothing was added.']);
 }
 // POST update_access: the Admin / Mobile app / Dashboard switches and the password.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_access'])) {

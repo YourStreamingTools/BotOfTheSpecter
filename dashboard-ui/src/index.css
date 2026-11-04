@@ -2519,3 +2519,7 @@ span.vault-art { cursor: default; }
 /* Reveal and Hide take the same room, for the same reason. */
 .adm-key .al-src .btn { flex: 0 0 auto; min-width: 44px; justify-content: center; }
 .adm-keysvc small { display: block; margin-top: 2px; font-size: 12px; overflow-wrap: anywhere; }
+/* Demo accounts: the page shows as normal with every control disabled. */
+.demo-lock { border: 0; padding: 0; margin: 0; min-width: 0; }
+.demo-lock :disabled { cursor: not-allowed; }
+.demo-note { margin-bottom: 16px; }

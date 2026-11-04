@@ -161,7 +161,6 @@ export default function Bot({ demo = false }: { demo?: boolean }) {
       {list && list.bot_mod_message && !isKick && (
         <div className="card notice notice-error"><i className="fa-solid fa-triangle-exclamation" /> <span>{stripTags(list.bot_mod_message)}</span></div>
       )}
-      {demo && <div className="card notice notice-info"><i className="fa-solid fa-circle-info" /> <span>{DEMO_NOTE}</span></div>}
       {err && <div className="card notice notice-error"><i className="fa-solid fa-triangle-exclamation" /> {err}</div>}
       {toast && (
         <div className={`card notice notice-${toast.kind}`} role="status">

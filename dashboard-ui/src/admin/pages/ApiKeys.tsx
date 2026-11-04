@@ -90,6 +90,14 @@ export default function ApiKeys() {
     setBusy(k.service)
     try { await saveAccess(k, v) } catch (x) { fail(x) } finally { setBusy('') }
   }
+  const [seeding, setSeeding] = useState(false)
+  const seed = async (k: Key) => {
+    setSeeding(true)
+    try {
+      const r = await post<R>(API, { demo_data: 1, service: k.service })
+      setToast({ kind: r.success ? 'ok' : 'err', text: r.message || (r.success ? 'Demo data added.' : 'Could not add demo data.') })
+    } catch (x) { fail(x) } finally { setSeeding(false) }
+  }
   const saveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!edit) return
@@ -142,6 +150,10 @@ export default function ApiKeys() {
         <Modal title={`Sign-in for ${edit.key.service}`} icon="fas fa-right-to-bracket" onClose={() => setEdit(null)}>
           <form className="adm-form" onSubmit={saveEdit}>
             <SignInFields v={edit.v} set={(p) => setEdit((x) => (x ? { ...x, v: { ...x.v, ...p } } : x))} channel={edit.key.channel} passwordSet={!!edit.key.password_set} />
+            {edit.key.channel && (
+              <div className="adm-sw"><div><strong>Demo data</strong><small className="muted">Makes the demo account's channel database if it is missing, and fills its empty custom commands, user commands, timed messages and known users with sample data. Tables that already have rows are left alone.</small>
+                <div><button type="button" className="btn btn-ghost" disabled={seeding} onClick={() => seed(edit.key)}><i className={seeding ? 'fas fa-spinner fa-spin' : 'fas fa-seedling'} /> Add demo data</button></div></div></div>
+            )}
             <div className="modal-acts">
               <button type="button" className="btn btn-ghost" onClick={() => setEdit(null)}>Cancel</button>
               <button type="submit" className="btn" disabled={saving}><i className="fas fa-save" /> Save</button>
