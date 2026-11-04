@@ -2,6 +2,17 @@ import { useState } from 'react'
 
 // Hidden sign-in at /login/key (nothing links here): an admin API key with
 // Dashboard access and its password sign in as the key's demo account.
+const REASONS: Record<string, string> = {
+  missing: 'Enter the API key and the password.',
+  key: 'No API key matches that key.',
+  no_dashboard_access: 'Dashboard access is off for this key.',
+  no_demo_account: 'This key has no demo account yet.',
+  no_password: 'This key has no password set.',
+  password: 'The password is wrong for this key.',
+  not_demo: "This key's channel is not marked as a demo account.",
+  db: 'The server could not check the key. Try again.',
+}
+
 export default function KeyLogin({ onDone }: { onDone: () => void }) {
   const [key, setKey] = useState(''), [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
@@ -16,7 +27,7 @@ export default function KeyLogin({ onDone }: { onDone: () => void }) {
       })
       const j = await r.json().catch(() => ({}))
       if (r.ok && j.ok) return onDone()
-      setError(r.status === 401 ? 'That key and password did not match.' : 'Signing in failed. Try again.')
+      setError(r.status === 401 ? (REASONS[j.error as string] ?? `Signing in failed (${j.error ?? 'unknown'}).`) : `Signing in failed (HTTP ${r.status}). Try again.`)
     } catch { setError('Signing in failed. Try again.') } finally { setBusy(false) }
   }
   return (
