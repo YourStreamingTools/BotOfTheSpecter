@@ -20,6 +20,7 @@ const SERVICES: Array<[string, string, string]> = [
 ]
 const LIMITS: Array<[keyof Limits, string]> = [['shazam', 'Song ID requests'], ['exchangerate', 'Exchange rate requests'], ['weather', 'Weather requests']]
 const KEY = 'sp-beta-bot'
+const DEMO_NOTE = 'This is a demo account and has no operational control.'
 
 function readBot(): BotType {
   try { const v = localStorage.getItem(KEY); if (v === 'stable' || v === 'beta' || v === 'v6' || v === 'kick') return v } catch { /* ignore */ }
@@ -30,10 +31,12 @@ const stripTags = (s: string) => s.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>
 
 type Toast = { kind: 'info' | 'ok' | 'err'; text: string } | null
 
-export default function Bot() {
+export default function Bot({ demo = false }: { demo?: boolean }) {
   const [bot, setBotState] = useState<BotType>(readBot())
   const [ov, setOv] = useState<Overview | null>(null)
   const [list, setList] = useState<ListStatus | null>(null)
+  // The channel status check failed (so it doesn't look like it's still loading).
+  const [listFailed, setListFailed] = useState(false)
   const [status, setStatus] = useState<BotStatus | null>(null)
   const [limits, setLimits] = useState<Limits | null>(null)
   const [services, setServices] = useState<Record<string, Service | 'error' | undefined>>({})
@@ -55,8 +58,9 @@ export default function Bot() {
   useEffect(() => {
     fetchOverview().then((o) => {
       setOv(o); setUseCustom(o.use_custom === 1); setUseSelf(o.use_self === 1); setUseModule(o.use_custom_module === 1)
-    }).catch(() => setErr('Could not load your bot settings.'))
-    fetchList().then(setList).catch(() => setList(null))
+    }).catch(() => { if (!demo) setErr('Could not load your bot settings.') })
+    // A demo account has no Twitch channel to check.
+    if (!demo) fetchList().then(setList).catch(() => { setList(null); setListFailed(true) })
     fetchLimits().then(setLimits).catch(() => setLimits(null))
     SERVICES.forEach(([svc]) => fetchService(svc)
       .then((d) => setServices((p) => ({ ...p, [svc]: d })))
@@ -77,7 +81,8 @@ export default function Bot() {
   const actingAs = ov?.is_acting_as ?? false
 
   const blocker: string | null =
-    actingAs ? 'Bot controls are disabled while acting as another user.'
+    demo ? DEMO_NOTE
+    : actingAs ? 'Bot controls are disabled while acting as another user.'
     : isKick && ov && !ov.kick_connected ? 'Connect your Kick account to start the Kick bot.'
     : !isKick && list && list.success && list.bot_is_banned ? 'The bot is banned from your channel.'
     : !isKick && !isMod ? 'The bot is not a moderator on your channel. Make the bot a moderator to start it.'
@@ -89,6 +94,7 @@ export default function Bot() {
   // (state already_running), which is why the old Restart button did nothing.
   async function act(action: 'run' | 'stop' | 'restart') {
     const starts = action !== 'stop'
+    if (demo) return setToast({ kind: 'err', text: DEMO_NOTE })
     if (starts && blocker) return setToast({ kind: 'err', text: blocker })
     if (actingAs) return setToast({ kind: 'err', text: 'Bot controls are disabled while acting as another user.' })
     if (starts && !isKick && !isMod) return setToast({ kind: 'err', text: 'The bot is not a moderator on your channel. Please make the bot a moderator to start it.' })
@@ -155,6 +161,7 @@ export default function Bot() {
       {list && list.bot_mod_message && !isKick && (
         <div className="card notice notice-error"><i className="fa-solid fa-triangle-exclamation" /> <span>{stripTags(list.bot_mod_message)}</span></div>
       )}
+      {demo && <div className="card notice notice-info"><i className="fa-solid fa-circle-info" /> <span>{DEMO_NOTE}</span></div>}
       {err && <div className="card notice notice-error"><i className="fa-solid fa-triangle-exclamation" /> {err}</div>}
       {toast && (
         <div className={`card notice notice-${toast.kind}`} role="status">
@@ -169,12 +176,12 @@ export default function Bot() {
           <h2><i className="fa-solid fa-robot" /> Bot Control</h2>
           <div className="bot-pickers">
             <div className="seg" role="tablist" aria-label="Platform">
-              <button className={!isKick ? 'on' : ''} onClick={() => isKick && setBot('v6')}><i className="fa-brands fa-twitch" /> Twitch</button>
-              <button className={isKick ? 'on' : ''} onClick={() => !isKick && setBot('kick')}><i className="fa-solid fa-k" /> Kick</button>
+              <button className={!isKick ? 'on' : ''} disabled={demo} onClick={() => isKick && setBot('v6')}><i className="fa-brands fa-twitch" /> Twitch</button>
+              <button className={isKick ? 'on' : ''} disabled={demo} onClick={() => !isKick && setBot('kick')}><i className="fa-solid fa-k" /> Kick</button>
             </div>
             {!isKick && (
               <div className="seg" role="tablist" aria-label="Bot version">
-                {BOTS.map(([v, l]) => <button key={v} className={bot === v ? 'on' : ''} onClick={() => bot !== v && setBot(v)}>{l}</button>)}
+                {BOTS.map(([v, l]) => <button key={v} className={bot === v ? 'on' : ''} disabled={demo} onClick={() => bot !== v && setBot(v)}>{l}</button>)}
               </div>
             )}
           </div>
@@ -194,13 +201,13 @@ export default function Bot() {
         {!isKick && (
           <div className="toggles">
             {ov?.has_verified_custom_bot && (bot === 'stable' || bot === 'beta' || bot === 'v6') && (
-              <label className="toggle"><input type="checkbox" checked={useCustom} onChange={(e) => toggleCustom(e.target.checked)} />
+              <label className="toggle"><input type="checkbox" checked={useCustom} disabled={demo} onChange={(e) => toggleCustom(e.target.checked)} />
                 <span><b>Custom bot name</b><small>{ov.custom_bot_username}</small></span></label>
             )}
-            <label className="toggle"><input type="checkbox" checked={useSelf} onChange={(e) => toggleSelf(e.target.checked)} />
+            <label className="toggle"><input type="checkbox" checked={useSelf} disabled={demo} onChange={(e) => toggleSelf(e.target.checked)} />
               <span><b>Use Self</b><small>Send bot messages from your own Twitch account</small></span></label>
             {status?.customModuleAvailable && (
-              <label className="toggle"><input type="checkbox" checked={useModule} onChange={(e) => toggleModule(e.target.checked)} />
+              <label className="toggle"><input type="checkbox" checked={useModule} disabled={demo} onChange={(e) => toggleModule(e.target.checked)} />
                 <span><b>Custom module</b><small>Load your channel module on start</small></span></label>
             )}
           </div>
@@ -219,7 +226,7 @@ export default function Bot() {
           </div>
           <div className="bot-buttons">
             {running
-              ? <button className="btn btn-danger" disabled={!!busy || actingAs} title={actingAs ? 'Bot controls are disabled while acting as another user.' : undefined} onClick={() => act('stop')}>
+              ? <button className="btn btn-danger" disabled={!!busy || actingAs || demo} title={demo ? DEMO_NOTE : actingAs ? 'Bot controls are disabled while acting as another user.' : undefined} onClick={() => act('stop')}>
                   <i className={`fa-solid ${busy === 'stop' ? 'fa-spinner fa-spin' : 'fa-stop'}`} /> Stop bot</button>
               : null}
             <button className="btn" disabled={!!busy || status === null || !!blocker} title={blocker ?? undefined} onClick={() => act(running ? 'restart' : 'run')}>
@@ -253,7 +260,8 @@ export default function Bot() {
             <h3><i className="fa-solid fa-tower-broadcast" /> Channel status</h3>
             {list && <span className={`pill ${list.stream.final === 'True' ? 'pill-live' : 'pill-off'}`}><span className="dot" /> {list.stream.final === 'True' ? 'Online' : 'Offline'}</span>}
           </div>
-          {list === null ? <div className="skel-list"><span className="skel" /></div> : (
+          {demo ? <p className="muted small">A demo account has no Twitch channel, so there is no channel status.</p>
+          : list === null ? (listFailed ? <p className="muted small">Could not load the channel status.</p> : <div className="skel-list"><span className="skel" /></div>) : (
             <>
               <p className="muted small">This status combines information from Twitch and the Specter systems.</p>
               {tech && (

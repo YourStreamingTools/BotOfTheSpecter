@@ -10,6 +10,8 @@ export type Me = {
   profile_image: string | null
   twitch_user_id: string
   is_admin?: boolean
+  // A demo account (users.is_demo): pages show it but allow no operational control.
+  is_demo?: boolean
   dashboard_version?: string
   acting_as?: { user_id: number; username: string; display_name: string } | null
 }
