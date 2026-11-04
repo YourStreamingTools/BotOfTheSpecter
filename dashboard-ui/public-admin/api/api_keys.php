@@ -292,7 +292,23 @@ function badm_keys_make_demo(mysqli $conn, string $name): array {
     $st->close();
     if (!$ok) return ['Could not create the demo account: ' . $err, null];
     admin_audit_log('admin_demo_account_create', 'info', ['username' => $name], 'user', $name);
+    badm_keys_demo_database($name);
     return [null, $name];
+}
+// The demo channel's own database, made the way the old dashboard makes one for
+// every signed-in channel (same as User Databases). The admin session was
+// already closed, so swapping the username here is never saved.
+function badm_keys_demo_database(string $name): void {
+    $prev = $_SESSION['username'] ?? null;
+    $_SESSION['username'] = $name;
+    ob_start();
+    try {
+        include '/var/www/dashboard/includes/usr_database.php';
+    } catch (Throwable $e) {
+        error_log('api_keys demo database for ' . $name . ': ' . $e->getMessage());
+    }
+    ob_end_clean();
+    $_SESSION['username'] = $prev;
 }
 // Applies the posted access fields to a key. $row is the key's current row.
 function badm_keys_apply(mysqli $conn, array $row): array {
