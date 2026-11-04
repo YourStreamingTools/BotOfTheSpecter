@@ -30,6 +30,7 @@ import ChannelRewards from './pages/ChannelRewards'
 import Raffles from './pages/Raffles'
 import Polls from './pages/Polls'
 import TodoList from './pages/TodoList'
+import DevStreamPill from './components/DevStreamPill'
 import Bingo from './pages/Bingo'
 import Tanggle from './pages/Tanggle'
 import Counters from './pages/Counters'
@@ -178,6 +179,7 @@ export default function App() {
           <div className="brand brand-mobile"><img src="https://cdn.botofthespecter.com/logo.png" alt="" /><span>BotOfTheSpecter</span><em>beta</em></div>
           <h1>{navTitle(path) ?? (path === '/mod-channels' ? 'Mod Channels' : path === '/profile' ? 'Profile' : 'Dashboard')}</h1>
           <div className="actions">
+            <DevStreamPill />
             <ThemeSwitch value={theme} onChange={choose} />
             <span className="user">
               {me.profile_image && <img src={me.profile_image} alt="" />}
