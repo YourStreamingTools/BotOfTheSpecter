@@ -7522,4 +7522,8 @@ return [
     'music_overlay_copied' => '已复制',
     'music_overlay_reveal' => '点击显示链接',
     'music_overlay_nokey' => '你的账户还没有频道密钥，因此无法生成链接。请打开个人资料创建一个。',
+    'music_overlay_autoplay' => 'OBS 打开叠加层时开始播放',
+    'music_overlay_autoplay_help' => '保存到你的账户。关闭后，叠加层会保持安静，直到你在此页面播放歌曲。',
+    'music_overlay_autoplay_saved' => '自动播放设置已保存。OBS 下次加载叠加层时生效。',
+    'music_overlay_autoplay_failed' => '无法保存自动播放设置，请重试。',
 ];

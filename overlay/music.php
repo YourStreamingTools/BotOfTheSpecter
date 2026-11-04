@@ -24,10 +24,12 @@ if ($stmt) {
 
 $music_source = 'system';
 $music_playlist_filter = [];
+$music_autoplay = true;
 if ($username) {
     $user_db = new mysqli($db_servername, $db_username, $db_password, $username);
     if (!$user_db->connect_error) {
-        $prefRes = $user_db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
+        // SELECT * so a channel whose schema has not gained music_autoplay yet still loads its other settings.
+        $prefRes = $user_db->query("SELECT * FROM streamer_preferences WHERE id = 1");
         if ($prefRes && ($row = $prefRes->fetch_assoc())) {
             if (isset($row['music_source'])) {
                 $ms = $row['music_source'];
@@ -40,6 +42,9 @@ if ($username) {
                 if (is_array($decoded)) {
                     $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
                 }
+            }
+            if (array_key_exists('music_autoplay', $row) && $row['music_autoplay'] !== null) {
+                $music_autoplay = (int) $row['music_autoplay'] === 1;
             }
         }
         $user_db->close();
@@ -100,6 +105,8 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
         let currentSongData = null; // Store song data for replay
         let volume = 10;
         let musicSource = <?php echo json_encode($music_source); ?>; // 'system', 'user', or 'both'
+        // Music page setting: start the first track when the overlay loads, or stay quiet until told to play.
+        const autoplayOnStart = <?php echo json_encode((bool) $music_autoplay); ?>;
         let excludedTracks = new Set(<?php echo json_encode(array_values($music_playlist_filter)); ?>);
         // systemPlaylist: tracks served from CDN
         let systemPlaylist = <?php
@@ -308,6 +315,14 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
             const url = song.url ? song.url : `https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`;
             playSong(url, song);
         }
+        // "play" resumes the current song, or starts the rotation if nothing has loaded yet (autoplay off).
+        function playOrStart() {
+            if (!audioPlayer.getAttribute('src')) {
+                autoStartFirstSong();
+            } else {
+                audioPlayer.play().catch(() => {});
+            }
+        }
         function playNextSong() {
             // Use the active playlist (system, user, or both).
             if (repeat) {
@@ -487,7 +502,7 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
                     sock.on('MUSIC_COMMAND', (data) => {
                         if (!data || !data.command) return;
                         switch (data.command) {
-                            case 'play': audioPlayer.play(); break;
+                            case 'play': playOrStart(); break;
                             case 'pause': audioPlayer.pause(); break;
                             case 'next': playNextSong(); break;
                             case 'prev':
@@ -509,7 +524,7 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
                                 break;
                         }
                     });
-                    sock.on('PLAY', () => audioPlayer.play());
+                    sock.on('PLAY', () => playOrStart());
                     sock.on('PAUSE', () => audioPlayer.pause());
                     sock.on('WHAT_IS_PLAYING', () => {
                         sock.emit('MUSIC_COMMAND', {
@@ -530,7 +545,13 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
                 onRegistered: (sock, data) => {
                     socket = sock;
                     sock.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
-                    tryAutoStartFirstSong();
+                    if (autoplayOnStart) {
+                        tryAutoStartFirstSong();
+                    } else {
+                        // Quiet start: build the rotation so play/next from the music page work, but play nothing.
+                        updateActivePlaylist();
+                        console.log('[Overlay] autoplay on start is off; waiting for the music page');
+                    }
                 }
             });
             session.connect();

@@ -10,7 +10,7 @@ import { ColourField, colourOk } from './Overlays'
 const API = '/api/music/music.php'
 type File = { filename: string; title: string; artist: string; size: number }
 type Source = 'system' | 'user' | 'both'
-type List = { success: boolean; storage_used: number; max_storage: number; storage_percentage: number; music_source: Source; playlist_filter: string[]; user_files: File[]; system_files: File[] }
+type List = { success: boolean; storage_used: number; max_storage: number; storage_percentage: number; music_source: Source; playlist_filter: string[]; music_autoplay?: boolean; user_files: File[]; system_files: File[] }
 type State = { success: boolean; connected: boolean; overlay?: boolean; settings?: { volume: number | null; repeat: boolean; shuffle: boolean }; now_playing?: { title: string; artist: string; file: string } | null }
 type Track = { key: string; file: string; title: string; artist: string; user: boolean }
 const SOURCES = [{ value: 'system', label: 'Built-in (DMCA-free)' }, { value: 'user', label: 'My uploads' }, { value: 'both', label: 'Built-in and my uploads' }]
@@ -180,7 +180,7 @@ export default function Music() {
         <audio ref={audio} onEnded={ended} onError={() => { if (local && cur) { setPlaying(false); setToast({ kind: 'err', text: 'This song could not be loaded.' }) } }} />
       </section>
       {err && <div className="notice notice-err"><i className="fas fa-triangle-exclamation" /> <span>{err}</span></div>}
-      <OverlayLinkCard toast={setToast} />
+      <OverlayLinkCard toast={setToast} autoplay={list ? list.music_autoplay !== false : null} setAutoplay={(v) => list && setList({ ...list, music_autoplay: v })} post={post} />
       {list && <LibraryCard list={list} onSource={saveSource} post={post} toast={setToast} reload={load} />}
       {list && <PlaylistCard list={list} tracks={tracks} inSource={inSource} excl={excl} setFilter={setFilter} curKey={curKey} playing={playing} busy={busy} play={playSong} post={post} toast={setToast} reload={load} />}
       {!list && !err && <section className="card"><div className="cmd-list">{[0, 1, 2, 3].map((i) => <div key={i} className="cmd-row"><span className="skel skel-line" /></div>)}</div></section>}
@@ -324,7 +324,14 @@ function PlaylistCard({ list, tracks, inSource, excl, setFilter, curKey, playing
 // Overlay link with the now-playing options built in, so the copied URL already has them.
 const H_ALIGN = [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }]
 const V_ALIGN = [{ value: 'top', label: 'Top' }, { value: 'middle', label: 'Middle' }, { value: 'bottom', label: 'Bottom' }]
-function OverlayLinkCard({ toast }: { toast: (t: Toast) => void }) {
+function OverlayLinkCard({ toast, autoplay, setAutoplay, post }: { toast: (t: Toast) => void; autoplay: boolean | null; setAutoplay: (v: boolean) => void; post: (b: Record<string, string>) => Promise<unknown> }) {
+  const [savingAp, setSavingAp] = useState(false)
+  async function saveAutoplay(v: boolean) {
+    setSavingAp(true); setAutoplay(v)
+    try { await post({ action: 'save_autoplay', music_autoplay: v ? '1' : '0' }); toast({ kind: 'ok', text: 'Autoplay setting saved. It applies the next time OBS loads the overlay.' }) }
+    catch (e) { setAutoplay(!v); toast({ kind: 'err', text: (e as Error).message }) }
+    setSavingAp(false)
+  }
   const [show, setShow] = useState(true), [color, setColor] = useState(''), [align, setAlign] = useState('center'), [valign, setValign] = useState('middle')
   const badC = show && color.trim() !== '' && !colourOk(color.trim())
   async function overlayUrl() {
@@ -343,6 +350,7 @@ function OverlayLinkCard({ toast }: { toast: (t: Toast) => void }) {
     <section className="card" aria-label="Overlay link">
       <div className="card-title-row"><h3 className="card-h"><i className="fas fa-link" /> Overlay link</h3></div>
       <div className="mp-rows">
+        <div className="mp-row"><div className="mp-row-l"><span className="mp-lbl">Start playing when OBS opens the overlay</span><span className="muted">Saved to your account. When off, the overlay stays quiet until you play a song here.</span></div><div className="mp-row-r">{autoplay === null ? <span className="skel skel-line" /> : <Switch on={autoplay} label="Start playing when OBS opens the overlay" onChange={(v) => { if (!savingAp) saveAutoplay(v) }} />}</div></div>
         <div className="mp-row"><div className="mp-row-l"><span className="mp-lbl">Show the song title</span><span className="muted">Long titles stay on one line and scroll.</span></div><div className="mp-row-r"><Switch on={show} label="Show the song title" onChange={setShow} /></div></div>
         {show && <>
           <ColourField id="mu-oc" label="Text colour" help="White unless you pick one." value={color} set={setColor} ph="white or ffffff" />

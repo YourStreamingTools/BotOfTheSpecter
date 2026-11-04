@@ -44,6 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'save_source':
             if (!in_array((string) ($_POST['music_source'] ?? ''), ['system', 'user', 'both'], true)) beta_mu_fail('Choose a music source.');
             break;
+        case 'save_autoplay':
+            if (!in_array((string) ($_POST['music_autoplay'] ?? ''), ['0', '1'], true)) beta_mu_fail('Invalid autoplay value.');
+            break;
         case 'save_filter':
             $bF = json_decode((string) ($_POST['music_playlist_filter'] ?? ''), true);
             if (!is_array($bF) || count($bF) > 5000) beta_mu_fail('Invalid playlist selection.');
@@ -117,8 +120,10 @@ function getUserMusicFiles($dir) {
 function music_load_preferences($db) {
     $music_source = 'system';
     $music_playlist_filter = [];
+    $music_autoplay = true;
     try {
-        $prefRes = $db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
+        // SELECT * so a channel whose schema has not gained music_autoplay yet still loads its other settings.
+        $prefRes = $db->query("SELECT * FROM streamer_preferences WHERE id = 1");
         if ($prefRes && ($row = $prefRes->fetch_assoc())) {
             if (isset($row['music_source'])) {
                 $music_source = $row['music_source'];
@@ -130,11 +135,14 @@ function music_load_preferences($db) {
                     $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
                 }
             }
+            if (array_key_exists('music_autoplay', $row) && $row['music_autoplay'] !== null) {
+                $music_autoplay = (int) $row['music_autoplay'] === 1;
+            }
         }
     } catch (Exception $e) {
         // keep defaults if column missing or query fails
     }
-    return ['music_source' => $music_source, 'music_playlist_filter' => $music_playlist_filter];
+    return ['music_source' => $music_source, 'music_playlist_filter' => $music_playlist_filter, 'music_autoplay' => $music_autoplay];
 }
 
 function music_collect_lists($user_music_path = null, $public_user_music_path = null) {
@@ -190,6 +198,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             'storage_percentage' => (float) $storage_percentage,
             'music_source' => $music_source,
             'playlist_filter' => array_values($music_playlist_filter),
+            'music_autoplay' => (bool) $prefs['music_autoplay'],
             'user_files' => $userMusicFiles,
             'system_files' => $musicFiles,
             'visible_count' => $visibleCount,
@@ -212,6 +221,7 @@ date_default_timezone_set($timezone);
 $prefs = music_load_preferences($db);
 $music_source = $prefs['music_source'];
 $music_playlist_filter = $prefs['music_playlist_filter'];
+$music_autoplay = $prefs['music_autoplay'];
 
 // User-uploaded music handling
 $userMusicStatus = '';
@@ -403,6 +413,15 @@ if ($bMuAction === 'delete') {
     $gone = !is_file($user_music_path . '/' . basename((string) $_POST['file']));
     if (!$gone) http_response_code(400);
     echo json_encode(['success' => $gone, 'message' => $msg]);
+    exit();
+}
+if ($bMuAction === 'save_autoplay') {
+    // Same write as the music section of api/module_data_post.php. The overlay reads it when it loads.
+    $v = $_POST['music_autoplay'] === '1' ? 1 : 0;
+    $st = $db->prepare("UPDATE streamer_preferences SET music_autoplay = ? WHERE id = 1");
+    if (!$st) beta_mu_fail('Could not save the autoplay setting.', 500);
+    $st->bind_param('i', $v); $st->execute(); $st->close();
+    echo json_encode(['success' => true]);
     exit();
 }
 if ($bMuAction === 'save_source' || $bMuAction === 'save_filter') {

@@ -62,8 +62,10 @@ function getUserMusicFiles($dir) {
 function music_load_preferences($db) {
     $music_source = 'system';
     $music_playlist_filter = [];
+    $music_autoplay = true;
     try {
-        $prefRes = $db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
+        // SELECT * so a channel whose schema has not gained music_autoplay yet still loads its other settings.
+        $prefRes = $db->query("SELECT * FROM streamer_preferences WHERE id = 1");
         if ($prefRes && ($row = $prefRes->fetch_assoc())) {
             if (isset($row['music_source'])) {
                 $music_source = $row['music_source'];
@@ -75,11 +77,14 @@ function music_load_preferences($db) {
                     $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
                 }
             }
+            if (array_key_exists('music_autoplay', $row) && $row['music_autoplay'] !== null) {
+                $music_autoplay = (int) $row['music_autoplay'] === 1;
+            }
         }
     } catch (Exception $e) {
         // keep defaults if column missing or query fails
     }
-    return ['music_source' => $music_source, 'music_playlist_filter' => $music_playlist_filter];
+    return ['music_source' => $music_source, 'music_playlist_filter' => $music_playlist_filter, 'music_autoplay' => $music_autoplay];
 }
 
 function music_collect_lists($user_music_path = null, $public_user_music_path = null) {
@@ -135,6 +140,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             'storage_percentage' => (float) $storage_percentage,
             'music_source' => $music_source,
             'playlist_filter' => array_values($music_playlist_filter),
+            'music_autoplay' => (bool) $prefs['music_autoplay'],
             'user_files' => $userMusicFiles,
             'system_files' => $musicFiles,
             'visible_count' => $visibleCount,
@@ -157,6 +163,7 @@ date_default_timezone_set($timezone);
 $prefs = music_load_preferences($db);
 $music_source = $prefs['music_source'];
 $music_playlist_filter = $prefs['music_playlist_filter'];
+$music_autoplay = $prefs['music_autoplay'];
 
 // User-uploaded music handling
 $userMusicStatus = '';
@@ -344,6 +351,38 @@ ob_start();
     </header>
     <div class="sp-card-body">
         <p style="margin-top:0;font-size:0.9rem;color:var(--text-secondary);"><?php echo t('music_overlay_desc'); ?></p>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;margin-bottom:0.25rem;">
+            <input type="checkbox" id="mo-autoplay" <?php echo $music_autoplay ? 'checked' : ''; ?>>
+            <?php echo t('music_overlay_autoplay'); ?>
+        </label>
+        <p style="margin:0 0 0.75rem 1.5rem;font-size:0.8rem;color:var(--text-secondary);"><?php echo t('music_overlay_autoplay_help'); ?></p>
+        <script>
+        (function () {
+            var savedLabel = <?php echo json_encode(t('music_overlay_autoplay_saved')); ?>;
+            var failLabel = <?php echo json_encode(t('music_overlay_autoplay_failed')); ?>;
+            var $ap = document.getElementById('mo-autoplay');
+            $ap.addEventListener('change', function () {
+                var want = $ap.checked;
+                var form = new FormData();
+                form.append('section_save', 'music');
+                form.append('music_autoplay', want ? '1' : '0');
+                $ap.disabled = true;
+                fetch('/api/module_data_post.php', { method: 'POST', body: form })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) { if (!j.success) throw new Error(); return true; })
+                    .catch(function () { $ap.checked = !want; return false; })
+                    .then(function (ok) {
+                        $ap.disabled = false;
+                        var toast = document.createElement('div');
+                        toast.className = 'sp-alert ' + (ok ? 'sp-alert-success' : 'sp-alert-danger');
+                        toast.style.cssText = 'position:fixed;bottom:1rem;right:1rem;z-index:10000;';
+                        toast.innerText = ok ? savedLabel : failLabel;
+                        document.body.appendChild(toast);
+                        setTimeout(function () { toast.remove(); }, 2200);
+                    });
+            });
+        })();
+        </script>
         <?php if (empty($api_key)): ?>
             <div class="sp-alert sp-alert-danger"><?php echo t('music_overlay_nokey'); ?></div>
         <?php else: ?>

@@ -7581,4 +7581,8 @@ Esta acción no se puede deshacer.',
     'music_overlay_copied' => 'Copiado',
     'music_overlay_reveal' => 'Haz clic para ver el enlace',
     'music_overlay_nokey' => 'Tu cuenta aún no tiene clave de canal, así que no se puede crear el enlace. Abre tu perfil para crear una.',
+    'music_overlay_autoplay' => 'Empezar a reproducir cuando OBS abra el overlay',
+    'music_overlay_autoplay_help' => 'Se guarda en tu cuenta. Si está desactivado, el overlay permanece en silencio hasta que reproduzcas una canción desde esta página.',
+    'music_overlay_autoplay_saved' => 'Ajuste de reproducción automática guardado. Se aplica la próxima vez que OBS cargue el overlay.',
+    'music_overlay_autoplay_failed' => 'No se pudo guardar el ajuste de reproducción automática. Inténtalo de nuevo.',
 ];
