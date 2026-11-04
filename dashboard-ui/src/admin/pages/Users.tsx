@@ -6,7 +6,7 @@ import { Confirm, getJson, LoadErr, Loading, post, ToastBar, useLoad, type Ask, 
 // premium tier, dates, every action button with the old permission rules), the
 // details modal with confirm-to-reveal email / API key and Export Data, and
 // Act As, which now opens the beta dashboard (see admin-tails/users.php).
-type U = { id: number; username: string; twitch_display_name: string; twitch_user_id: string | null; profile_image: string; is_admin: number; super_admin: number; beta_access: number; beta_programs: string; is_deceased: number; signup_date: string | null; last_login: string | null; is_restricted: boolean; has_email: boolean; email_domain: string; email_local_len: number; api_key_len: number }
+type U = { id: number; username: string; twitch_display_name: string; twitch_user_id: string | null; profile_image: string; is_admin: number; super_admin: number; beta_access: number; beta_programs: string; is_deceased: number; is_demo?: number; signup_date: string | null; last_login: string | null; is_restricted: boolean; has_email: boolean; email_domain: string; email_local_len: number; api_key_len: number }
 type Meta = { current_admin_id: number; is_super_admin: boolean; L: Record<string, string>; title: string }
 type R = { success: boolean; msg?: string; db_deleted?: boolean }
 const API = '/api/users.php'
@@ -69,7 +69,8 @@ export default function Users() {
       <tr key={u.id} className={dead ? 'adm-row-memorial' : rest ? 'adm-row-restricted' : ''}>
         <td className="adm-c"><span className="adm-lbl-m">{l('th_id')}</span>{u.id}</td>
         <td><div className="adm-user"><img src={u.profile_image || LOGO} alt="" onError={(e) => { (e.target as HTMLImageElement).src = LOGO }} /><span>{u.username}</span>
-          {dead ? <span className="pill adm-memorial"><i className="fas fa-dove" /> {l('label_memorial')}</span> : rest ? <span className="pill pill-warn">{l('label_restricted')}</span> : null}</div></td>
+          {dead ? <span className="pill adm-memorial"><i className="fas fa-dove" /> {l('label_memorial')}</span> : rest ? <span className="pill pill-warn">{l('label_restricted')}</span> : null}
+          {u.is_demo ? <span className="pill pill-info" title="Demo account, made by an API key's Dashboard access">Demo</span> : null}</div></td>
         <td className="adm-c"><span className="adm-lbl-m">{l('th_admin')}</span>{flag(isA, 'pill-ok', l('th_admin'), l('title_not_admin'))}</td>
         <td className="adm-c"><span className="adm-lbl-m">{l('th_super_admin')}</span>{flag(isSA, 'pill-ok', l('th_super_admin'), l('title_not_super_admin'))}</td>
         <td className="adm-c"><span className="adm-lbl-m">{l('th_beta')}</span>{flag(beta, 'pill-info', l('title_beta_access'), l('title_no_beta_access'))}</td>

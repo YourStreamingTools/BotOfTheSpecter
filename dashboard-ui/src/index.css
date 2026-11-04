@@ -67,6 +67,8 @@ button { font: inherit; }
 .center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 300px; padding: 32px; }
 .login img { width: 64px; height: 64px; }
+.key-login { align-items: stretch; text-align: left; width: min(380px, 100%); min-width: 0; }
+.key-login h2 { text-align: center; }
 
 .home { display: flex; flex-direction: column; gap: 28px; }
 .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }

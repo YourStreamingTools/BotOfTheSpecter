@@ -1533,9 +1533,50 @@ async def verify_api_key(api_key):
         async with conn.cursor() as cur:
             await cur.execute("SELECT username, api_key FROM users WHERE api_key=%s", (api_key,))
             result = await cur.fetchone()
-            if result is None:
-                return None  # Return None if the API key is invalid
-            return result[0]  # Return the username associated with the API key
+            if result is not None:
+                return result[0]  # Return the username associated with the API key
+    finally:
+        conn.close()
+    # An admin key with Mobile app access acts as its demo channel.
+    app_key = await lookup_app_key(api_key)
+    return app_key["channel"] if app_key else None
+
+# Admin key with Mobile app access (beta admin Key Manager): the demo channel it
+# signs in as and its password hash. None for any other key, and until the
+# app_access / channel / password columns exist.
+async def lookup_app_key(api_key: str) -> dict | None:
+    if not api_key:
+        return None
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            try:
+                await cur.execute(
+                    "SELECT service, channel, password, admin_access FROM admin_api_keys "
+                    "WHERE api_key = %s AND app_access = 1 AND channel IS NOT NULL AND channel <> '' LIMIT 1",
+                    (api_key,),
+                )
+            except Exception as e:
+                if not _unknown_column(e):
+                    logging.error(f"Error looking up app key: {e}")
+                return None
+            row = await cur.fetchone()
+            return dict(row) if row else None
+    finally:
+        conn.close()
+
+# The users.api_key the websocket server knows a channel by. An app key is sent
+# as its demo channel's key, so that channel's overlays get the events.
+async def channel_api_key(api_key: str) -> str:
+    app_key = await lookup_app_key(api_key)
+    if not app_key:
+        return api_key
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT api_key FROM users WHERE username = %s LIMIT 1", (app_key["channel"],))
+            row = await cur.fetchone()
+            return row[0] if row and row[0] else api_key
     finally:
         conn.close()
 
@@ -1637,13 +1678,24 @@ async def verify_admin_key(admin_key: str, service: str = None):
         ) as pool:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
-                    # Get the service for this admin key
-                    await cur.execute(
-                        "SELECT service FROM admin_api_keys WHERE api_key = %s",
-                        (admin_key,)
-                    )
+                    # Get the service for this admin key. admin_access = 0 (beta
+                    # admin Key Manager) turns its admin powers off.
+                    try:
+                        await cur.execute(
+                            "SELECT service, admin_access FROM admin_api_keys WHERE api_key = %s",
+                            (admin_key,)
+                        )
+                    except Exception as e:
+                        if not _unknown_column(e):
+                            raise
+                        await cur.execute(
+                            "SELECT service FROM admin_api_keys WHERE api_key = %s",
+                            (admin_key,)
+                        )
                     result = await cur.fetchone()
                     if not result:
+                        return False
+                    if "admin_access" in result and not result["admin_access"]:
                         return False
                     key_service = result['service']
                     is_super_admin = (key_service == 'admin')
@@ -1666,7 +1718,12 @@ async def verify_admin_key(admin_key: str, service: str = None):
 async def verify_key(api_key: str, service: str = None) -> dict | None:
     admin_result = await verify_admin_key(api_key, service)
     if admin_result:
-        return {"type": "admin", "service": service}
+        info = {"type": "admin", "service": service}
+        # An admin key with Mobile app access defaults to its demo channel.
+        app_key = await lookup_app_key(api_key)
+        if app_key:
+            info["app_channel"] = app_key["channel"]
+        return info
     username = await verify_api_key(api_key)
     if username:
         return {"type": "user", "username": username}
@@ -1674,6 +1731,8 @@ async def verify_key(api_key: str, service: str = None) -> dict | None:
 
 def resolve_username(key_info: dict, username_param: str = None) -> str:
     if key_info["type"] == "admin":
+        if not username_param and key_info.get("app_channel"):
+            return key_info["app_channel"]
         if not username_param:
             raise HTTPException(
                 status_code=400,
@@ -1699,7 +1758,7 @@ async def websocket_notice(event, params, api_key):
             detail="Invalid API Key",
         )
     async with aiohttp.ClientSession() as session:
-        params['code'] = api_key  # Pass the verified API key to the websocket server
+        params['code'] = await channel_api_key(api_key)  # Pass the verified API key to the websocket server
         encoded_params = urlencode(params)
         url = f'https://websocket.botofthespecter.com/notify?{encoded_params}'
         async with session.get(url) as response:
@@ -3059,6 +3118,10 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
+    # An admin key with Mobile app access signing in as its demo channel.
+    app_key = await lookup_app_key(api_key)
+    if app_key and username.lower() != str(app_key["channel"]).lower():
+        app_key = None
     conn = await get_mysql_connection()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
@@ -3085,6 +3148,16 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
             result = await cur.fetchone()
             if not result:
                 raise HTTPException(status_code=404, detail="Account not found")
+            if app_key:
+                # The key's password gates the app, and the demo channel's own
+                # secrets stay on the server.
+                result["app_password_set"] = bool(app_key.get("password"))
+                for secret in ("access_token", "refresh_token", "useable_access_token",
+                               "spotify_access_token", "spotify_refresh_token",
+                               "discord_access_token", "discord_refresh_token", "email"):
+                    result[secret] = None
+                result["api_key"] = ""
+                result["twitch_user_id"] = result["twitch_user_id"] or ""
             return {
                 "id": result["id"],
                 "username": result["username"],
@@ -3136,6 +3209,14 @@ async def app_login(body: AppLoginBody, api_key: str = Query(...)):
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, None)
+    # An admin key with Mobile app access is checked against the key's own password.
+    app_key = await lookup_app_key(api_key)
+    if app_key:
+        if not app_key.get("password"):
+            return JSONResponse(status_code=400, content={"status": "error", "message": "No password set for this key"})
+        if not verify_app_password(body.password, app_key["password"]):
+            return JSONResponse(status_code=401, content={"status": "invalid"})
+        return JSONResponse(status_code=200, content={"status": "success"})
     conn = await get_mysql_connection()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:

@@ -55,6 +55,9 @@ REPL = {
     'users': [
         ("            'email' => $row['email'] ?? '',\n            'api_key' => $row['api_key'] ?? '',\n",
          "            // beta: values only via ?reveal (audited), see admin-tails/users.php\n            'email' => '',\n            'api_key' => '',\n            'has_email' => !empty($row['email']),\n            'email_domain' => (($at = strpos((string) ($row['email'] ?? ''), '@')) === false ? '' : substr((string) $row['email'], $at)),\n            'email_local_len' => (($at = strpos((string) ($row['email'] ?? ''), '@')) === false ? strlen((string) ($row['email'] ?? '')) : $at),\n            'api_key_len' => strlen((string) ($row['api_key'] ?? '')),\n"),
+        # beta: demo accounts made by the Key Manager's Dashboard access switch.
+        ("            'is_deceased' => (int) ($row['is_deceased'] ?? 0),\n",
+         "            'is_deceased' => (int) ($row['is_deceased'] ?? 0),\n            'is_demo' => (int) ($row['is_demo'] ?? 0),\n"),
     ],
 }
 # Pages whose old file has no admin_access.php include: add the beta guard first.
