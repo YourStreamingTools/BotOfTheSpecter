@@ -334,6 +334,93 @@ ob_start();
         </div>
     </div>
 </div>
+<!-- Overlay Link Card -->
+<div class="sp-card mb-4">
+    <header class="sp-card-header">
+        <span class="sp-card-title">
+            <i class="fas fa-link"></i>
+            <?php echo t('music_overlay_title'); ?>
+        </span>
+    </header>
+    <div class="sp-card-body">
+        <p style="margin-top:0;font-size:0.9rem;color:var(--text-secondary);"><?php echo t('music_overlay_desc'); ?></p>
+        <?php if (empty($api_key)): ?>
+            <div class="sp-alert sp-alert-danger"><?php echo t('music_overlay_nokey'); ?></div>
+        <?php else: ?>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;margin-bottom:0.75rem;">
+            <input type="checkbox" id="mo-nowplaying" checked>
+            <?php echo t('music_overlay_show'); ?>
+        </label>
+        <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;">
+            <div style="flex:1;min-width:140px;">
+                <label class="sp-label" for="mo-color" style="font-size:0.8rem;"><?php echo t('music_overlay_colour'); ?></label>
+                <input type="text" class="sp-input" id="mo-color" placeholder="white">
+            </div>
+            <div style="flex:1;min-width:140px;">
+                <label class="sp-label" for="mo-align" style="font-size:0.8rem;"><?php echo t('music_overlay_align'); ?></label>
+                <select class="sp-select" id="mo-align">
+                    <option value="left"><?php echo t('music_overlay_left'); ?></option>
+                    <option value="center" selected><?php echo t('music_overlay_center'); ?></option>
+                    <option value="right"><?php echo t('music_overlay_right'); ?></option>
+                </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+                <label class="sp-label" for="mo-valign" style="font-size:0.8rem;"><?php echo t('music_overlay_valign'); ?></label>
+                <select class="sp-select" id="mo-valign">
+                    <option value="top"><?php echo t('music_overlay_top'); ?></option>
+                    <option value="middle" selected><?php echo t('music_overlay_middle'); ?></option>
+                    <option value="bottom"><?php echo t('music_overlay_bottom'); ?></option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:stretch;">
+            <input type="password" class="sp-input" id="mo-url" readonly style="flex:1;font-family:monospace;" title="<?php echo htmlspecialchars(t('music_overlay_reveal')); ?>">
+            <button class="sp-btn sp-btn-primary" id="mo-copy" type="button">
+                <i class="fas fa-copy"></i> <?php echo t('music_overlay_copy'); ?>
+            </button>
+        </div>
+        <script>
+        (function () {
+            var apiKey = <?php echo json_encode((string) $api_key); ?>;
+            var copiedLabel = <?php echo json_encode(t('music_overlay_copied')); ?>;
+            var $np = document.getElementById('mo-nowplaying');
+            var $color = document.getElementById('mo-color');
+            var $align = document.getElementById('mo-align');
+            var $valign = document.getElementById('mo-valign');
+            var $url = document.getElementById('mo-url');
+            var $copy = document.getElementById('mo-copy');
+            function update() {
+                var show = $np.checked;
+                $color.disabled = $align.disabled = $valign.disabled = !show;
+                var url = 'https://overlay.botofthespecter.com/music.php?code=' + encodeURIComponent(apiKey);
+                if (show) {
+                    url += '&nowplaying';
+                    var c = $color.value.trim().replace(/^#/, '');
+                    if (c) url += '&color=' + encodeURIComponent(c);
+                    if ($align.value !== 'center') url += '&align=' + $align.value;
+                    if ($valign.value !== 'middle') url += '&valign=' + $valign.value;
+                }
+                $url.value = url;
+            }
+            [$np, $align, $valign].forEach(function (el) { el.addEventListener('change', update); });
+            $color.addEventListener('input', update);
+            $url.addEventListener('focus', function () { this.type = 'text'; this.select(); });
+            $url.addEventListener('blur', function () { this.type = 'password'; });
+            $copy.addEventListener('click', function () {
+                navigator.clipboard.writeText($url.value).then(function () {
+                    var orig = $copy.innerHTML;
+                    $copy.innerHTML = '<i class="fas fa-check"></i> ' + copiedLabel;
+                    setTimeout(function () { $copy.innerHTML = orig; }, 1500);
+                }).catch(function () {
+                    $url.type = 'text'; $url.select(); document.execCommand('copy'); $url.type = 'password';
+                });
+            });
+            update();
+        })();
+        </script>
+        <?php endif; ?>
+    </div>
+</div>
 <!-- Upload Card -->
 <div class="sp-card mb-4">
     <header class="sp-card-header">
