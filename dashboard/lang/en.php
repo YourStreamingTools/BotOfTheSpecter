@@ -2637,7 +2637,8 @@ return [
                 Add this same URL as a Chat Overlay source in as many OBS scenes as you like - they all share one chat history, so it carries over when you switch scenes.',
     'overlays_music_overlay_note' => 'Add <code>&amp;nowplaying</code> to the URL to display now playing text.<br>
                 Example: <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
-                Customize color with <code>&amp;color=white</code>.',
+                Customize color with <code>&amp;color=white</code>.<br>
+                Position the text with <code>&amp;align=left</code>, <code>center</code> or <code>right</code> and <code>&amp;valign=top</code>, <code>middle</code> or <code>bottom</code> (default: centred). Long titles stay on one line and scroll.',
     'overlays_counter_display' => 'Counter Display',
     'overlays_counter_display_desc' => 'Display the live value of any counter &mdash; great for things like "cats spotted: 7" on screen. Type a counter name below, tweak the colours if you like, and drop the URL into OBS as a browser source.',
     'overlays_counter_builtin_note' => 'Built-in counters you can use right away: <code>deaths</code>, <code>stream_deaths</code>, <code>hugs</code>, <code>kisses</code>, <code>highfives</code>, <code>typos</code>, <code>lurkers</code>. Any other name pulls from your custom <code>!count</code> counters.',

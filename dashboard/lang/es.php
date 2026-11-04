@@ -2635,7 +2635,8 @@ return [
                 Agregue esta misma URL como fuente de superposición de chat en tantas escenas OBS como desee; todas comparten un historial de chat, por lo que se conserva cuando cambia de escena.',
     'overlays_music_overlay_note' => 'Agregue <code>&amp;nowplaying</code> a la URL para mostrar el texto que se está reproduciendo.<br>
                 Ejemplo: <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
-                Personaliza el color con <code>&amp;color=white</code>.',
+                Personaliza el color con <code>&amp;color=white</code>.<br>
+                Coloca el texto con <code>&amp;align=left</code>, <code>center</code> o <code>right</code> y <code>&amp;valign=top</code>, <code>middle</code> o <code>bottom</code> (predeterminado: centrado). Los títulos largos se mantienen en una línea y se desplazan.',
     'overlays_counter_display' => 'Pantalla de mostrador',
     'overlays_counter_display_desc' => 'Muestra el valor en vivo de cualquier contador &mdash;, ideal para cosas como "gatos vistos: 7" en la pantalla. Escriba un nombre de contador a continuación, modifique los colores si lo desea y coloque la URL en OBS como fuente del navegador.',
     'overlays_counter_builtin_note' => 'Contadores incorporados que puedes usar de inmediato: <code>fallecidos</code>, <code>corriente_muertes</code>, <code>abrazos</code>, <code>besos</code>, <code>choca esos cinco</code>, <code>errores tipográficos</code>, <code>merodeadores</code>. Cualquier otro nombre tira de tu costumbre <code>!count</code> contadores.',
