@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { applyTheme, onOsChange, readSaved, saveTheme, osTheme, type ThemeName } from './theme'
 import { fetchMe, loginUrl, logout, type Me } from './auth'
-import { expired as markExpired, markSignedIn, markSignedOut, onExpired, signIn, signInNow, takeReturn, wasSignedIn } from './session'
+import { expired as markExpired, markSignedIn, markSignedOut, onExpired, setLoginUrl, signIn, signInNow, takeReturn, wasSignedIn } from './session'
 import Home from './pages/Home'
 import Landing from './pages/Landing'
 import Bot from './pages/Bot'
@@ -101,7 +101,7 @@ export default function App() {
   const choose = (t: ThemeName) => { saveTheme(t); setSaved(t) }
   useEffect(() => {
     if (path === '/auth/callback' || path === '/login/key') return
-    fetchMe().then((m) => { if (m) markSignedIn(); else if (wasSignedIn()) markExpired(); setMe(m) }).catch(() => setMe(null))
+    fetchMe().then((m) => { if (m) markSignedIn(); else if (wasSignedIn()) markExpired(); if (m?.is_demo) setLoginUrl(() => '/login/key'); setMe(m) }).catch(() => setMe(null))
   }, [path === '/auth/callback' || path === '/login/key'])
 
   if (path === '/auth/callback') {

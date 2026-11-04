@@ -1,7 +1,8 @@
 <?php
 require __DIR__ . '/_session.php';
 beta_session_start();
-if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
+// A demo account (key sign-in) has no Twitch id, only its user_id.
+if (empty($_SESSION['access_token']) || (empty($_SESSION['twitchUserId']) && (empty($_SESSION['is_demo']) || empty($_SESSION['user_id'])))) {
     beta_json(401, ['ok' => false, 'logged_in' => false]);
 }
 // Same admin check as the old menu: users.is_admin == 1 (dashboard/includes/userdata.php).

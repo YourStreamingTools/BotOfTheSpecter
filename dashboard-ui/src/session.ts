@@ -46,7 +46,7 @@ export function expired() {
   listeners.forEach((fn) => fn())
 }
 // me.php answers 401 for "not signed in" on load; App decides what that means.
-const watched = (u: string) => { try { const x = new URL(u, window.location.href); return x.origin === window.location.origin && x.pathname.startsWith('/api/') && !/\/api\/(me|callback|logout|public)\.php$/.test(x.pathname) } catch { return false } }
+const watched = (u: string) => { try { const x = new URL(u, window.location.href); return x.origin === window.location.origin && x.pathname.startsWith('/api/') && !/\/api\/(me|callback|logout|public|key_login)\.php$/.test(x.pathname) } catch { return false } }
 
 export function installSessionGuard() {
   const f = window.fetch.bind(window)

@@ -48,11 +48,12 @@ $oldSid = session_id();
 session_regenerate_id(true);
 unset($_SESSION['ws_row']);
 beta_act_as_clear();
-// No Twitch account: placeholders keep the session checks (me.php, Active
-// Sessions) working, and Twitch calls fail as signed out.
+// No Twitch account: a placeholder token passes the signed-in checks, and the
+// Twitch user id stays empty so the live includes (userdata.php) find the
+// channel by user_id. With no Twitch id there is no Active Sessions row.
 $_SESSION['access_token'] = 'demo';
 $_SESSION['refresh_token'] = '';
-$_SESSION['twitchUserId'] = (string) ($u['twitch_user_id'] ?: 'demo:' . $u['id']);
+$_SESSION['twitchUserId'] = (string) ($u['twitch_user_id'] ?? '');
 $_SESSION['user_id'] = $u['id'];
 $_SESSION['username'] = $u['username'];
 $_SESSION['display_name'] = $u['twitch_display_name'] ?: $u['username'];

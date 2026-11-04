@@ -21,6 +21,14 @@ define('BOTS_REQUIRE_AUTH_AJAX_INCLUDED', true);
 function beta_twitch_401(): never
 {
     while (ob_get_level() > 0) { @ob_end_clean(); }
+    // A demo account has no Twitch sign-in at all, so a Twitch 401 is expected
+    // and must not send it to the Twitch sign-in page.
+    if (!empty($_SESSION['is_demo'])) {
+        http_response_code(424);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'demo_account' => true, 'message' => 'This is a demo account, so there is no Twitch data to load.']);
+        exit();
+    }
     if (!empty($_SESSION['admin_act_as_active'])) {
         http_response_code(424);
         header('Content-Type: application/json');
