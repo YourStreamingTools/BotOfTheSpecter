@@ -1909,6 +1909,9 @@ span.vault-art { cursor: default; }
   .adm .bp-table td:has(> .adm-lbl-m) { display: flex; align-items: center; justify-content: space-between; grid-column: 1 / -1; }
 }
 .adm-key .al-src-url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Same width hidden or revealed (a 32-character key), so the table doesn't shift on Reveal. */
+.adm-key .al-src-url { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; box-sizing: border-box; flex: 0 0 auto; width: calc(32ch + 26px); max-width: 100%; }
+@media (max-width: 640px) { .adm-key .al-src-url { flex: 1 1 160px; width: auto; } }
 .adm-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .adm-inline > .input { flex: 1 1 200px; min-width: 0; }
 .adm-url { flex: 1 1 200px; min-width: 0; font-size: 12px; }
@@ -2512,3 +2515,5 @@ span.vault-art { cursor: default; }
   .ws-tbtns .ws-big, .ws-pbtns .ws-big { flex: 1 1 100%; }
   .ws-durs { grid-template-columns: 1fr; }
 }
+/* Reveal and Hide take the same room, for the same reason. */
+.adm-key .al-src-url + .btn { min-width: 7.5em; justify-content: center; }
