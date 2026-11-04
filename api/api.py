@@ -253,6 +253,109 @@ def _list_media_files(root: str, username: str, valid_extensions: tuple[str, ...
     names.sort()
     return names
 
+# Unified media library: one folder per channel, files at the top level or one folder down
+MEDIA_ROOT = os.getenv("MEDIA_ROOT", "/var/www/media")
+MEDIA_AUDIO_EXTS = (".mp3",)
+MEDIA_VIDEO_EXTS = (".mp4",)
+
+
+def _list_library_files(username: str, valid_extensions: tuple[str, ...]) -> list[str]:
+    # Same layout the dashboard's Media page reads: {MEDIA_ROOT}/{username}/file and /folder/file
+    base = os.path.join(MEDIA_ROOT, username)
+    if not os.path.isdir(base):
+        return []
+    names: list[str] = []
+    try:
+        for entry in os.listdir(base):
+            path = os.path.join(base, entry)
+            if os.path.isfile(path):
+                if entry.lower().endswith(valid_extensions):
+                    names.append(entry)
+            elif os.path.isdir(path):
+                for sub in os.listdir(path):
+                    if os.path.isfile(os.path.join(path, sub)) and sub.lower().endswith(valid_extensions):
+                        names.append(f"{entry}/{sub}")
+    except OSError as e:
+        logging.error(f"Error listing media library under {base}: {e}")
+        return []
+    names.sort(key=str.lower)
+    return names
+
+
+def _clean_media_name(name: str) -> str:
+    """A library file name as the app sends it: no leading slash, no .., at most one folder."""
+    name = (name or "").strip().replace("\\", "/")
+    parts = [p for p in name.split("/") if p]
+    if not parts or len(parts) > 2 or any(p in (".", "..") for p in parts):
+        raise HTTPException(status_code=400, detail="Invalid file name")
+    return "/".join(parts)
+
+
+def _library_file_exists(username: str, name: str) -> bool:
+    return os.path.isfile(os.path.join(MEDIA_ROOT, username, *name.split("/")))
+
+
+def _media_public_url(host: str, username: str, name: str) -> str:
+    return f"https://{host}/{quote(username)}/{quote(name)}"
+
+
+async def _uses_media_library(username: str) -> bool:
+    """website.users.new_media: the same flag the bot and the dashboard route on."""
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT new_media FROM users WHERE username = %s LIMIT 1", (username,))
+                row = await cur.fetchone()
+        finally:
+            conn.close()
+        return bool(row and row.get("new_media"))
+    except Exception as e:
+        logging.warning(f"Could not read new_media for '{username}': {e}")
+        return False
+
+
+async def _library_walkons(username: str) -> list[dict]:
+    """Rows of the channel's walkons table (unified media library)."""
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT twitch_user_id, twitch_user_name, media_file, mode FROM walkons ORDER BY twitch_user_name"
+                )
+                return list(await cur.fetchall() or [])
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"Could not read walkons for '{username}': {e}")
+        return []
+
+
+async def _twitch_user_card(twitch_user_id: str) -> tuple[str | None, str | None]:
+    """Display name and profile picture for a walk-on card, best effort."""
+    app_creds = await get_twitch_app_credentials()
+    if not app_creds or not twitch_user_id:
+        return None, None
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.twitch.tv/helix/users",
+                headers={"Client-ID": app_creds["client_id"], "Authorization": f"Bearer {app_creds['access_token']}"},
+                params={"id": twitch_user_id},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status != 200:
+                    return None, None
+                body = await resp.json(content_type=None)
+    except Exception as e:
+        logging.warning(f"Twitch user lookup failed for walk-on {twitch_user_id}: {e}")
+        return None, None
+    data = (body or {}).get("data") or []
+    if not data:
+        return None, None
+    return data[0].get("display_name"), data[0].get("profile_image_url")
+
 # In-memory cache for the Twitch app token from bot_chat_token
 _twitch_app_creds_cache: dict = {"loaded_at": 0.0, "access_token": None, "client_id": None}
 _TWITCH_APP_CREDS_TTL = 60  # seconds
@@ -4273,7 +4376,7 @@ async def joke(api_key: str = Query(...), channel: str = Query(None)):
 @app.get(
     "/sound-alerts",
     summary="Get list of sound alerts for user",
-    description="Retrieve a list of all sound alert files available for the authenticated user from the website server.",
+    description="Retrieve the sound alert files for the authenticated user. With the unified media library on, these are the library's audio files (a name may include one folder, like folder/file.mp3); otherwise the legacy sound alerts folder. library says which.",
     tags=["Commands"],
     operation_id="get_sound_alerts"
 )
@@ -4283,16 +4386,21 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        # Local/shared mount only; set SOUNDALERTS_ROOT if media is not at /var/www/soundalerts
-        root = os.getenv("SOUNDALERTS_ROOT", "/var/www/soundalerts")
-        valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
-        sound_files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
-        sound_files = [
-            f for f in sound_files
-            if f.lower() != "twitch" and not f.lower().startswith("twitch.")
-        ]
+        library = await _uses_media_library(username)
+        if library:
+            sound_files = await asyncio.to_thread(_list_library_files, username, MEDIA_AUDIO_EXTS)
+        else:
+            # Local/shared mount only; set SOUNDALERTS_ROOT if media is not at /var/www/soundalerts
+            root = os.getenv("SOUNDALERTS_ROOT", "/var/www/soundalerts")
+            valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
+            sound_files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+            sound_files = [
+                f for f in sound_files
+                if f.lower() != "twitch" and not f.lower().startswith("twitch.")
+            ]
         return {
             "user": username,
+            "library": library,
             "total_sounds": len(sound_files),
             "sounds": sound_files
         }
@@ -4302,11 +4410,44 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
         logging.error(f"Error retrieving sound alerts for user '{username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts: {str(e)}")
 
+# Video Alerts Endpoint
+@app.get(
+    "/video-alerts",
+    summary="Get list of video alerts for user",
+    description="Retrieve the video alert files for the authenticated user. With the unified media library on, these are the library's video files (a name may include one folder); otherwise the legacy video alerts folder. library says which.",
+    tags=["Commands"],
+    operation_id="get_video_alerts"
+)
+async def get_video_alerts(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        library = await _uses_media_library(username)
+        if library:
+            video_files = await asyncio.to_thread(_list_library_files, username, MEDIA_VIDEO_EXTS)
+        else:
+            # Local/shared mount only; set VIDEOALERTS_ROOT if media is not at /var/www/videoalerts
+            root = os.getenv("VIDEOALERTS_ROOT", "/var/www/videoalerts")
+            video_files = await asyncio.to_thread(_list_media_files, root, username, MEDIA_VIDEO_EXTS)
+        return {
+            "user": username,
+            "library": library,
+            "total_videos": len(video_files),
+            "videos": video_files,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving video alerts for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving video alerts: {str(e)}")
+
 # Walkons Endpoint
 @app.get(
     "/walkons",
     summary="Get list of walkons for your channel",
-    description="Retrieve every walkon audio/video file configured for your channel, mapping each viewer username to its file extension and public URL.",
+    description="Retrieve every walkon configured for your channel, mapping each viewer username to its file and public URL. With the unified media library on, these come from the Media page's walk-on assignments (mode is sound, sound_overlay or video); otherwise from the legacy walkons folder, where files are named after the viewer.",
     tags=["Commands"],
     operation_id="get_walkons"
 )
@@ -4316,22 +4457,40 @@ async def get_walkons(api_key: str = Query(...), channel: str = Query(None)):
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        # Local/shared mount only; set WALKONS_ROOT if media is not at /var/www/walkons
-        root = os.getenv("WALKONS_ROOT", "/var/www/walkons")
-        valid_extensions = (".mp3", ".mp4")
-        files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+        library = await _uses_media_library(username)
         walkons = []
-        for filename in files:
-            ext = os.path.splitext(filename)[1].lower()
-            viewer = filename[:-len(ext)]
-            walkons.append({
-                "username": viewer,
-                "ext": ext,
-                "filename": filename,
-                "url": f"https://walkons.botofthespecter.com/{username}/{quote(filename)}",
-            })
+        if library:
+            for row in await _library_walkons(username):
+                media_file = str(row.get("media_file") or "")
+                viewer = str(row.get("twitch_user_name") or "")
+                if not media_file or not viewer:
+                    continue
+                ext = os.path.splitext(media_file)[1].lower()
+                walkons.append({
+                    "username": viewer,
+                    "ext": ext,
+                    "filename": media_file,
+                    "url": _media_public_url("media.botofthespecter.com", username, media_file),
+                    "mode": row.get("mode") or ("video" if ext == ".mp4" else "sound"),
+                })
+        else:
+            # Local/shared mount only; set WALKONS_ROOT if media is not at /var/www/walkons
+            root = os.getenv("WALKONS_ROOT", "/var/www/walkons")
+            valid_extensions = (".mp3", ".mp4")
+            files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+            for filename in files:
+                ext = os.path.splitext(filename)[1].lower()
+                viewer = filename[:-len(ext)]
+                walkons.append({
+                    "username": viewer,
+                    "ext": ext,
+                    "filename": filename,
+                    "url": f"https://walkons.botofthespecter.com/{username}/{quote(filename)}",
+                    "mode": "video" if ext == ".mp4" else "sound",
+                })
         return {
             "user": username,
+            "library": library,
             "total_walkons": len(walkons),
             "walkons": walkons,
         }
@@ -5993,11 +6152,11 @@ async def websocket_tts(
 @app.get(
     "/websocket/walkon",
     summary="Trigger Walkon via API",
-    description="Trigger the 'Walkon' event for a specified user via the WebSocket server. Supports .mp3 (audio) and .mp4 (video) walkons.",
+    description="Trigger the 'Walkon' event for a specified user via the WebSocket server. With the unified media library on, the viewer's walk-on assignment from the Media page (file and mode) is used, falling back to a library file named after them; otherwise the legacy walkons file. Supports .mp3 (audio) and .mp4 (video) walkons.",
     tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_walkon"
 )
-async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ext: str = Query(".mp3", description="File extension (.mp3 or .mp4)")):
+async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ext: str = Query(".mp3", description="File extension (.mp3 or .mp4); used when the walk-on has no media library assignment")):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -6005,8 +6164,28 @@ async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ex
     # Validate extension
     if ext not in [".mp3", ".mp4"]:
         raise HTTPException(status_code=400, detail="Invalid extension. Only .mp3 and .mp4 are supported")
-    # Trigger the WebSocket event
     params = {"event": "WALKON", "channel": channel, "user": user, "ext": ext}
+    if await _uses_media_library(channel):
+        # Same order as the bot: walkons table, then {user}.mp3/.mp4 in the library, then the legacy file
+        row = next(
+            (r for r in await _library_walkons(channel)
+             if str(r.get("twitch_user_name") or "").lower() == user.lower() and r.get("media_file")),
+            None,
+        )
+        if row:
+            media_file = str(row["media_file"])
+            mode = row.get("mode") or ("video" if media_file.lower().endswith(".mp4") else "sound")
+            params.update(media_file=media_file, mode=mode)
+            if mode == "sound_overlay":
+                display_name, avatar_url = await _twitch_user_card(str(row.get("twitch_user_id") or ""))
+                params["display_name"] = display_name or row.get("twitch_user_name") or user
+                if avatar_url:
+                    params["avatar_url"] = avatar_url
+        else:
+            for candidate in (f"{user.lower()}{ext}", f"{user}{ext}"):
+                if await asyncio.to_thread(_library_file_exists, channel, candidate):
+                    params.update(media_file=candidate, mode="video" if ext == ".mp4" else "sound")
+                    break
     await websocket_notice("WALKON", params, api_key)
     return {"status": "success"}
 
@@ -6030,23 +6209,43 @@ async def websocket_deaths(request: DeathsRequest, api_key: str = Query(...)):
 @app.get(
     "/websocket/sound_alert",
     summary="Trigger Sound Alert via API",
-    description="Trigger a sound alert for the specified sound file via the WebSocket server.",
+    description="Trigger a sound alert for the specified sound file via the WebSocket server. Uses the unified media library when it's on, otherwise the legacy sound alerts folder.",
     tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_sound_alert"
 )
-async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..., description="Sound file name (defaults to .mp3 extension if no extension provided)")):
+async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..., description="Sound file name as /sound-alerts lists it (defaults to .mp3 extension if no extension provided)")):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     channel = valid
+    sound = _clean_media_name(sound)
     # Add .mp3 extension if no extension is provided
-    if not sound.endswith(('.mp3', '.wav', '.ogg', '.m4a')):
+    if not sound.lower().endswith(('.mp3', '.wav', '.ogg', '.m4a')):
         sound += '.mp3'
-    # Build the sound URL
-    sound_url = f"https://soundalerts.botofthespecter.com/{channel}/{quote(sound)}"
-    # Trigger the WebSocket event
-    params = {"event": "SOUND_ALERT", "sound": sound_url}
+    host = "media.botofthespecter.com" if await _uses_media_library(channel) else "soundalerts.botofthespecter.com"
+    params = {"event": "SOUND_ALERT", "sound": _media_public_url(host, channel, sound)}
     await websocket_notice("SOUND_ALERT", params, api_key)
+    return {"status": "success"}
+
+# WebSocket Video Alert Trigger
+@app.get(
+    "/websocket/video_alert",
+    summary="Trigger Video Alert via API",
+    description="Play a video alert on the overlay via the WebSocket server. Uses the unified media library when it's on, otherwise the legacy video alerts folder.",
+    tags=["WebSocket Triggers"],
+    operation_id="trigger_websocket_video_alert"
+)
+async def websocket_video_alert(api_key: str = Query(...), video: str = Query(..., description="Video file name as /video-alerts lists it (defaults to .mp4 extension if no extension provided)")):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    channel = valid
+    video = _clean_media_name(video)
+    if not video.lower().endswith(MEDIA_VIDEO_EXTS):
+        video += '.mp4'
+    host = "media.botofthespecter.com" if await _uses_media_library(channel) else "videoalerts.botofthespecter.com"
+    params = {"event": "VIDEO_ALERT", "video": _media_public_url(host, channel, video)}
+    await websocket_notice("VIDEO_ALERT", params, api_key)
     return {"status": "success"}
 
 # WebSocket Custom Command Trigger
