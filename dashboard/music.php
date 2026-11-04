@@ -873,15 +873,19 @@ ob_start();
             audio.volume = MusicPlayer.state.volume / 100;
             audio.play().catch(err => console.error('Playback error:', err));
         },
+        // Local songs are also sent to the OBS overlay (see play()), so pausing or resuming here
+        // has to reach the overlay too, or OBS keeps playing after the page stops.
         pause() {
             MusicPlayer.elements.audioPlayer.pause();
             MusicPlayer.state.isPlaying = false;
             DOM.updatePlayPauseIcon(false);
+            WebSocket.sendCommand('pause');
         },
         resume() {
             MusicPlayer.elements.audioPlayer.play();
             MusicPlayer.state.isPlaying = true;
             DOM.updatePlayPauseIcon(true);
+            WebSocket.sendCommand('play');
         },
         togglePlayPause() {
             const audio = MusicPlayer.elements.audioPlayer;
@@ -920,6 +924,8 @@ ob_start();
                     MusicPlayer.state.isPlaying = false;
                     DOM.updatePlayPauseIcon(false);
                     DOM.highlightCurrentSong(-1);
+                    // End of the playlist here: stop the overlay as well instead of letting it run on.
+                    WebSocket.sendCommand('pause');
                 } else {
                     this.play(nextIndex);
                 }
@@ -986,6 +992,11 @@ ob_start();
             });
             MusicPlayer.socket.on('SUCCESS', () => {
                 MusicPlayer.socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
+                // Ask the overlay what it is playing, so the play/pause button matches OBS from the
+                // start (otherwise the first press sends "play" to an overlay that is already playing).
+                if (!MusicPlayer.state.localPlayback) {
+                    MusicPlayer.socket.emit('MUSIC_COMMAND', { command: 'WHAT_IS_PLAYING' });
+                }
             });
         },
         attemptReconnect() {
@@ -1019,7 +1030,7 @@ ob_start();
             MusicPlayer.elements.refreshBtn.classList.remove('sp-btn-loading');
             if (data && data.song) {
                 const title = data.song.title || data.song.file || data.song;
-                DOM.updateNowPlaying(Utils.nowPlayingLabel(title, data.song.artist), true);
+                DOM.updateNowPlaying(Utils.nowPlayingLabel(title, data.song.artist), !data.paused);
                 
                 // Try to find and highlight the song in playlist
                 const songFile = data.song.file || data.song;

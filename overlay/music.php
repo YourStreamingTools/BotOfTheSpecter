@@ -514,7 +514,8 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
                     sock.on('WHAT_IS_PLAYING', () => {
                         sock.emit('MUSIC_COMMAND', {
                             command: 'NOW_PLAYING',
-                            song: currentSongData ?? null
+                            song: currentSongData ?? null,
+                            paused: audioPlayer.paused
                         });
                     });
                     // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.

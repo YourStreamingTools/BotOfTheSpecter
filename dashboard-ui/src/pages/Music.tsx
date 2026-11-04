@@ -101,7 +101,10 @@ export default function Music() {
   async function toggle() {
     if (local) {
       const a = audio.current; if (!a) return
-      if (!a.src || cur === null) { const f = pick(null, 1, false); if (f) playLocal(f) } else if (a.paused) { a.play(); setPlaying(true) } else { a.pause(); setPlaying(false) }
+      // Local songs are also sent to the overlay, so pause and resume it with this page.
+      if (!a.src || cur === null) { const f = pick(null, 1, false); if (f) playLocal(f) }
+      else if (a.paused) { a.play(); setPlaying(true); post({ action: 'command', command: 'play' }).catch(() => {}) }
+      else { a.pause(); setPlaying(false); post({ action: 'command', command: 'pause' }).catch(() => {}) }
       return
     }
     if (await cmd(playing ? 'pause' : 'play', {}, 'pp')) setPlaying(!playing)
@@ -118,7 +121,7 @@ export default function Music() {
   function ended() {
     if (rep && cur) { const t = tracks.find((x) => x.key === cur); if (t) return playLocal(t) }
     const en = rotation, i = en.findIndex((t) => t.key === cur)
-    if (!shf && i === en.length - 1) { setPlaying(false); setCur(null); setNp(null); return }
+    if (!shf && i === en.length - 1) { setPlaying(false); setCur(null); setNp(null); post({ action: 'command', command: 'pause' }).catch(() => {}); return }
     const n = pick(cur, 1); if (n) playLocal(n)
   }
   function setLocalMode(v: boolean) {
