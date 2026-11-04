@@ -179,9 +179,8 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
             nowPlayingDiv.style.maxWidth = '90vw';
             nowPlayingDiv.style.padding = '0 16px';
             nowPlayingDiv.style.boxSizing = 'border-box';
-            nowPlayingDiv.style.whiteSpace = 'normal';
-            nowPlayingDiv.style.overflowWrap = 'anywhere';
-            nowPlayingDiv.style.wordBreak = 'break-word';
+            nowPlayingDiv.style.whiteSpace = 'nowrap';
+            nowPlayingDiv.style.overflow = 'hidden';
             nowPlayingDiv.style.textAlign = 'center';
             nowPlayingDiv.style.lineHeight = '1.2';
             let processedColor = color;
@@ -200,6 +199,40 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
         } else {
             nowPlayingDiv.style.display = 'none';
         }
+        // One line only: text that fits is centred; longer text scrolls round as a loop.
+        const NOW_PLAYING_GAP = 80; // px between the end of the text and its repeat
+        const NOW_PLAYING_SPEED = 60; // px per second
+        function setNowPlayingText(text) {
+            if (!showNowPlaying) return;
+            nowPlayingDiv.textContent = '';
+            nowPlayingDiv.style.width = '';
+            nowPlayingDiv.style.textAlign = 'center';
+            if (!text) return;
+            const track = document.createElement('span');
+            track.className = 'now-playing-track';
+            const first = document.createElement('span');
+            first.textContent = text;
+            track.appendChild(first);
+            nowPlayingDiv.appendChild(track);
+            const maxWidth = window.innerWidth * 0.9;
+            const textWidth = first.offsetWidth;
+            if (textWidth + 32 <= maxWidth) return; // 32 = left + right padding
+            nowPlayingDiv.style.width = maxWidth + 'px';
+            nowPlayingDiv.style.textAlign = 'left';
+            first.style.paddingRight = NOW_PLAYING_GAP + 'px';
+            const second = first.cloneNode(true);
+            second.setAttribute('aria-hidden', 'true');
+            track.appendChild(second);
+            const distance = textWidth + NOW_PLAYING_GAP;
+            track.style.setProperty('--np-distance', '-' + distance + 'px');
+            track.style.animationDuration = (distance / NOW_PLAYING_SPEED) + 's';
+            track.classList.add('now-playing-scroll');
+        }
+        window.addEventListener('resize', () => {
+            if (currentSongData) {
+                setNowPlayingText('Now Playing: ' + currentSongData.title + (currentSongData.artist ? ' — ' + currentSongData.artist : ''));
+            }
+        });
         function setAudioVolume(newVolume) {
             const parsed = Number(newVolume);
             if (Number.isFinite(parsed)) {
@@ -213,21 +246,20 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
         function playSong(url, songData = null) {
             if (!url) return;
             currentSong = url;
+            // Record the new song before play() resolves, so the label and WHAT_IS_PLAYING never
+            // report the previous track while this one loads (or if autoplay is refused).
+            currentSongData = (songData && songData.file) ? {
+                file: songData.file,
+                title: songData.title || songData.file.replace(/\.mp3$/i, '').replace(/_/g, ' '),
+                artist: songData.artist || ''
+            } : null;
+            if (currentSongData) playedHistory.add(url);
+            setNowPlayingText(currentSongData
+                ? 'Now Playing: ' + currentSongData.title + (currentSongData.artist ? ' — ' + currentSongData.artist : '')
+                : '');
             audioPlayer.src = url;
             setAudioVolume(volume);
             audioPlayer.play().then(() => {
-                if (songData && songData.file) {
-                    currentSongData = {
-                        file: songData.file,
-                        title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' '),
-                        artist: songData.artist || ''
-                    };
-                    playedHistory.add(url);
-                if (showNowPlaying) {
-                    nowPlayingDiv.innerText = 'Now Playing: ' + currentSongData.title
-                        + (currentSongData.artist ? ' — ' + currentSongData.artist : '');
-                }
-                }
                 if (socket && currentSongData && currentSongData.file) {
                     socket.emit('MUSIC_COMMAND', {
                         command: 'NOW_PLAYING',
@@ -243,9 +275,7 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
         function stopSong() {
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
-            if (showNowPlaying) {
-                nowPlayingDiv.innerText = '';
-            }
+            setNowPlayingText('');
         }
         function playSongByIndex(idx) {
             if (!playlist.length) return;
@@ -420,13 +450,18 @@ $userMusicMeta = $username ? music_meta_annotate('/var/www/private/music_user/' 
                             playSong(data.song.url, data.song);
                         } else if (data?.song?.file) {
                             const idx = playlist.findIndex(song => song.file === data.song.file);
-                            if (idx >= 0) playSongByIndex(idx);
+                            if (idx >= 0) {
+                                playSongByIndex(idx);
+                            } else {
+                                // Not in the active rotation (filtered out, other source, or added after
+                                // this overlay loaded): still play what the site asked for.
+                                const known = systemPlaylist.find(song => song.file === data.song.file)
+                                    || userPlaylist.find(song => song.file === data.song.file);
+                                playSong(known ? getSongKey(known) : getSongKey({ file: data.song.file }), data.song);
+                            }
                         } else {
                             stopSong();
                             currentSongData = null;
-                            if (showNowPlaying) {
-                                nowPlayingDiv.innerText = '';
-                            }
                         }
                     });
                     sock.on('MUSIC_COMMAND', (data) => {
