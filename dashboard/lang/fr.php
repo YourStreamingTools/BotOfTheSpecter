@@ -7564,4 +7564,8 @@ Cette action est irréversible.',
     'music_overlay_copied' => 'Copié',
     'music_overlay_reveal' => 'Cliquez pour afficher le lien',
     'music_overlay_nokey' => 'Votre compte n\'a pas encore de clé de chaîne, le lien ne peut donc pas être créé. Ouvrez votre profil pour en créer une.',
+    'music_overlay_autoplay' => 'Lancer la lecture quand OBS ouvre l\'overlay',
+    'music_overlay_autoplay_help' => 'Enregistré dans votre compte. Désactivé, l\'overlay reste silencieux jusqu\'à ce que vous lanciez une chanson depuis cette page.',
+    'music_overlay_autoplay_saved' => 'Réglage de lecture automatique enregistré. Il s\'applique au prochain chargement de l\'overlay dans OBS.',
+    'music_overlay_autoplay_failed' => 'Impossible d\'enregistrer le réglage de lecture automatique. Veuillez réessayer.',
 ];

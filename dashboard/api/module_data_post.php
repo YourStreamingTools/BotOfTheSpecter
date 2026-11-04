@@ -580,12 +580,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $update_stmt->close();
                 $music_playlist_filter = $filter;
             }
+            $music_autoplay = null;
+            if (isset($_POST['music_autoplay'])) {
+                $music_autoplay = $_POST['music_autoplay'] === '1' ? 1 : 0;
+                $update_stmt = $db_local->prepare("UPDATE streamer_preferences SET music_autoplay = ? WHERE id = 1");
+                if (!$update_stmt) {
+                    $db_local->close();
+                    echo json_encode(['success' => false, 'error' => 'Could not save the autoplay setting']);
+                    exit();
+                }
+                $update_stmt->bind_param('i', $music_autoplay);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
             $db_local->close();
             echo json_encode([
                 'success' => true,
                 'section' => $section,
                 'music_source' => $music_source ?? 'system',
                 'music_playlist_filter' => $music_playlist_filter,
+                'music_autoplay' => $music_autoplay === null ? null : (bool) $music_autoplay,
             ]);
             exit();
         }

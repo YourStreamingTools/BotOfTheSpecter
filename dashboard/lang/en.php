@@ -7603,4 +7603,8 @@ This action cannot be undone.',
     'music_overlay_copied' => 'Copied',
     'music_overlay_reveal' => 'Click to reveal the link',
     'music_overlay_nokey' => 'Your account has no channel key yet, so the link cannot be made. Open your Profile to create one.',
+    'music_overlay_autoplay' => 'Start playing when OBS opens the overlay',
+    'music_overlay_autoplay_help' => 'Saved to your account. When off, the overlay stays quiet until you play a song from this page.',
+    'music_overlay_autoplay_saved' => 'Autoplay setting saved. It applies the next time OBS loads the overlay.',
+    'music_overlay_autoplay_failed' => 'Could not save the autoplay setting. Please try again.',
 ];

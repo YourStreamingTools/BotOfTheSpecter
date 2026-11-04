@@ -731,7 +731,8 @@ try {
                 default_mod_welcome_message TEXT,
                 new_default_mod_welcome_message TEXT,
                 music_source VARCHAR(20) DEFAULT 'system',
-                music_playlist_filter TEXT DEFAULT NULL
+                music_playlist_filter TEXT DEFAULT NULL,
+                music_autoplay TINYINT(1) NOT NULL DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'stream_lotto' => "
             CREATE TABLE IF NOT EXISTS stream_lotto (

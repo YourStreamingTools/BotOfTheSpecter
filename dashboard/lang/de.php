@@ -7563,4 +7563,8 @@ Diese Aktion kann nicht rückgängig gemacht werden.',
     'music_overlay_copied' => 'Kopiert',
     'music_overlay_reveal' => 'Klicken, um den Link anzuzeigen',
     'music_overlay_nokey' => 'Dein Konto hat noch keinen Kanalschlüssel, daher kann kein Link erstellt werden. Öffne dein Profil, um einen zu erstellen.',
+    'music_overlay_autoplay' => 'Wiedergabe starten, wenn OBS das Overlay öffnet',
+    'music_overlay_autoplay_help' => 'Wird in deinem Konto gespeichert. Wenn aus, bleibt das Overlay still, bis du auf dieser Seite einen Song abspielst.',
+    'music_overlay_autoplay_saved' => 'Autoplay-Einstellung gespeichert. Sie gilt, sobald OBS das Overlay das nächste Mal lädt.',
+    'music_overlay_autoplay_failed' => 'Die Autoplay-Einstellung konnte nicht gespeichert werden. Bitte versuche es erneut.',
 ];
