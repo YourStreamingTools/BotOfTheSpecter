@@ -174,15 +174,14 @@ export default function ApiKeys() {
             <thead><tr><th>Service</th><th>API Key</th><th>WebSocket</th><th>Global</th><th>Admin</th><th>Mobile app</th><th>Dashboard</th><th>Actions</th></tr></thead>
             <tbody>{data.keys.map((k) => (
               <tr key={k.service}>
-                <td><strong>{k.service}</strong></td>
-                <td className="adm-key"><UrlReveal mask={MASK} label="API key" name={k.service} copied="API key copied." fail="Failed to copy to clipboard" fetchUrl={() => reveal(k.service)} toast={setToast} /></td>
+                <td className="adm-keysvc"><strong>{k.service}</strong>{k.channel ? <small className="muted">Demo account {k.channel}</small> : null}</td>
+                <td className="adm-key"><UrlReveal compact mask={MASK} label="API key" name={k.service} copied="API key copied." fail="Failed to copy to clipboard" fetchUrl={() => reveal(k.service)} toast={setToast} /></td>
                 <td><span className="adm-lbl-m">WebSocket</span><Switch on={!!k.websocket_access} busy={busy === k.service} label={`WebSocket access for ${k.service}`} onChange={(v) => setWs(k, v, !!k.websocket_global)} /></td>
                 <td><span className="adm-lbl-m">Global</span><Switch on={!!k.websocket_global} busy={busy === k.service || !k.websocket_access} label={`Global access for ${k.service}`} onChange={(v) => setWs(k, true, v)} /></td>
                 <td><span className="adm-lbl-m">Admin</span><Switch on={!!k.admin_access} busy={busy === k.service} label={`Admin access for ${k.service}`} onChange={(v) => flip(k, { admin: v })} /></td>
                 <td><span className="adm-lbl-m">Mobile app</span><Switch on={!!k.app_access} busy={busy === k.service} label={`Mobile app access for ${k.service}`} onChange={(v) => flip(k, { app: v })} /></td>
                 <td><span className="adm-lbl-m">Dashboard</span><Switch on={!!k.dashboard_access} busy={busy === k.service} label={`Dashboard access for ${k.service}`} onChange={(v) => flip(k, { dash: v })} /></td>
                 <td><div className="bp-acts">
-                  {k.channel ? <small className="muted">Demo account <strong>{k.channel}</strong></small> : null}
                   <button type="button" className="btn btn-ghost" onClick={() => setEdit({ key: k, v: formOf(k) })}><i className="fas fa-right-to-bracket" /> Sign-in</button>
                   <button type="button" className="btn btn-ghost" onClick={() => regen(k)}><i className="fas fa-sync" /> Regenerate</button>
                   <button type="button" className="btn btn-danger" onClick={() => del(k)}><i className="fas fa-trash" /> Delete</button>
