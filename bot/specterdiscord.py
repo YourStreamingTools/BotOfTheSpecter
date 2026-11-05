@@ -10672,6 +10672,8 @@ class MessageTrackingCog(commands.Cog, name='Message Tracking'):
     async def on_message_edit(self, before, after):
         if before.guild is None or before.author.bot:
             return
+        if before.content == after.content:
+            return
         try:
             settings = await self._get_settings(before.guild.id)
             if not settings['enabled'] or not settings['track_edits']:
