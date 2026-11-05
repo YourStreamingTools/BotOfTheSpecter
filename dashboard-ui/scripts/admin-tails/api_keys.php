@@ -84,7 +84,7 @@ function badm_keys_demo_database(string $name): array {
     return badm_keys_demo_seed($name);
 }
 // Sample data in the demo channel's own tables, so the pages it can see have
-// something in them: custom commands, commands from made-up viewers, timed
+// something in them: custom commands, commands from real Specter users, timed
 // messages and known users with welcome messages. A table that already has rows
 // is left alone, so running it again never duplicates or overwrites anything.
 function badm_keys_demo_seed(string $name): array {
@@ -124,16 +124,142 @@ function badm_keys_demo_seed(string $name): array {
     if ($empty('custom_user_commands')) {
         $st = $db->prepare("INSERT INTO custom_user_commands (command, response, status, cooldown, user_id) VALUES (?, ?, 'Enabled', ?, ?)");
         foreach ([
-            ['panda', 'PixelPanda rolls into chat!', 15, 'pixelpanda'],
-            ['owl', 'NightOwl is watching... always watching.', 30, 'nightowl_gg'],
-            ['speedrun', 'RetroRunner says: any% or bust!', 15, 'retrorunner'],
-            ['cozy', 'CozyCatLady brought snacks for everyone.', 20, 'cozycatlady'],
+            ['gfa', 'gfaUnDead has entered the chat. Everyone act natural!', 15, 'gfaundead'],
+            ['rocket', 'The_RocketWolf is here, three, two, one, liftoff!', 20, 'the_rocketwolf'],
+            ['bandit', 'MaskedBandit236 just snuck in. Check your pockets!', 20, 'maskedbandit236'],
+            ['awoo', 'The_RocketWolf lets out a howl. AWOOOO!', 30, 'the_rocketwolf'],
         ] as [$c, $r, $cd, $u]) {
             $st->bind_param('ssis', $c, $r, $cd, $u);
             $st->execute();
         }
         $st->close();
         $added[] = 'user commands';
+    }
+    if ($empty('builtin_commands')) {
+        // The bot's defaults, as the bot itself sets them the first time it runs
+        // for a channel. Demo channels never run the bot, so they are filled here.
+        $st = $db->prepare("INSERT INTO builtin_commands (command, status, permission, cooldown_rate, cooldown_time, cooldown_bucket) VALUES (?, 'Enabled', ?, ?, ?, ?)");
+        foreach ([
+            ['addbirthday', 'mod', 'user', 1, 15],
+            ['addcommand', 'mod', 'default', 1, 15],
+            ['addpoints', 'mod', 'default', 1, 15],
+            ['backlog', 'everyone', 'user', 0, 0],
+            ['bot', 'everyone', 'default', 1, 15],
+            ['checktimer', 'everyone', 'user', 0, 0],
+            ['checkupdate', 'mod', 'default', 1, 15],
+            ['cheerleader', 'everyone', 'default', 1, 15],
+            ['clip', 'everyone', 'default', 1, 15],
+            ['commands', 'everyone', 'default', 1, 15],
+            ['convert', 'everyone', 'default', 1, 15],
+            ['craft', 'mod', 'default', 1, 15],
+            ['createraffle', 'mod', 'default', 1, 15],
+            ['dbstatus', 'mod', 'default', 1, 15],
+            ['deathadd', 'mod', 'default', 1, 15],
+            ['deathremove', 'mod', 'default', 1, 15],
+            ['deaths', 'everyone', 'default', 1, 15],
+            ['disablecommand', 'mod', 'default', 1, 15],
+            ['done', 'everyone', 'user', 0, 0],
+            ['drawlotto', 'mod', 'default', 1, 15],
+            ['drawraffle', 'mod', 'default', 1, 15],
+            ['editcommand', 'mod', 'default', 1, 15],
+            ['edittypos', 'mod', 'default', 1, 15],
+            ['enablecommand', 'mod', 'default', 1, 15],
+            ['feed', 'everyone', 'user', 1, 15],
+            ['followage', 'everyone', 'user', 1, 15],
+            ['forceoffline', 'mod', 'default', 1, 15],
+            ['forceonline', 'mod', 'default', 1, 15],
+            ['gamble', 'everyone', 'user', 1, 15],
+            ['game', 'everyone', 'default', 1, 15],
+            ['heartrate', 'everyone', 'default', 1, 15],
+            ['highfive', 'everyone', 'user', 1, 15],
+            ['hug', 'everyone', 'user', 1, 15],
+            ['joinraffle', 'everyone', 'user', 1, 15],
+            ['joke', 'everyone', 'default', 1, 15],
+            ['kill', 'everyone', 'default', 1, 15],
+            ['kiss', 'everyone', 'user', 1, 15],
+            ['later', 'everyone', 'user', 0, 0],
+            ['leaveraffle', 'everyone', 'user', 1, 15],
+            ['lurk', 'everyone', 'user', 1, 15],
+            ['lurking', 'everyone', 'user', 1, 15],
+            ['lurklead', 'everyone', 'user', 1, 15],
+            ['marker', 'mod', 'default', 1, 15],
+            ['mybirthday', 'everyone', 'user', 1, 15],
+            ['mybits', 'everyone', 'user', 1, 15],
+            ['mytasks', 'everyone', 'user', 0, 0],
+            ['now', 'everyone', 'user', 0, 0],
+            ['obs', 'mod', 'default', 1, 15],
+            ['permit', 'mod', 'default', 1, 15],
+            ['permitsong', 'mod', 'default', 1, 15],
+            ['personaltimer', 'everyone', 'user', 0, 0],
+            ['pet', 'everyone', 'user', 1, 15],
+            ['ping', 'everyone', 'default', 1, 15],
+            ['play', 'everyone', 'user', 1, 15],
+            ['points', 'everyone', 'user', 1, 15],
+            ['project', 'everyone', 'user', 0, 0],
+            ['projects', 'everyone', 'user', 0, 0],
+            ['puzzledone', 'mod', 'default', 1, 15],
+            ['puzzles', 'everyone', 'default', 1, 15],
+            ['quote', 'everyone', 'default', 1, 15],
+            ['quoteadd', 'mod', 'default', 1, 15],
+            ['remove', 'everyone', 'user', 0, 0],
+            ['removecommand', 'mod', 'default', 1, 15],
+            ['removepoints', 'mod', 'default', 1, 15],
+            ['removequote', 'mod', 'default', 1, 15],
+            ['removesong', 'mod', 'default', 1, 15],
+            ['removetypos', 'mod', 'default', 1, 15],
+            ['rename', 'everyone', 'user', 0, 0],
+            ['roadmap', 'everyone', 'default', 1, 15],
+            ['roulette', 'everyone', 'user', 1, 15],
+            ['rps', 'everyone', 'user', 1, 15],
+            ['sad', 'everyone', 'user', 1, 15],
+            ['schedule', 'everyone', 'default', 1, 15],
+            ['setgame', 'mod', 'default', 1, 15],
+            ['settitle', 'mod', 'default', 1, 15],
+            ['shoutout', 'mod', 'default', 1, 15],
+            ['skipsong', 'mod', 'default', 1, 15],
+            ['sleep', 'everyone', 'user', 1, 15],
+            ['slots', 'everyone', 'user', 1, 15],
+            ['song', 'everyone', 'default', 1, 15],
+            ['songqueue', 'everyone', 'default', 1, 15],
+            ['songrequest', 'everyone', 'default', 1, 15],
+            ['soon', 'everyone', 'user', 0, 0],
+            ['srreset', 'mod', 'default', 1, 15],
+            ['startlotto', 'mod', 'default', 1, 15],
+            ['startraffle', 'mod', 'default', 1, 15],
+            ['steam', 'everyone', 'default', 1, 15],
+            ['stopraffle', 'mod', 'default', 1, 15],
+            ['store', 'everyone', 'default', 1, 15],
+            ['story', 'everyone', 'default', 1, 15],
+            ['subathon', 'everyone', 'default', 1, 15],
+            ['subscription', 'everyone', 'user', 1, 15],
+            ['task', 'everyone', 'user', 0, 0],
+            ['taskclear', 'everyone', 'default', 0, 0],
+            ['taskhelp', 'everyone', 'default', 0, 0],
+            ['tasktimer', 'everyone', 'default', 0, 0],
+            ['time', 'everyone', 'default', 1, 15],
+            ['timerhelp', 'everyone', 'default', 0, 0],
+            ['todo', 'everyone', 'default', 1, 15],
+            ['todolist', 'everyone', 'default', 1, 15],
+            ['translate', 'everyone', 'default', 1, 15],
+            ['typo', 'everyone', 'user', 1, 15],
+            ['typos', 'everyone', 'user', 1, 15],
+            ['unlurk', 'everyone', 'user', 1, 15],
+            ['updatebirthday', 'everyone', 'user', 1, 15],
+            ['uptime', 'everyone', 'default', 1, 15],
+            ['userslurking', 'everyone', 'default', 1, 15],
+            ['version', 'everyone', 'default', 1, 15],
+            ['warn', 'mod', 'default', 1, 15],
+            ['watchtime', 'everyone', 'user', 1, 15],
+            ['weather', 'everyone', 'default', 1, 15],
+            ['wordreplaceoff', 'everyone', 'default', 1, 15],
+            ['wordreplaceon', 'everyone', 'default', 1, 15],
+            ['wsstatus', 'mod', 'default', 1, 15],
+        ] as [$c, $perm, $bucket, $rate, $time]) {
+            $st->bind_param('ssiis', $c, $perm, $rate, $time, $bucket);
+            $st->execute();
+        }
+        $st->close();
+        $added[] = 'builtin commands';
     }
     if ($empty('timed_messages')) {
         $st = $db->prepare("INSERT INTO timed_messages (interval_count, chat_line_trigger, message, status, trigger_type) VALUES (?, ?, ?, ?, ?)");
