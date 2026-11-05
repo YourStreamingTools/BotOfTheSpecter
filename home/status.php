@@ -215,14 +215,14 @@ if (isset($_GET['ajax'])) {
 
     // Fetch total users
     $totalUsers = null;
-    $result = $conn->query("SELECT COUNT(*) as count FROM users");
+    $result = $conn->query("SELECT COUNT(*) as count FROM users WHERE COALESCE(is_demo, 0) = 0");
     if ($result) {
         $totalUsers = $result->fetch_assoc()['count'] ?? null;
     }
 
     // Fetch users by signup year (last 4 years)
     $usersByYear = [];
-    $result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
+    $result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users WHERE COALESCE(is_demo, 0) = 0 GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $usersByYear[] = $row;
@@ -231,7 +231,7 @@ if (isset($_GET['ajax'])) {
 
     // Fetch beta users
     $betaUsers = [];
-    $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
+    $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND COALESCE(is_demo, 0) = 0 AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $betaUsers[] = $row['twitch_display_name'];
