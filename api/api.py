@@ -253,13 +253,32 @@ def _list_media_files(root: str, username: str, valid_extensions: tuple[str, ...
     names.sort()
     return names
 
-# Unified media library: one folder per channel, files at the top level or one folder down
+# Unified media library: one folder per channel, files at the top level or one folder down.
+# The files live on Mega S4. This host has no mount of it, so folders are listed by the
+# storage server (syd1, specter-storage /list/{store}/{user}) over the private network.
+# MEDIA_ROOT and the *_ROOT folders are only a fallback for a host that does mount them.
 MEDIA_ROOT = os.getenv("MEDIA_ROOT", "/var/www/media")
 MEDIA_AUDIO_EXTS = (".mp3",)
 MEDIA_VIDEO_EXTS = (".mp4",)
+STORAGE_INTERNAL_URL = (os.getenv("STORAGE_INTERNAL_URL") or "http://10.240.0.9:8092").rstrip("/")
 
 
-def _list_library_files(username: str, valid_extensions: tuple[str, ...]) -> list[str]:
+async def _storage_list(store: str, username: str) -> list[str] | None:
+    """File names in {store}/{username} on the storage server, or None when it can't say."""
+    url = f"{STORAGE_INTERNAL_URL}/list/{store}/{quote(username)}"
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return [str(f) for f in data.get("files") or []]
+                logging.warning(f"Storage list {store}/{username}: HTTP {resp.status}")
+    except Exception as e:
+        logging.warning(f"Storage list {store}/{username} failed: {e}")
+    return None
+
+
+def _local_library_files(username: str) -> list[str]:
     # Same layout the dashboard's Media page reads: {MEDIA_ROOT}/{username}/file and /folder/file
     base = os.path.join(MEDIA_ROOT, username)
     if not os.path.isdir(base):
@@ -269,16 +288,33 @@ def _list_library_files(username: str, valid_extensions: tuple[str, ...]) -> lis
         for entry in os.listdir(base):
             path = os.path.join(base, entry)
             if os.path.isfile(path):
-                if entry.lower().endswith(valid_extensions):
-                    names.append(entry)
+                names.append(entry)
             elif os.path.isdir(path):
                 for sub in os.listdir(path):
-                    if os.path.isfile(os.path.join(path, sub)) and sub.lower().endswith(valid_extensions):
+                    if os.path.isfile(os.path.join(path, sub)):
                         names.append(f"{entry}/{sub}")
     except OSError as e:
         logging.error(f"Error listing media library under {base}: {e}")
         return []
+    return names
+
+
+async def _list_library_files(username: str, valid_extensions: tuple[str, ...]) -> list[str]:
+    files = await _storage_list("media", username)
+    if files is None:
+        files = await asyncio.to_thread(_local_library_files, username)
+    names = [f for f in files if f.lower().endswith(valid_extensions)]
     names.sort(key=str.lower)
+    return names
+
+
+async def _list_store_files(store: str, root: str, username: str, valid_extensions: tuple[str, ...]) -> list[str]:
+    """A legacy per-type folder (soundalerts, videoalerts, walkons): top-level files only."""
+    files = await _storage_list(store, username)
+    if files is None:
+        return await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+    names = [f for f in files if "/" not in f and f.lower().endswith(valid_extensions)]
+    names.sort()
     return names
 
 
@@ -291,8 +327,18 @@ def _clean_media_name(name: str) -> str:
     return "/".join(parts)
 
 
-def _library_file_exists(username: str, name: str) -> bool:
-    return os.path.isfile(os.path.join(MEDIA_ROOT, username, *name.split("/")))
+async def _library_file_exists(username: str, name: str) -> bool:
+    url = f"{STORAGE_INTERNAL_URL}/media/media/{quote(username)}/{quote(name)}"
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.head(url) as resp:
+                if resp.status == 200:
+                    return True
+                if resp.status == 404:
+                    return False
+    except Exception as e:
+        logging.warning(f"Storage check {username}/{name} failed: {e}")
+    return await asyncio.to_thread(os.path.isfile, os.path.join(MEDIA_ROOT, username, *name.split("/")))
 
 
 def _media_public_url(host: str, username: str, name: str) -> str:
@@ -4469,12 +4515,11 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
     try:
         library = await _uses_media_library(username)
         if library:
-            sound_files = await asyncio.to_thread(_list_library_files, username, MEDIA_AUDIO_EXTS)
+            sound_files = await _list_library_files(username, MEDIA_AUDIO_EXTS)
         else:
-            # Local/shared mount only; set SOUNDALERTS_ROOT if media is not at /var/www/soundalerts
             root = os.getenv("SOUNDALERTS_ROOT", "/var/www/soundalerts")
             valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
-            sound_files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+            sound_files = await _list_store_files("soundalerts", root, username, valid_extensions)
             sound_files = [
                 f for f in sound_files
                 if f.lower() != "twitch" and not f.lower().startswith("twitch.")
@@ -4507,11 +4552,10 @@ async def get_video_alerts(api_key: str = Query(...), channel: str = Query(None)
     try:
         library = await _uses_media_library(username)
         if library:
-            video_files = await asyncio.to_thread(_list_library_files, username, MEDIA_VIDEO_EXTS)
+            video_files = await _list_library_files(username, MEDIA_VIDEO_EXTS)
         else:
-            # Local/shared mount only; set VIDEOALERTS_ROOT if media is not at /var/www/videoalerts
             root = os.getenv("VIDEOALERTS_ROOT", "/var/www/videoalerts")
-            video_files = await asyncio.to_thread(_list_media_files, root, username, MEDIA_VIDEO_EXTS)
+            video_files = await _list_store_files("videoalerts", root, username, MEDIA_VIDEO_EXTS)
         return {
             "user": username,
             "library": library,
@@ -4555,10 +4599,9 @@ async def get_walkons(api_key: str = Query(...), channel: str = Query(None)):
                     "mode": row.get("mode") or ("video" if ext == ".mp4" else "sound"),
                 })
         else:
-            # Local/shared mount only; set WALKONS_ROOT if media is not at /var/www/walkons
             root = os.getenv("WALKONS_ROOT", "/var/www/walkons")
             valid_extensions = (".mp3", ".mp4")
-            files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+            files = await _list_store_files("walkons", root, username, valid_extensions)
             for filename in files:
                 ext = os.path.splitext(filename)[1].lower()
                 viewer = filename[:-len(ext)]
@@ -6264,7 +6307,7 @@ async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ex
                     params["avatar_url"] = avatar_url
         else:
             for candidate in (f"{user.lower()}{ext}", f"{user}{ext}"):
-                if await asyncio.to_thread(_library_file_exists, channel, candidate):
+                if await _library_file_exists(channel, candidate):
                     params.update(media_file=candidate, mode="video" if ext == ".mp4" else "sound")
                     break
     await websocket_notice("WALKON", params, api_key)

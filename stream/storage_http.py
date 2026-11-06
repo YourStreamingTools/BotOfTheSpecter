@@ -6,6 +6,9 @@ Caddy on web1 proxies the public hosts here and falls back to Mega S4.
   /vods/{user}/{file}[/{download_name}]  recordings + stored Twitch VODs
   /media/{store}/{path}                  cached read-only Mega S4 mounts
                                          (specter-media-mount@{store})
+  /list/{store}/{user}                   JSON file names in a channel's folder,
+                                         top level and one folder down (for the API;
+                                         the public hosts never reach it)
 
 The old un-prefixed VOD paths (/{user}/{file}) still work.
 """
@@ -92,10 +95,46 @@ async def handle_media(request: web.Request) -> web.StreamResponse:
     return web.FileResponse(path, headers={"Content-Type": ctype})
 
 
+def _list_files(store: str, username: str) -> list[str] | None:
+    # Same layout as the dashboard's Media page: {user}/file and {user}/folder/file
+    base = os.path.join(MEDIA_ROOT, store, username)
+    if not os.path.isdir(base):
+        return []
+    names: list[str] = []
+    try:
+        with os.scandir(base) as top:
+            for entry in top:
+                if entry.name.startswith("."):
+                    continue
+                if entry.is_file():
+                    names.append(entry.name)
+                elif entry.is_dir():
+                    with os.scandir(entry.path) as sub:
+                        names.extend(f"{entry.name}/{s.name}" for s in sub if not s.name.startswith(".") and s.is_file())
+    except OSError:
+        return None
+    names.sort(key=str.lower)
+    return names
+
+
+async def handle_list(request: web.Request) -> web.Response:
+    store = request.match_info["store"]
+    username = request.match_info["username"]
+    if store not in MEDIA_STORES or not SAFE_USER.match(username):
+        return web.json_response({"error": "not found"}, status=404)
+    if not await asyncio.to_thread(os.path.ismount, os.path.join(MEDIA_ROOT, store)):
+        return web.json_response({"error": "store unavailable"}, status=503)
+    files = await asyncio.to_thread(_list_files, store, username)
+    if files is None:
+        return web.json_response({"error": "list failed"}, status=503)
+    return web.json_response({"store": store, "user": username, "files": files})
+
+
 def main() -> None:
     os.makedirs(ROOT, exist_ok=True)
     app = web.Application()
     app.router.add_get("/media/{store}/{path:.+}", handle_media)
+    app.router.add_get("/list/{store}/{username}", handle_list)
     app.router.add_get("/vods/{username}/{filename}/{download_name}", handle_vod)
     app.router.add_get("/vods/{username}/{filename}", handle_vod)
     app.router.add_get("/{username}/{filename}/{download_name}", handle_vod)
