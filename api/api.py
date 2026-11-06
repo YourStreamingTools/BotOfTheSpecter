@@ -378,6 +378,52 @@ async def _library_walkons(username: str) -> list[dict]:
         return []
 
 
+async def _media_tags(username: str) -> dict[str, dict]:
+    """Where each media file is used: walkon (with the viewers), reward or twitch_alert."""
+    tags: dict[str, dict] = {}
+
+    def add(name, tag, viewer=None):
+        name = str(name or "").strip()
+        if not name:
+            return
+        entry = tags.setdefault(name, {"tags": [], "walkon_users": []})
+        if tag not in entry["tags"]:
+            entry["tags"].append(tag)
+        if viewer and viewer not in entry["walkon_users"]:
+            entry["walkon_users"].append(viewer)
+
+    for row in await _library_walkons(username):
+        add(row.get("media_file"), "walkon", row.get("twitch_user_name"))
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                for sql, tag in (
+                    ("SELECT sound_mapping AS f FROM sound_alerts", "reward"),
+                    ("SELECT video_mapping AS f FROM video_alerts", "reward"),
+                    ("SELECT sound_mapping AS f FROM twitch_sound_alerts", "twitch_alert"),
+                ):
+                    try:
+                        await cur.execute(sql)
+                        for row in await cur.fetchall() or []:
+                            add(row.get("f"), tag)
+                    except Exception as e:
+                        logging.warning(f"Media tags query failed for '{username}': {e}")
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"Could not read media tags for '{username}': {e}")
+    return tags
+
+
+def _tagged_items(files: list[str], tags: dict[str, dict]) -> list[dict]:
+    items = []
+    for f in files:
+        t = tags.get(f) or tags.get(f.rsplit("/", 1)[-1]) or {}
+        items.append({"file": f, "tags": list(t.get("tags") or []), "walkon_users": list(t.get("walkon_users") or [])})
+    return items
+
+
 async def _twitch_user_card(twitch_user_id: str) -> tuple[str | None, str | None]:
     """Display name and profile picture for a walk-on card, best effort."""
     app_creds = await get_twitch_app_credentials()
@@ -4503,7 +4549,7 @@ async def joke(api_key: str = Query(...), channel: str = Query(None)):
 @app.get(
     "/sound-alerts",
     summary="Get list of sound alerts for user",
-    description="Retrieve the sound alert files for the authenticated user. With the unified media library on, these are the library's audio files (a name may include one folder, like folder/file.mp3); otherwise the legacy sound alerts folder. library says which.",
+    description="Retrieve the sound alert files for the authenticated user. With the unified media library on, these are the library's audio files (a name may include one folder, like folder/file.mp3); otherwise the legacy sound alerts folder. library says which. items repeats each file with tags saying where it is used: walkon (walkon_users lists the viewers), reward (a channel point reward) or twitch_alert; an empty list means it is not assigned.",
     tags=["Commands"],
     operation_id="get_sound_alerts"
 )
@@ -4528,7 +4574,8 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
             "user": username,
             "library": library,
             "total_sounds": len(sound_files),
-            "sounds": sound_files
+            "sounds": sound_files,
+            "items": _tagged_items(sound_files, await _media_tags(username)),
         }
     except HTTPException:
         raise
@@ -4540,7 +4587,7 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
 @app.get(
     "/video-alerts",
     summary="Get list of video alerts for user",
-    description="Retrieve the video alert files for the authenticated user. With the unified media library on, these are the library's video files (a name may include one folder); otherwise the legacy video alerts folder. library says which.",
+    description="Retrieve the video alert files for the authenticated user. With the unified media library on, these are the library's video files (a name may include one folder); otherwise the legacy video alerts folder. library says which. items repeats each file with tags saying where it is used: walkon (walkon_users lists the viewers) or reward; an empty list means it is not assigned.",
     tags=["Commands"],
     operation_id="get_video_alerts"
 )
@@ -4561,6 +4608,7 @@ async def get_video_alerts(api_key: str = Query(...), channel: str = Query(None)
             "library": library,
             "total_videos": len(video_files),
             "videos": video_files,
+            "items": _tagged_items(video_files, await _media_tags(username)),
         }
     except HTTPException:
         raise
