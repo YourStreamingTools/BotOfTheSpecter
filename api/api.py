@@ -62,7 +62,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Any, Optional
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
-from urllib.parse import urlencode, parse_qsl, quote
+from urllib.parse import urlencode, parse_qsl, quote, urlparse
 from contextlib import asynccontextmanager
 import math
 import ipaddress
@@ -1214,6 +1214,7 @@ _V2_PUBLIC_PATHS = [
     "/extension/todos",
     "/camera/pair/redeem",
     "/camera/device/me",
+    "/camera/servers",
 ]
 _V2_PUBLIC_PATHS_SET = set(_V2_PUBLIC_PATHS)
 
@@ -1244,6 +1245,7 @@ _V2_ONLY_PATHS = {
     "/camera/devices",
     "/camera/devices/{id}",
     "/camera/device/me",
+    "/camera/servers",
     "/studio/output",
     "/channel/twitch/raids/start",
     "/channel/twitch/raids/cancel",
@@ -3387,6 +3389,19 @@ async def _camera_stream_servers_call(method: str, route: str, params: dict) -> 
         await asyncio.gather(*(call(r, b) for r, b in CAMERA_STREAM_SERVERS.items()))
     return results, sorted(unreachable)
 
+def _camera_ingest_servers() -> list[dict]:
+    # Phone ingest for each CAMERA_STREAM_SERVERS entry: RTMPS on the same host as its operator API.
+    servers = []
+    for region, base in CAMERA_STREAM_SERVERS.items():
+        host = urlparse(base.strip()).hostname
+        if host:
+            servers.append({
+                "id": region.strip(),
+                "name": region.strip().replace("_", " ").replace("-", " ").title(),
+                "ingest_url": f"rtmps://{host}:1935/camera",
+            })
+    return servers
+
 def _camera_pair_error(status_code: int, error: str, message: str, headers: dict | None = None) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"status": "error", "error": error, "message": message}, headers=headers)
 
@@ -3484,6 +3499,16 @@ async def camera_pair_status(code: str = Query(..., max_length=20), api_key: str
     else:
         state = "pending"
     return {"status": state, "device_name": row["device_name"]}
+
+@app.get(
+    "/camera/servers",
+    summary="List camera stream servers",
+    description="Called by the Specter Camera app for its Stream server picker. Lists every stream server in CAMERA_STREAM_SERVERS with its RTMPS ingest URL; add a server there and the apps pick it up. default is the server new links use.",
+    tags=["Public"],
+    operation_id="camera_servers",
+)
+async def camera_servers():
+    return {"status": "success", "default": CAMERA_INGEST_REGION, "servers": _camera_ingest_servers()}
 
 @app.post(
     "/camera/pair/redeem",
