@@ -92,6 +92,29 @@ app = FastAPI(
     redoc_url=None,
 )
 
+class HeadAsGetMiddleware:
+    """Answer HEAD like GET, without a body, so uptime monitors get a real status."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("method") != "HEAD":
+            await self.app(scope, receive, send)
+            return
+        scope = dict(scope, method="GET")
+
+        async def send_without_body(message):
+            if message.get("type") == "http.response.body":
+                message = dict(message, body=b"")
+            await send(message)
+
+        await self.app(scope, receive, send_without_body)
+
+
+app.add_middleware(HeadAsGetMiddleware)
+
+
 
 @app.get("/", include_in_schema=False)
 async def root_to_docs():
