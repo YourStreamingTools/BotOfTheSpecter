@@ -15,7 +15,7 @@ type Row = { name: string; title: string; kind: string; on_s3: boolean; extended
 type Stats = { files: number; pulling: number; yt_uploading: number; yt_queued: number; s3_uploading: number; s3_queued: number; failed_pulls: string[]; used_bytes: number; quota_bytes: number; unlimited: boolean }
 type VodState = { store: { state: 'pulling' | 'stored' | 'store' | 'none'; phase?: string; pos?: number }; yt: Act; s3: Act }
 type Pull = { status?: string; phase?: string; percent?: number | null; title?: string; filename?: string; vod_id?: string; queue_position?: number; bytes?: number; bytes_total?: number }
-type Job = { status?: string; percent?: number; title?: string; filename?: string; bytes_sent?: number; bytes_total?: number }
+type Job = { status?: string; percent?: number; title?: string; filename?: string; twitch_video_id?: string; bytes_sent?: number; bytes_total?: number }
 type Rerun = { id: number; status: string; when: string; game: string; length: string; items: { title: string; full_title: string; length: string; status: string; reason: string }[]; current_position: number | null; cancel_requested: boolean; reason: string }
 type Cand = { token: string; display: string; title: string; game_id: string; game_name: string; duration_seconds: number }
 type Page = {
@@ -143,16 +143,24 @@ function rate(key: string, b: number | undefined): number | null {
 }
 const speed = (key: string, b: number | undefined) => { const r = rate(key, b); return r !== null && isFinite(r) && r > 0 ? ` · ${bytes(Math.round(r))}/s` : '' }
 const sizeOf = (sent?: number, total?: number) => { const a = Number(sent) || 0, t = Number(total) || 0; return a > 0 ? ` · ${bytes(a)}${t > a ? ` / ${bytes(t)}` : ''}` : '' }
+// Prefer bytes/total when we have them so the figure matches the size text (the worker still reports a 0-85-100 composite).
+function barPct(sent?: number, total?: number, fallback?: number | null, hide = false): number | null {
+  if (hide) return null
+  const a = Number(sent) || 0, t = Number(total) || 0
+  if (t > 0) return Math.max(0, Math.min(100, (a / t) * 100))
+  return typeof fallback === 'number' && isFinite(fallback) ? Math.max(0, Math.min(100, fallback)) : null
+}
 function Jobs({ p }: { p: Page }) {
-  const yt = Object.entries(p.youtube_jobs).filter(([, j]) => j.status === 'uploading' || j.status === 'pulling')
-  const s3 = Object.entries(p.s3_jobs).filter(([, j]) => j.status === 'uploading')
   const pulls = p.pulls.filter((j) => j.status === 'pulling')
+  // YouTube jobs sit in 'pulling' while a shared Twitch download runs; that download already has its own bar.
+  const yt = Object.entries(p.youtube_jobs).filter(([, j]) => j.status === 'uploading' || (j.status === 'pulling' && !j.twitch_video_id))
+  const s3 = Object.entries(p.s3_jobs).filter(([, j]) => j.status === 'uploading')
   if (!yt.length && !s3.length && !pulls.length && !p.stats.failed_pulls.length) return null
   const bar = (key: string, label: string, v: number | null, extra = '') => <div key={key} className="st-job"><div className="st-job-h"><span>{label}</span><span>{v !== null ? `${Math.round(v * 10) / 10}%` : ''}{extra}</span></div><progress max={100} value={v ?? undefined} aria-label={label} /></div>
   return <div className="st-jobs">
-    {pulls.map((j, i) => { const ph = j.phase === 'saving' ? 'Saving to backend storage...' : j.phase === 'queued' ? (j.queue_position ? `Queued for download (#${j.queue_position} in line)` : 'Queued for download') : 'Downloading...'; return bar('p' + i, `${j.title || j.filename || j.vod_id || ''} - ${ph}`, j.phase === 'queued' || typeof j.percent !== 'number' ? null : Math.max(0, Math.min(100, j.percent)), j.phase === 'queued' ? '' : sizeOf(j.bytes, j.bytes_total) + speed(`${j.phase === 'saving' ? 'save' : 'pull'}:${j.vod_id || j.filename || i}`, j.bytes)) })}
-    {yt.map(([n, j]) => bar('y' + n, `${j.title || n} - ${YT_ST[j.status || '']}`, j.status === 'uploading' ? Math.max(0, Math.min(100, j.percent || 0)) : null, sizeOf(j.bytes_sent, j.bytes_total) + speed('yt:' + n, j.bytes_sent)))}
-    {s3.map(([n, j]) => bar('s' + n, `${j.title || j.filename || n} - Uploading to S3`, Math.max(0, Math.min(100, j.percent || 0)), sizeOf(j.bytes_sent, j.bytes_total) + speed('s3:' + n, j.bytes_sent)))}
+    {pulls.map((j, i) => { const ph = j.phase === 'saving' ? 'Saving to backend storage...' : j.phase === 'queued' ? (j.queue_position ? `Queued for download (#${j.queue_position} in line)` : 'Queued for download') : 'Downloading...'; return bar('p' + i, `${j.title || j.filename || j.vod_id || ''} - ${ph}`, barPct(j.bytes, j.bytes_total, j.percent, j.phase === 'queued'), j.phase === 'queued' ? '' : sizeOf(j.bytes, j.bytes_total) + speed(`${j.phase === 'saving' ? 'save' : 'pull'}:${j.vod_id || j.filename || i}`, j.bytes)) })}
+    {yt.map(([n, j]) => bar('y' + n, `${j.title || n} - ${YT_ST[j.status || '']}`, barPct(j.bytes_sent, j.bytes_total, j.percent, j.status !== 'uploading' && j.status !== 'pulling'), sizeOf(j.bytes_sent, j.bytes_total) + speed('yt:' + n, j.bytes_sent)))}
+    {s3.map(([n, j]) => bar('s' + n, `${j.title || j.filename || n} - Uploading to S3`, barPct(j.bytes_sent, j.bytes_total, j.percent), sizeOf(j.bytes_sent, j.bytes_total) + speed('s3:' + n, j.bytes_sent)))}
     {p.stats.failed_pulls.map((t, i) => <div key={'f' + i} className="notice notice-err"><i className="fas fa-triangle-exclamation" /> <span>{t} - Download failed</span></div>)}
   </div>
 }
