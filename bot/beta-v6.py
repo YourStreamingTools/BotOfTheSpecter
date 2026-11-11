@@ -456,6 +456,7 @@ OPENAI_MODEL = "gpt-5.4-mini"                           # OpenAI chat model for 
 _shared_http_session = None                             # Shared aiohttp session (lazy-created)
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online
+lotto_drawn_this_stream = False                         # Set once the lotto is drawn so no new round starts until the next stream or !startlotto
 rerun_notice_state = {"rerun_id": None, "checked_at": 0.0, "notified": set()}  # Live Specter rerun cache + chatters already told about it
 current_game = None                                    # Live Twitch category name
 current_game_id = None                                  # Live Twitch category id (Helix) 
@@ -12093,6 +12094,8 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Record usage right away so overlapping uses can't both pass the cooldown
                     add_usage('startlotto', bucket_key, cooldown_bucket)
+                global lotto_drawn_this_stream
+                lotto_drawn_this_stream = False
                 done = await generate_winning_lotto_numbers()
                 if done == True:
                     await send_chat_message("Lotto numbers have been generated. Good luck everyone!")
@@ -12199,9 +12202,11 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message(f"No winners this time! The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
                 else:
                     await send_chat_message(f"The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
-                # Clear winning numbers after the draw
+                # Clear winning numbers after the draw and close the round for this stream
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
+                global lotto_drawn_this_stream
+                lotto_drawn_this_stream = True
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
@@ -16266,7 +16271,7 @@ async def process_weather_websocket(data):
 # Function to process the stream being online
 async def process_stream_online_websocket():
     global stream_online, current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
-    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, stream_session_started_at, ad_1min_last_notified_next_ad_at, ad_1min_last_notified_ts
+    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, stream_session_started_at, ad_1min_last_notified_next_ad_at, ad_1min_last_notified_ts, lotto_drawn_this_stream
     was_offline = not stream_online
     if was_offline:
         pet_mark_new_stream()
@@ -16274,13 +16279,16 @@ async def process_stream_online_websocket():
     if was_offline:
         await pet_reset_for_new_stream()
         stream_session_started_at = datetime.now(timezone.utc).timestamp()
+        # New stream, so a new lotto round can start
+        lotto_drawn_this_stream = False
         # New stream, so per-stream song request counts start again
         try:
             async with await mysql_connection() as reset_conn:
                 await reset_stream_requests(reset_conn)
         except Exception as reset_err:
             bot_logger.error(f"[SONG REQUEST] Failed to reset stream request counts: {reset_err}")
-    await generate_winning_lotto_numbers()
+    if not lotto_drawn_this_stream:
+        await generate_winning_lotto_numbers()
     # Reach out to the Twitch API to get stream data
     async with httpClientSession() as session:
         headers = {
@@ -16580,6 +16588,8 @@ async def perform_lotto_draw(announce_empty=True):
                 await send_chat_message(f"The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
             await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
             await connection.commit()
+            global lotto_drawn_this_stream
+            lotto_drawn_this_stream = True
             return True
     except Exception as e:
         bot_logger.error(f"Error in perform_lotto_draw: {e}")
@@ -19553,6 +19563,9 @@ async def generate_user_lotto_numbers(user_name):
             user_exists = await cursor.fetchone()
             if user_exists:
                 return {"error": "you've already played the lotto, please wait until the next round."}
+            # Once the lotto has been drawn this stream, no new round starts until the next stream or !startlotto
+            if not game_running and lotto_drawn_this_stream:
+                return {"error": "the lotto has already been drawn for this stream, please wait for the next round."}
             # If there are no winning numbers, generate them
             if not game_running:
                 done = await generate_winning_lotto_numbers()
