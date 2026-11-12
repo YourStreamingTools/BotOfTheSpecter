@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Combobox from '../components/Combobox'
 import Modal from '../components/Modal'
 import { UrlReveal } from '../components/UrlReveal'
+import { copyText } from '../components/clipboard'
 import { get } from '../bot'
 import { Counter, Switch, ToastBar, send, type Toast } from './commands/shared'
 
@@ -40,22 +41,43 @@ const COMMANDS: [string, string][] = [['task', 'set your current task'], ['done'
 void COMMANDS_OLD
 const PHASES: Record<string, string> = { focus: 'Focus Sprint', micro: 'Micro Break', recharge: 'Recharge Stretch' }
 const urlOf = async (kind: string) => { const r = await get<{ success: boolean; url?: string; error?: string }>(`${API}?beta=url&kind=${kind}`); if (!r.success || !r.url) throw new Error(r.error || 'Could not get the overlay URL.'); return r.url }
-async function copyLink(kind: string, what: string, toast: (t: Toast) => void) {
-  try { await navigator.clipboard.writeText(await urlOf(kind)); toast({ kind: 'ok', text: `${what} copied.` }) }
-  catch (e) { toast({ kind: 'err', text: (e as Error).message || 'Could not copy the link.' }) }
+type Manual = { what: string; url: string } | null
+// The URL is fetched on click. copyText keeps the clipboard write tied to the
+// click (Safari and Firefox refuse it after an await), and when the browser
+// still refuses, the link opens in a box to select and copy by hand, so the
+// clipboard is never left holding something else while the toast says copied.
+async function copyLink(kind: string, what: string, toast: (t: Toast) => void, manual: (m: Manual) => void) {
+  const url = urlOf(kind)
+  try {
+    if (await copyText(url)) { toast({ kind: 'ok', text: `${what} copied.` }); return }
+    manual({ what, url: await url })
+  } catch (e) { toast({ kind: 'err', text: (e as Error).message || 'Could not get the link.' }) }
+}
+function ManualCopy({ m, onClose }: { m: NonNullable<Manual>; onClose: () => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { ref.current?.focus(); ref.current?.select() }, [])
+  return (
+    <Modal title={`Copy the ${m.what.toLowerCase()}`} icon="fas fa-copy" onClose={onClose}>
+      <p>Your browser blocked the copy. The link is selected below: press Ctrl+C (Cmd+C on a Mac) to copy it. It holds your channel key, so keep it private.</p>
+      <input ref={ref} className="input" readOnly aria-label={m.what} value={m.url} onFocus={(e) => e.currentTarget.select()} onClick={(e) => e.currentTarget.select()} />
+      <div className="modal-acts"><button type="button" className="btn" onClick={onClose}>Done</button></div>
+    </Modal>
+  )
 }
 
 export default function WorkingStudy() {
   const [page, setPage] = useState<Page | null>(null)
   const [err, setErr] = useState('')
   const [toast, setToast] = useState<Toast>(null)
+  const [manual, setManual] = useState<Manual>(null)
   useEffect(() => { get<Page>(API).then((r) => { if (!r.success) throw new Error(); setPage(r) }).catch(() => setErr('The Working & Study page could not load. Refresh to try again.')) }, [])
   if (err) return <div className="page cmds mp ws"><div className="notice notice-err"><i className="fas fa-triangle-exclamation" /> <span>{err}</span></div></div>
   if (!page) return <div className="page cmds mp ws"><section className="card"><p className="muted">Loading</p></section></div>
   return (
     <div className="page cmds mp ws">
-      <OverlayControl page={page} setPage={setPage} toast={setToast} />
-      <TaskManager page={page} setPage={setPage} toast={setToast} />
+      <OverlayControl page={page} setPage={setPage} toast={setToast} manual={setManual} />
+      <TaskManager page={page} setPage={setPage} toast={setToast} manual={setManual} />
+      {manual && <ManualCopy m={manual} onClose={() => setManual(null)} />}
       <ToastBar t={toast} onClose={() => setToast(null)} />
     </div>
   )
@@ -68,7 +90,7 @@ const DUR: [keyof Settings, string, string, string, number][] = [
   ['recharge_break_minutes', 'Recharge break duration', 'fas fa-leaf', 'Longer break for recharging', 240],
   ['cycle_count', 'Focus cycles per session', 'fas fa-repeat', 'How many focus sprints make up one planned session.', 50]]
 
-function OverlayControl({ page, setPage, toast }: { page: Page; setPage: (p: Page) => void; toast: (t: Toast) => void }) {
+function OverlayControl({ page, setPage, toast, manual }: { page: Page; setPage: (p: Page) => void; toast: (t: Toast) => void; manual: (m: Manual) => void }) {
   const s = page.settings
   const [raw, setRaw] = useState<Record<string, string>>(() => Object.fromEntries(DUR.map(([k]) => [k, String(s[k])])))
   const [st, setSt] = useState<Status | null>(null)
@@ -131,7 +153,7 @@ function OverlayControl({ page, setPage, toast }: { page: Page; setPage: (p: Pag
     <>
     <section className="card ws-card" aria-label="Working / Study Overlay Control">
       <div className="card-title-row"><h3 className="card-h">Working / Study Overlay Control</h3>
-        <button type="button" className="btn" disabled={!page.has_key} onClick={() => copyLink('timer', 'Timer overlay link', toast)}><i className="fas fa-copy" /> Copy Timer Overlay Link</button></div>
+        <button type="button" className="btn" disabled={!page.has_key} onClick={() => copyLink('timer', 'Timer overlay link', toast, manual)}><i className="fas fa-copy" /> Copy Timer Overlay Link</button></div>
       <div className="ws-url"><UrlReveal mask="https://overlay.botofthespecter.com/working-or-study.php?code=••••••••••••&timer" disabled={!page.has_key} toast={toast} label="Timer overlay URL" fetchUrl={() => urlOf('timer')} /></div>
       <div className="ws-panel ws-now">
         <div className="ws-h-row"><h4 className="ws-h"><i className="fas fa-hourglass" /> Live Timer</h4>
@@ -200,7 +222,7 @@ function OverlayControl({ page, setPage, toast }: { page: Page; setPage: (p: Pag
   )
 }
 
-function TaskManager({ page, setPage, toast }: { page: Page; setPage: (p: Page) => void; toast: (t: Toast) => void }) {
+function TaskManager({ page, setPage, toast, manual }: { page: Page; setPage: (p: Page) => void; toast: (t: Toast) => void; manual: (m: Manual) => void }) {
   const ts = page.task_settings
   const [open, setOpen] = useState(true)
   const [pts, setPts] = useState(String(ts.default_reward_points))
@@ -243,9 +265,9 @@ function TaskManager({ page, setPage, toast }: { page: Page; setPage: (p: Page) 
     <section className="card ws-card" aria-label="Channel Task Manager">
       <div className="card-title-row"><h3 className="card-h"><i className="fas fa-list-check" /> Channel Task Manager</h3>
         <div className="ws-hbtns">
-          <button type="button" className="btn ws-b-micro ws-copy" disabled={!page.has_key} onClick={() => copyLink('tasks', 'Combined task list link', toast)}><i className="fas fa-copy" /> Copy Link (Combined)</button>
-          <button type="button" className="btn ws-b-micro ws-copy" disabled={!page.has_key} onClick={() => copyLink('streamer', 'Streamer task list link', toast)}><i className="fas fa-copy" /> Copy Link (Streamer)</button>
-          <button type="button" className="btn ws-b-micro ws-copy" disabled={!page.has_key} onClick={() => copyLink('viewers', 'Users task list link', toast)}><i className="fas fa-copy" /> Copy Link (Users)</button>
+          <button type="button" className="btn ws-b-micro ws-copy" disabled={!page.has_key} onClick={() => copyLink('tasks', 'Combined task list link', toast, manual)}><i className="fas fa-copy" /> Copy Link (Combined)</button>
+          <button type="button" className="btn ws-b-micro ws-copy" disabled={!page.has_key} onClick={() => copyLink('streamer', 'Streamer task list link', toast, manual)}><i className="fas fa-copy" /> Copy Link (Streamer)</button>
+          <button type="button" className="btn ws-b-micro ws-copy" disabled={!page.has_key} onClick={() => copyLink('viewers', 'Users task list link', toast, manual)}><i className="fas fa-copy" /> Copy Link (Users)</button>
           <button type="button" className="btn btn-ghost mp-x" aria-expanded={open} aria-label={open ? 'Hide task settings' : 'Show task settings'} onClick={() => setOpen(!open)}><i className={`fas fa-chevron-${open ? 'up' : 'down'}`} /></button></div></div>
       {open && <>
         <div className="ws-cols ws-cols2">
