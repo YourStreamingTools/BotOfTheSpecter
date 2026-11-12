@@ -259,7 +259,7 @@ return [
     'makers_status_finished' => '完成的',
     'makers_add' => '添加',
     'makers_library_title' => '项目库',
-    'makers_empty' => '还没有项目。在上面添加一个，或者在聊天中使用 <code>!craft new <title></code>。',
+    'makers_empty' => '还没有项目。在上面添加一个，或者在聊天中使用 <code>!craft new &lt;title&gt;</code>。',
     'makers_featured' => '精选',
     'makers_feature_tooltip' => '当前功能',
     'makers_edit' => '编辑',

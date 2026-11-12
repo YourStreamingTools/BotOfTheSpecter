@@ -934,7 +934,7 @@ ob_start();
                             <label class="switch">
                                 <input type="checkbox" class="wcmd-toggle" data-command="<?= htmlspecialchars($wcmd) ?>"
                                     <?php echo $wcmdEnabled ? 'checked' : ''; ?>>
-                                <span><code>!<?= htmlspecialchars($wcmd) ?></code> - <?= t($wcmdKey) ?></span>
+                                <span><code>!<?= htmlspecialchars($wcmd) ?></code> - <?= htmlspecialchars(t($wcmdKey)) ?></span>
                             </label>
                         </div>
                         <?php endforeach; ?>
