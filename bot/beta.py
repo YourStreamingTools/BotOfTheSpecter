@@ -270,7 +270,7 @@ builtin_commands = {
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
     "task", "done", "rename", "remove", "taskclear", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
+    "project", "projects", "personaltimer", "checktimer", "stoptimer", "tasktimer", "taskhelp", "timerhelp",
     "wordreplaceoff", "wordreplaceon",
     "pet", "feed", "play", "sad", "sleep",
     "mybirthday", "updatebirthday"
@@ -280,7 +280,7 @@ per_user_cooldown_commands = {
     # Task list / personal timer
     "task", "done", "rename", "remove", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "personaltimer", "checktimer",
+    "project", "projects", "personaltimer", "checktimer", "stoptimer",
     # Social / self-targeted interactions
     "hug", "highfive", "kiss",
     "lurk", "unlurk", "lurking", "lurklead",
@@ -10265,6 +10265,47 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='stoptimer')
+    async def stoptimer_command(self, ctx):
+        # Same as !timer stop: cancel the chatter's general, focus or focus/break timer.
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("stoptimer",)
+                )
+                result = await cursor.fetchone()
+                status = (result or {}).get("status") or "Enabled"
+                permissions = (result or {}).get("permission") or "everyone"
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('stoptimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('stoptimer', bucket_key, cooldown_bucket)
+                user_id = str(ctx.author.id)
+                user_name = ctx.author.name
+                cancelled = await cancel_user_pomo(user_id, user_name)
+                if cancelled:
+                    await send_chat_message(f"@{user_name}, your timer has been cancelled.")
+                else:
+                    await send_chat_message(f"@{user_name}, you have no active timer to cancel.")
+        except Exception as e:
+            chat_logger.error(f"[POMO] Error in stoptimer_command: {e}")
+            await send_chat_message("An error occurred while handling your timer.")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         global current_game, bot_owner
@@ -18654,7 +18695,7 @@ async def builtin_commands_creation():
                 for command in new_commands:
                     bot_logger.info(f"[BOT READY] Command '{command}' added to database successfully.")
             # Force task-related commands to have 0 cooldown
-            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp"]
+            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "checktimer", "stoptimer", "tasktimer", "taskhelp", "timerhelp"]
             task_placeholders = ', '.join(['%s'] * len(task_cmds))
             await cursor.execute(f"UPDATE builtin_commands SET cooldown_rate = 0, cooldown_time = 0 WHERE command IN ({task_placeholders})", tuple(task_cmds))
             await connection.commit()
