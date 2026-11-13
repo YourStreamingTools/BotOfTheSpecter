@@ -200,7 +200,7 @@ class TaskCursorWrapper:
             query = query.replace("user_tasks", "streamer_tasks")
         return await self.cursor.execute(query, params)
 
-VERSION = "5.9.5"
+VERSION = "5.9.6"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
