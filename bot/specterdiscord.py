@@ -58,6 +58,42 @@ def log_ignored_error(logger, context, error):
 DEFAULT_ALLOWED_MENTIONS = discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=True)
 ALERT_ALLOWED_MENTIONS = discord.AllowedMentions(everyone=True, roles=True, users=True, replied_user=True)
 
+# Discord returns the channel name "hidden" when the bot cannot view the channel (no View Channel).
+_PLACEHOLDER_CHANNEL_NAMES = frozenset({"hidden", "unknown"})
+
+_PERM_LABELS = {
+    "view_channel": "View Channel",
+    "send_messages": "Send Messages",
+    "embed_links": "Embed Links",
+    "manage_channels": "Manage Channels",
+    "manage_messages": "Manage Messages",
+    "mention_everyone": "Mention Everyone",
+}
+
+def _is_placeholder_channel_name(name):
+    if name is None:
+        return True
+    text = str(name).strip()
+    if not text:
+        return True
+    return text.lower() in _PLACEHOLDER_CHANNEL_NAMES
+
+def _perm_labels(perms):
+    labels = []
+    for perm in perms or []:
+        labels.append(_PERM_LABELS.get(perm, str(perm).replace("_", " ").title()))
+    return labels
+
+def _join_english(items, conj="and"):
+    items = [str(item) for item in items if item]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} {conj} {items[1]}"
+    return ", ".join(items[:-1]) + f", {conj} {items[-1]}"
+
 # (customapi.) safety: only fetch public internet addresses, never this server or its network
 class BlockedAddressError(Exception):
     pass
@@ -1297,6 +1333,9 @@ class ChannelMapping:
             if guild_name:
                 updates.append("guild_name = %s")
                 params.append(guild_name)
+            # Never overwrite a stored name with Discord's "hidden" placeholder
+            if _is_placeholder_channel_name(channel_name):
+                channel_name = None
             if channel_name:
                 updates.append("channel_name = %s")
                 params.append(channel_name)
@@ -2039,6 +2078,25 @@ class LiveChannelManager:
                                                     self.logger.info(f"Fallback: Updated voice channel name to '{channel_update}' for {username}")
                                 except Exception as voice_error:
                                     self.logger.error(f"Fallback: Failed to update voice channel for {username}: {voice_error}")
+                                    try:
+                                        if self.bot and guild and channel:
+                                            required = ["view_channel", "manage_channels"]
+                                            await self.bot._send_channel_failure_dm(
+                                                guild,
+                                                group="live_status",
+                                                feature_name="Live Status Channel",
+                                                channel=channel,
+                                                stored_name=(mapping or {}).get("channel_name"),
+                                                problems=[{
+                                                    "summary": "rename the channel",
+                                                    "required": required,
+                                                    "error": voice_error if isinstance(voice_error, discord.HTTPException) else None,
+                                                    "detail": None if isinstance(voice_error, (discord.Forbidden, discord.HTTPException)) and getattr(voice_error, "status", 403) == 403 else f"{type(voice_error).__name__}: {voice_error}",
+                                                }],
+                                                context=username,
+                                            )
+                                    except Exception as dm_err:
+                                        self.logger.error(f"Fallback: Failed to send Live Status Channel notice for {username}: {dm_err}")
                     except Exception as e:
                         self.logger.warning(f"Error determining existing online_streams entry for username {username}: {e}")
                     # Save full info now so we persist the online state
@@ -2081,6 +2139,24 @@ class LiveChannelManager:
                                         self.logger.debug(f"Voice channel already shows offline status for {username}")
                     except Exception as voice_error:
                         self.logger.error(f"Fallback: Failed to update voice channel to offline for {username}: {voice_error}")
+                        try:
+                            if self.bot and 'guild' in locals() and guild and 'channel' in locals() and channel:
+                                await self.bot._send_channel_failure_dm(
+                                    guild,
+                                    group="live_status",
+                                    feature_name="Live Status Channel",
+                                    channel=channel,
+                                    stored_name=(mapping or {}).get("channel_name") if 'mapping' in locals() and mapping else None,
+                                    problems=[{
+                                        "summary": "rename the channel",
+                                        "required": ["view_channel", "manage_channels"],
+                                        "error": voice_error if isinstance(voice_error, discord.HTTPException) else None,
+                                        "detail": None if isinstance(voice_error, (discord.Forbidden, discord.HTTPException)) and getattr(voice_error, "status", 403) == 403 else f"{type(voice_error).__name__}: {voice_error}",
+                                    }],
+                                    context=username,
+                                )
+                        except Exception as dm_err:
+                            self.logger.error(f"Fallback: Failed to send Live Status Channel notice for {username}: {dm_err}")
                 return
             except Exception as e:
                 self.logger.warning(
@@ -2526,10 +2602,44 @@ class TimeNowChannelManager:
                 if channel.name != new_name:
                     await channel.edit(name=new_name, reason="Time Now channel update")
                     self.logger.debug(f"Updated Time Now channel for {cfg['username']} to '{new_name}'")
-            except discord.Forbidden:
+                    self.bot._clear_failure_notice(guild.id, "time_now", channel.id)
+            except discord.Forbidden as e:
                 self.logger.warning(f"Missing permissions to edit Time Now channel {cfg.get('channel_id')} for {cfg.get('username')}")
+                try:
+                    await self.bot._send_channel_failure_dm(
+                        guild,
+                        group="time_now",
+                        feature_name="Time Now Channel",
+                        channel=channel,
+                        channel_id=cfg.get("channel_id"),
+                        problems=[{
+                            "summary": "rename the Time Now channel",
+                            "required": ["view_channel", "manage_channels"],
+                            "error": e,
+                        }],
+                        context=cfg.get("username"),
+                    )
+                except Exception as dm_err:
+                    self.logger.error(f"Failed to send Time Now permission notice for {cfg.get('username')}: {dm_err}")
             except discord.HTTPException as e:
                 self.logger.error(f"Discord HTTP error updating Time Now channel for {cfg.get('username')}: {e}")
+                if e.status == 403:
+                    try:
+                        await self.bot._send_channel_failure_dm(
+                            guild,
+                            group="time_now",
+                            feature_name="Time Now Channel",
+                            channel=channel,
+                            channel_id=cfg.get("channel_id"),
+                            problems=[{
+                                "summary": "rename the Time Now channel",
+                                "required": ["view_channel", "manage_channels"],
+                                "error": e,
+                            }],
+                            context=cfg.get("username"),
+                        )
+                    except Exception as dm_err:
+                        self.logger.error(f"Failed to send Time Now permission notice for {cfg.get('username')}: {dm_err}")
             except Exception as e:
                 self.logger.error(f"Error updating Time Now channel for {cfg.get('username')}: {e}")
 
@@ -2604,6 +2714,8 @@ class BotOfTheSpecter(commands.Bot):
         self._stream_online_in_flight: set = set()
         self._stream_alert_posted_at: dict = {}
         self._mention_perm_dm_at: dict = {}
+        # Permission failure DMs: one notice per guild/channel/group until it succeeds or settings change
+        self._failure_dm_sent: dict = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
             # Voice commands
@@ -4474,6 +4586,8 @@ class BotOfTheSpecter(commands.Bot):
             message = offline_text
             channel_update = f"🔴 {message}"
         # Send status message to the channel
+        stored_live_name = mapping.get("channel_name")
+        live_channel_problems = []
         self.logger.info(f"Attempting to send status message to #{channel.name} (ID: {channel.id}): '{channel_update}'")
         try:
             msg = await channel.send(channel_update)
@@ -4481,10 +4595,19 @@ class BotOfTheSpecter(commands.Bot):
         except discord.Forbidden as e:
             self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{channel.name} (ID: {channel.id})")
             self.logger.error(f"   Error: {e}")
-            await self._send_failure_dm(guild, "Stream status update", channel.name, f"Permission denied - bot cannot post messages in #{channel.name}. Please grant Send Messages permission.")
+            live_channel_problems.append({
+                "summary": "post the stream status message",
+                "required": ["view_channel", "send_messages"],
+                "error": e,
+            })
         except Exception as e:
             self.logger.error(f"❌ Failed to send status message to #{channel.name}: {type(e).__name__}: {e}")
-            await self._send_failure_dm(guild, "Stream status update", channel.name, f"Unexpected error ({type(e).__name__}) posting to #{channel.name}: {e}")
+            live_channel_problems.append({
+                "summary": "post the stream status message",
+                "required": ["view_channel", "send_messages"],
+                "error": e,
+                "detail": f"Unexpected error ({type(e).__name__}): {e}",
+            })
         # Send notification to stream_channel_id for online events Always check database first to ensure we have the latest channel settings
         databases_checked = []
         # Check cache value first (for logging comparison)
@@ -4710,18 +4833,56 @@ class BotOfTheSpecter(commands.Bot):
                                 self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
                                 self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
                                 self.logger.error(f"   Error details: {e}")
-                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Permission denied - bot is missing Send Messages / Embed Links in #{stream_channel.name}.")
+                                await self._send_channel_failure_dm(
+                                    guild,
+                                    group="stream_alert",
+                                    feature_name="Stream Online Alerts Channel",
+                                    channel=stream_channel,
+                                    problems=[{
+                                        "summary": "post the stream online alert",
+                                        "required": ["view_channel", "send_messages", "embed_links"],
+                                        "error": e,
+                                    }],
+                                    context=account_username,
+                                )
                             except discord.HTTPException as e:
                                 self.logger.error(f"❌ Discord HTTP error sending notification to #{stream_channel.name}: Status {e.status}")
                                 self.logger.error(f"   Response: {e.text}")
-                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Discord HTTP error {e.status} when posting to #{stream_channel.name}: {e.text}")
+                                problem = {
+                                    "summary": "post the stream online alert",
+                                    "required": ["view_channel", "send_messages", "embed_links"],
+                                    "error": e,
+                                }
+                                if e.status != 403:
+                                    problem["detail"] = f"Discord HTTP error {e.status}: {e.text}"
+                                await self._send_channel_failure_dm(
+                                    guild,
+                                    group="stream_alert",
+                                    feature_name="Stream Online Alerts Channel",
+                                    channel=stream_channel,
+                                    problems=[problem],
+                                    context=account_username,
+                                )
                             except Exception as e:
                                 self.logger.error(f"❌ Unexpected error sending live notification to #{stream_channel.name}: {type(e).__name__}")
                                 self.logger.error(f"   Details: {e}")
                                 self.logger.error(f"   Traceback: {traceback.format_exc()}")
-                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Unexpected error ({type(e).__name__}) when posting to #{stream_channel.name}: {e}")
+                                await self._send_channel_failure_dm(
+                                    guild,
+                                    group="stream_alert",
+                                    feature_name="Stream Online Alerts Channel",
+                                    channel=stream_channel,
+                                    problems=[{
+                                        "summary": "post the stream online alert",
+                                        "required": ["view_channel", "send_messages", "embed_links"],
+                                        "error": e,
+                                        "detail": f"Unexpected error ({type(e).__name__}): {e}",
+                                    }],
+                                    context=account_username,
+                                )
                             # After send attempt, if successful persist the live notification and mark online
                             if sent_success:
+                                self._clear_failure_notice(guild.id, "stream_alert", getattr(stream_channel, "id", None))
                                 self._stream_alert_posted_at[cooldown_key] = datetime.now(timezone.utc)
                                 try:
                                     posted_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
@@ -4766,13 +4927,38 @@ class BotOfTheSpecter(commands.Bot):
                                     self.logger.warning(f"Error persisting live notification or marking online for {code}: {e}")
                 else:
                     self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
-                    await self._send_failure_dm(guild, "Stream alert post", account_username, f"The configured stream alert channel (ID: `{stream_channel_id}`) could not be found in the server. Please re-configure it in the BotOfTheSpecter dashboard.")
+                    await self._send_channel_failure_dm(
+                        guild,
+                        group="stream_alert",
+                        feature_name="Stream Online Alerts Channel",
+                        channel=None,
+                        channel_id=stream_channel_id,
+                        problems=[{
+                            "summary": "post the stream online alert",
+                            "detail": (
+                                f"The configured Stream Online Alerts Channel (ID: `{stream_channel_id}`) "
+                                "could not be found in the server."
+                            ),
+                        }],
+                        context=account_username,
+                    )
             except Exception as e:
                 self.logger.error(f"❌ CRITICAL ERROR in stream notification block for {code}: {type(e).__name__}")
                 self.logger.error(f"   Details: {e}")
                 self.logger.error(f"   Full traceback: {traceback.format_exc()}")
                 self.logger.error(f"   This error prevented the notification from being sent, but channel rename will still be attempted.")
-                await self._send_failure_dm(guild, "Stream alert post", account_username if 'account_username' in locals() else 'Unknown', f"Critical error ({type(e).__name__}) in the stream alert block: {e}")
+                await self._send_channel_failure_dm(
+                    guild,
+                    group="stream_alert",
+                    feature_name="Stream Online Alerts Channel",
+                    channel=stream_channel if 'stream_channel' in locals() else None,
+                    channel_id=stream_channel_id if 'stream_channel_id' in locals() else None,
+                    problems=[{
+                        "summary": "post the stream online alert",
+                        "detail": f"Critical error ({type(e).__name__}) in the stream alert block: {e}",
+                    }],
+                    context=account_username if 'account_username' in locals() else "Unknown",
+                )
         else:
             # Log exactly what was checked and found
             databases_info = " | ".join(databases_checked)
@@ -4799,6 +4985,14 @@ class BotOfTheSpecter(commands.Bot):
                     else:
                         self.logger.error(f"Max retries exceeded renaming channel due to rate limiting")
                         break
+                except discord.Forbidden as e:
+                    self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
+                    live_channel_problems.append({
+                        "summary": "rename the channel",
+                        "required": ["view_channel", "manage_channels"],
+                        "error": e,
+                    })
+                    break
                 except discord.HTTPException as e:
                     if e.status == 429:
                         retry_after = float(e.response.headers.get('Retry-After', backoff))
@@ -4815,18 +5009,38 @@ class BotOfTheSpecter(commands.Bot):
                             break
                     else:
                         self.logger.error(f"❌ Discord HTTP error renaming channel: {e.status} - {e.text}")
-                        await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Discord HTTP error {e.status} renaming #{channel.name}: {e.text}")
+                        problem = {
+                            "summary": "rename the channel",
+                            "required": ["view_channel", "manage_channels"],
+                            "error": e,
+                        }
+                        if e.status != 403:
+                            problem["detail"] = f"Discord HTTP error {e.status}: {e.text}"
+                        live_channel_problems.append(problem)
                         break
-                except discord.Forbidden:
-                    self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
-                    await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Permission denied - bot lacks Manage Channels permission for #{channel.name}.")
-                    break
                 except Exception as e:
                     self.logger.error(f"❌ Failed to update channel name: {type(e).__name__}: {e}")
-                    await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Unexpected error ({type(e).__name__}) renaming #{channel.name}: {e}")
+                    live_channel_problems.append({
+                        "summary": "rename the channel",
+                        "required": ["view_channel", "manage_channels"],
+                        "error": e,
+                        "detail": f"Unexpected error ({type(e).__name__}): {e}",
+                    })
                     break
         else:
             self.logger.info(f"Channel name already matches target '{channel_update}' - skipping rename")
+        if live_channel_problems:
+            await self._send_channel_failure_dm(
+                guild,
+                group="live_status",
+                feature_name="Live Status Channel",
+                channel=channel,
+                stored_name=stored_live_name,
+                problems=live_channel_problems,
+                context=code,
+            )
+        else:
+            self._clear_failure_notice(guild.id, "live_status", getattr(channel, "id", None))
         # For OFFLINE events, clear live notifications (stream already verified offline by early check above)
         if event_type == "OFFLINE":
             try:
@@ -4840,24 +5054,251 @@ class BotOfTheSpecter(commands.Bot):
         self._stream_online_in_flight.discard(code)
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
 
-    async def _send_failure_dm(self, guild, action, username, reason):
-        BOT_OWNER_ID = 127783626917150720
+    def _channel_display_name(self, channel=None, stored_name=None):
+        candidates = []
+        if channel is not None:
+            candidates.append(getattr(channel, "name", None))
+        candidates.append(stored_name)
+        for candidate in candidates:
+            if not _is_placeholder_channel_name(candidate):
+                return str(candidate).strip()
+        return None
+
+    def _channel_label(self, channel=None, stored_name=None, channel_id=None):
+        cid = channel_id
+        if cid is None and channel is not None:
+            cid = getattr(channel, "id", None)
+        if cid is not None:
+            try:
+                cid = int(cid)
+            except (TypeError, ValueError):
+                pass
+        name = self._channel_display_name(channel, stored_name)
+        if cid and name:
+            return f"<#{cid}> (#{name}, ID `{cid}`)"
+        if cid:
+            return f"<#{cid}> (ID `{cid}`)"
+        if name:
+            return f"#{name}"
+        return "the configured channel"
+
+    def _missing_channel_permissions(self, channel, required):
+        required = list(required or [])
+        if not required:
+            return []
+        if channel is None:
+            return required
+        guild = getattr(channel, "guild", None)
+        me = getattr(guild, "me", None) if guild else None
+        if me is None:
+            return required
+        try:
+            perms = channel.permissions_for(me)
+        except Exception:
+            return required
+        return [perm for perm in required if not getattr(perms, perm, False)]
+
+    def _missing_permissions_for_problem(self, channel, problem):
+        required = list(problem.get("required") or [])
+        missing = self._missing_channel_permissions(channel, required)
+        error = problem.get("error")
+        if error is None:
+            return missing
+        code = getattr(error, "code", None)
+        status = getattr(error, "status", None)
+        text = str(getattr(error, "text", "") or error or "")
+        missing_access = code == 50001 or (
+            status == 403 and "missing access" in text.lower()
+        )
+        if missing_access and "view_channel" in required and "view_channel" not in missing:
+            missing = ["view_channel"] + missing
+        return missing
+
+    def _permission_fix_steps(self, channel_label, missing_labels, include_dashboard_help=True):
+        allowed = _join_english(missing_labels) if missing_labels else "the permissions listed above"
+        steps = (
+            "To fix this:\n"
+            f"1. Open the channel settings for {channel_label}.\n"
+            "2. Open Permissions.\n"
+            "3. Add the BotOfTheSpecter role, or select it if it is already there.\n"
+            f"4. Allow {allowed}."
+        )
+        if include_dashboard_help:
+            steps += (
+                "\n\nYou can also change or turn off this channel on the Discord Bot page "
+                "in the BotOfTheSpecter dashboard."
+            )
+        return steps
+
+    def _failure_notice_key(self, guild_id, group, channel_id):
+        return (guild_id, group, str(channel_id) if channel_id is not None else "")
+
+    def _clear_failure_notice(self, guild_id, group, channel_id):
+        if not hasattr(self, "_failure_dm_sent"):
+            self._failure_dm_sent = {}
+        self._failure_dm_sent.pop(self._failure_notice_key(guild_id, group, channel_id), None)
+
+    def _build_channel_failure_messages(self, guild, feature_name, channel_label, problems, missing, context=None):
+        bot_owner_id = getattr(config, "bot_owner_id", 127783626917150720)
         guild_name = guild.name if guild else "Unknown Server"
         guild_id = guild.id if guild else "N/A"
-        # Message for the server owner - plain and actionable
-        owner_message = (
-            f"⚠️ **{action}** failed because of: {reason}\n"
-            f"Please contact <@{BOT_OWNER_ID}> for more help."
-        )
-        # Message for the bot owner - full technical context
+        feature = feature_name or "channel"
+        header = f"The bot could not update your {feature} {channel_label}."
+        permission_problems = []
+        other_lines = []
+        for problem in problems:
+            summary = problem.get("summary") or "complete this action"
+            detail = problem.get("detail")
+            required = list(problem.get("required") or [])
+            problem_missing = problem.get("_missing") or []
+            if required and not detail:
+                permission_problems.append((summary, required, problem_missing))
+            elif required and detail:
+                other_lines.append(f"• It could not {summary}. {detail}")
+                permission_problems.append((summary, required, problem_missing))
+            elif detail:
+                other_lines.append(f"• It could not {summary}. {detail}")
+            else:
+                other_lines.append(f"• It could not {summary}.")
+        owner_parts = [header, ""]
+        unique_summaries = []
+        for summary, required, problem_missing in permission_problems:
+            if summary not in unique_summaries:
+                unique_summaries.append(summary)
+        if unique_summaries and not other_lines:
+            owner_parts.append(f"It could not {_join_english(unique_summaries, conj='or')}.")
+            owner_parts.append("")
+        elif other_lines:
+            owner_parts.extend(other_lines)
+            owner_parts.append("")
+        required_all = []
+        for summary, required, problem_missing in permission_problems:
+            for perm in required:
+                if perm not in required_all:
+                    required_all.append(perm)
+        if required_all:
+            owner_parts.append(f"This needs {_join_english(_perm_labels(required_all))}.")
+        if missing:
+            owner_parts.append(f"The bot is missing {_join_english(_perm_labels(missing))}.")
+        elif any(problem.get("error") is not None for problem in problems) and required_all:
+            owner_parts.append(
+                "Discord refused the request (often Missing Access, which means the bot does not have View Channel)."
+            )
+        if problems and all(problem.get("include_dashboard_help") is False for problem in problems):
+            include_dashboard = False
+        else:
+            include_dashboard = True
+        if required_all or missing:
+            owner_parts.append("")
+            owner_parts.append(self._permission_fix_steps(channel_label, _perm_labels(missing or required_all), include_dashboard))
+        elif include_dashboard:
+            owner_parts.append(
+                "You can change or turn off this channel on the Discord Bot page in the BotOfTheSpecter dashboard."
+            )
+        owner_parts.append("")
+        owner_parts.append(f"Still stuck? Contact <@{bot_owner_id}>.")
+        owner_message = "\n".join(part for part in owner_parts if part is not None).replace("\n\n\n", "\n\n")
+        tech_lines = []
+        for problem in problems:
+            summary = problem.get("summary") or "action"
+            error = problem.get("error")
+            detail = problem.get("detail")
+            if error is not None:
+                code = getattr(error, "code", None)
+                status = getattr(error, "status", None)
+                err_text = getattr(error, "text", None) or str(error)
+                bits = [type(error).__name__]
+                if status is not None:
+                    bits.append(f"HTTP {status}")
+                if code is not None:
+                    bits.append(f"code {code}")
+                bits.append(str(err_text))
+                tech_lines.append(f"• {summary}: {', '.join(bits)}")
+            elif detail:
+                tech_lines.append(f"• {summary}: {detail}")
+            else:
+                tech_lines.append(f"• {summary}")
+        missing_text = _join_english(_perm_labels(missing)) if missing else "unknown"
         bot_owner_message = (
-            f"⚠️ **{action}** failed\n"
-            f"**Server:** {guild_name} (ID: `{guild_id}`)\n"
-            f"**Affected user/channel:** {username}\n"
-            f"**Reason:** {reason}"
+            f"The bot could not update the {feature} in {guild_name} (ID: `{guild_id}`).\n"
+            f"**Channel:** {channel_label}\n"
+            f"**Context:** {context or 'n/a'}\n"
+            + "\n".join(tech_lines)
+            + f"\n**Missing permissions:** {missing_text}"
         )
-        # Look up the server owner's Discord ID from the database
+        return owner_message, bot_owner_message
+
+    async def _send_channel_failure_dm(self, guild, *, group, feature_name, problems, channel=None, stored_name=None, channel_id=None, context=None, include_dashboard_help=True):
+        if not problems:
+            return
+        if channel_id is None and channel is not None:
+            channel_id = getattr(channel, "id", None)
+        label = self._channel_label(channel, stored_name, channel_id)
+        missing = []
+        annotated = []
+        for problem in problems:
+            item = dict(problem)
+            item["_missing"] = self._missing_permissions_for_problem(channel, item)
+            if item.get("include_dashboard_help") is None:
+                item["include_dashboard_help"] = include_dashboard_help
+            for perm in item["_missing"]:
+                if perm not in missing:
+                    missing.append(perm)
+            annotated.append(item)
+        signature = (
+            feature_name or "",
+            tuple((item.get("summary"), item.get("detail"), tuple(item.get("_missing") or [])) for item in annotated),
+            str(channel_id or ""),
+        )
+        key = self._failure_notice_key(guild.id if guild else None, group, channel_id)
+        if not hasattr(self, "_failure_dm_sent"):
+            self._failure_dm_sent = {}
+        if self._failure_dm_sent.get(key) == signature:
+            self.logger.warning(
+                f"Skipping repeat failure notice for guild {getattr(guild, 'id', None)} "
+                f"group={group} channel={channel_id}: {label}"
+            )
+            return
+        owner_message, bot_owner_message = self._build_channel_failure_messages(
+            guild, feature_name, label, annotated, missing, context=context
+        )
+        sent = await self._deliver_failure_dms(
+            guild,
+            owner_message,
+            bot_owner_message,
+            action=feature_name or group,
+        )
+        if sent:
+            self._failure_dm_sent[key] = signature
+
+    async def _send_failure_dm(self, guild, action, username, reason, *, channel=None, stored_name=None, channel_id=None, required_perms=None, error=None, group=None, feature_name=None, include_dashboard_help=True):
+        problems = [{
+            "summary": (action[0].lower() + action[1:]) if action else "complete this action",
+            "required": list(required_perms or []),
+            "error": error,
+            "detail": None if required_perms else reason,
+            "include_dashboard_help": include_dashboard_help,
+        }]
+        # If a structured reason was provided alongside required perms, keep it only for unexpected cases
+        if required_perms and reason and error is None:
+            problems[0]["detail"] = reason
+        await self._send_channel_failure_dm(
+            guild,
+            group=group or action or "failure",
+            feature_name=feature_name or action,
+            problems=problems,
+            channel=channel,
+            stored_name=stored_name,
+            channel_id=channel_id,
+            context=username,
+            include_dashboard_help=include_dashboard_help,
+        )
+
+    async def _deliver_failure_dms(self, guild, owner_message, bot_owner_message, action="failure"):
+        bot_owner_id = getattr(config, "bot_owner_id", 127783626917150720)
+        guild_id = guild.id if guild else "N/A"
         server_owner_discord_id = None
+        sent = False
         try:
             mysql_helper = MySQLHelper(self.logger)
             owner_row = await mysql_helper.fetchone(
@@ -4868,25 +5309,26 @@ class BotOfTheSpecter(commands.Bot):
                 server_owner_discord_id = int(owner_row['discord_id'])
         except Exception as e:
             self.logger.error(f"Failed to look up server owner Discord ID for guild {guild_id}: {e}")
-        # DM the server owner (if found and not the bot owner)
-        if server_owner_discord_id and server_owner_discord_id != BOT_OWNER_ID:
+        if server_owner_discord_id and server_owner_discord_id != bot_owner_id:
             try:
                 owner_user = await self.fetch_user(server_owner_discord_id)
                 await owner_user.send(owner_message)
+                sent = True
                 self.logger.info(f"Sent failure DM to server owner {server_owner_discord_id} for guild {guild_id}")
             except discord.Forbidden:
                 self.logger.warning(f"Cannot DM server owner {server_owner_discord_id} (DMs disabled or blocked)")
             except Exception as e:
                 self.logger.error(f"Failed to DM server owner {server_owner_discord_id}: {e}")
-        # Always DM the bot owner
         try:
-            bot_owner_user = await self.fetch_user(BOT_OWNER_ID)
+            bot_owner_user = await self.fetch_user(bot_owner_id)
             await bot_owner_user.send(bot_owner_message)
+            sent = True
             self.logger.info(f"Sent failure DM to bot owner for guild {guild_id}: {action}")
         except discord.Forbidden:
-            self.logger.warning(f"Cannot DM bot owner {BOT_OWNER_ID} (DMs disabled or blocked)")
+            self.logger.warning(f"Cannot DM bot owner {bot_owner_id} (DMs disabled or blocked)")
         except Exception as e:
-            self.logger.error(f"Failed to DM bot owner {BOT_OWNER_ID}: {e}")
+            self.logger.error(f"Failed to DM bot owner {bot_owner_id}: {e}")
+        return sent
 
     def _content_requests_everyone(self, content):
         if not content:
@@ -4943,16 +5385,25 @@ class BotOfTheSpecter(commands.Bot):
         perm_note = (
             "the bot does not have Mention Everyone in this channel"
             if not can_mention_everyone
-            else "Discord did not apply the mention even though the permission bit looks set — check channel overwrites"
+            else "Discord did not apply the mention even though the permission bit looks set; check channel overwrites"
         )
-        reason = (
-            f"The message was posted in #{getattr(channel, 'name', channel.id)}, but Discord did not notify anyone "
-            f"({', '.join(missing)}). {perm_note}. "
-            f"Grant the bot Mention Everyone on #{getattr(channel, 'name', channel.id)} "
-            f"(channel permissions or the bot's role). Discord does not error when this is missing — it just skips the ping."
+        channel_label = self._channel_label(channel)
+        self.logger.warning(
+            f"Mention suppressed in {channel_label} for guild {guild.id} "
+            f"({', '.join(missing)}). {perm_note}."
         )
-        self.logger.warning(f"Mention suppressed in guild {guild.id}: {reason}")
-        await self._send_failure_dm(guild, action or "Mention", getattr(channel, 'name', str(channel.id)), reason)
+        await self._send_channel_failure_dm(
+            guild,
+            group="mention",
+            feature_name="Stream Online Alerts Channel",
+            channel=channel,
+            problems=[{
+                "summary": "ping the chosen mention in the stream alert",
+                "required": ["mention_everyone"],
+            }],
+            context=action or "Mention",
+            include_dashboard_help=True,
+        )
 
     async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
         try:
@@ -5535,9 +5986,21 @@ class TicketCog(commands.Cog, name='Tickets'):
                 )
                 await channel.send(embed=embed_closed)
                 self.logger.info(f"Ticket #{ticket_id} closed and archived successfully")
-            except discord.Forbidden:
+            except discord.Forbidden as e:
                 self.logger.error(f"Missing permissions to modify channel for ticket #{ticket_id}")
-                await self.bot._send_failure_dm(channel.guild, "Ticket closure", f"ticket #{ticket_id} in #{channel.name}", f"Permission denied - bot cannot modify/move ticket channel #{channel.name}. Please grant Manage Channels permission.")
+                await self.bot._send_channel_failure_dm(
+                    channel.guild,
+                    group="ticket_closure",
+                    feature_name="ticket channel",
+                    channel=channel,
+                    problems=[{
+                        "summary": f"close or move ticket #{ticket_id}",
+                        "required": ["view_channel", "manage_channels"],
+                        "error": e,
+                    }],
+                    context=f"ticket #{ticket_id}",
+                    include_dashboard_help=False,
+                )
                 raise
             except Exception as e:
                 self.logger.error(f"Error archiving ticket #{ticket_id}: {e}")
@@ -10996,6 +11459,23 @@ class ModerationCog(commands.Cog, name='Moderation'):
                     await ctx.send("❌ Rate limited. Please try again later.", delete_after=5)
                     self.logger.error(f"Max retries exceeded for purge due to rate limiting")
                     break
+            except discord.Forbidden as e:
+                await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
+                self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
+                await self.bot._send_channel_failure_dm(
+                    ctx.guild,
+                    group="purge",
+                    feature_name="channel",
+                    channel=ctx.channel,
+                    problems=[{
+                        "summary": "delete messages in this channel",
+                        "required": ["view_channel", "manage_messages"],
+                        "error": e,
+                    }],
+                    context=f"#{getattr(ctx.channel, 'name', ctx.channel.id)}",
+                    include_dashboard_help=False,
+                )
+                break
             except discord.HTTPException as e:
                 if e.status == 429:
                     retry_after = float(e.response.headers.get('Retry-After', backoff))
@@ -11015,11 +11495,6 @@ class ModerationCog(commands.Cog, name='Moderation'):
                     await ctx.send(f"❌ An error occurred while deleting messages: {e}", delete_after=5)
                     self.logger.error(f"HTTP error while purging messages: {e}")
                     break
-            except discord.Forbidden:
-                await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
-                self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
-                await self.bot._send_failure_dm(ctx.guild, "Message purge", f"#{ctx.channel.name}", f"Permission denied - bot cannot delete messages in #{ctx.channel.name}. Please grant Manage Messages permission.")
-                break
             except Exception as e:
                 await ctx.send(f"❌ An unexpected error occurred: {e}", delete_after=5)
                 self.logger.error(f"Error in purge command: {e}")
