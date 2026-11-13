@@ -12,6 +12,7 @@
 		"skipsong":		"Skips the currently playing song in the Spotify request queue.",
 		"watchtime":	"Shows how long you have been watching the current stream session.",
 		"checktimer":	"Shows how much time is remaining on your active countdown timer.",
+		"stoptimer":	"Cancels your active personal timer. Same as !timer stop.",
 		"version":		"Displays the current running version of BotOfTheSpecter.",
 		"convert":		"Converts between currencies using live exchange rates, or between physical units such as length, weight, temperature, speed, and volume.",
 		"subathon":		"Manages a subathon countdown timer. Mods can start, stop, pause, resume, add time, or check the current status.",
