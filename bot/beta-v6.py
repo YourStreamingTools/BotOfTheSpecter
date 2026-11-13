@@ -4436,6 +4436,10 @@ class TwitchBot(commands.AutoBot):
                     if message.chatter.name.lower() == BOT_USERNAME.lower():
                         chat_logger.info(f"Ignoring AI mention from bot itself")
                         return
+                    # In CUSTOM or SELF mode, the bot may be the streamer's account, so @streamer mentions are for the streamer, not the bot AI
+                    if (CUSTOM_MODE or SELF_MODE) and BOT_USERNAME.lower() == CHANNEL_NAME.lower():
+                        chat_logger.info(f"Ignoring AI mention of channel name in CUSTOM/SELF mode")
+                        return
                     # Ignore messages from the channel owner in SELF mode
                     if message.chatter.name.lower() == CHANNEL_NAME.lower():
                         chat_logger.info(f"Ignoring AI mention from channel owner in SELF mode")
