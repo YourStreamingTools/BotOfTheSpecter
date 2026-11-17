@@ -33,6 +33,7 @@ production server and functionality may change during implementation.
 """
 
 import os
+import sys
 import re
 import shutil
 import unicodedata
@@ -51,6 +52,7 @@ from ffmpeg_jobs import (
     remove_media_and_sidecars,
     sidecar_paths_for_media,
 )
+from twitch_live_hls import twitch_live_hls
 import random
 import logging
 from logging.handlers import RotatingFileHandler
@@ -58,7 +60,6 @@ import threading
 import asyncio
 import argparse
 from typing import Tuple, Optional, Dict, Any, List
-from urllib.parse import urljoin
 import aiomysql
 from dotenv import load_dotenv
 
@@ -73,30 +74,16 @@ ADMIN_KEY = os.getenv('ADMIN_KEY')
 INTERNAL_STREAM_API_URL = os.getenv('INTERNAL_STREAM_API_URL', 'https://api.botofthespecter.com/v2/streamonline')
 YT_DLP_COOKIES_FILE = os.getenv('YT_DLP_COOKIES_FILE', 'twitch-cookies.txt')
 YT_DLP_LIVE_FROM_START = os.getenv('YT_DLP_LIVE_FROM_START', 'true').lower() in ('1', 'true', 'yes', 'on')
+# What a recording does while Twitch runs an ad: cut (drop it and join either side),
+# gap (drop it, keep the timeline as a held frame) or keep (record the ad image)
+RECORDING_AD_MODE = (os.getenv('RECORDING_AD_MODE') or 'cut').strip().lower()
+if RECORDING_AD_MODE not in ('cut', 'gap', 'keep'):
+    RECORDING_AD_MODE = 'cut'
+CAPTURE_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'twitch_live_capture.py')
 STORAGE_ROOT_PATH = os.getenv('STREAM_FILES_ROOT') or os.getenv('STREAM_ROOT_PATH') or '/var/lib/specter-stream'
 FILE_RETENTION_SECONDS = int(os.getenv('RECORDING_RETENTION_SECONDS', '86400'))
 STREAM_STORAGE_QUOTA_BYTES = int(os.getenv('STREAM_STORAGE_QUOTA_BYTES') or str(100 * 1024 * 1024 * 1024))
 MIN_DISK_FREE_BYTES = int(os.getenv('STREAM_MIN_DISK_FREE_BYTES') or str(20 * 1024 * 1024 * 1024))
-TWITCH_WEB_CLIENT_ID = os.getenv('TWITCH_WEB_CLIENT_ID', 'kimne78kx3ncx6brgo4mv6wki5h1ko')
-TWITCH_GQL = 'https://gql.twitch.tv/gql'
-TWITCH_LIVE_USHER = 'https://usher.ttvnw.net/api/channel/hls/{login}.m3u8'
-LIVE_PLAYBACK_QUERY = """
-query StreamAccess($login: String!, $playerType: String!) {
-  user(login: $login) {
-    stream {
-      id
-      title
-      game {
-        name
-      }
-      playbackAccessToken(params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) {
-        value
-        signature
-      }
-    }
-  }
-}
-"""
 WINDOWS_RESERVED = {
     "CON", "PRN", "AUX", "NUL",
     *(f"COM{i}" for i in range(1, 10)),
@@ -221,13 +208,6 @@ def unique_recording_basename(directory: str, base: str) -> str:
         n += 1
 
 
-def stream_meta_from_gql(stream: dict) -> dict:
-    title = (stream.get("title") or "").strip() or "Untitled"
-    game = stream.get("game") if isinstance(stream.get("game"), dict) else {}
-    game_name = (game.get("name") or "").strip() or "Unknown Game"
-    return {"title": title, "game_name": game_name}
-
-
 def directory_size_bytes(path: str) -> int:
     total = 0
     if not os.path.isdir(path):
@@ -242,84 +222,6 @@ def directory_size_bytes(path: str) -> int:
                 continue
     return total
 
-
-def _pick_hls_variant(master_text: str) -> Optional[str]:
-    best_url = None
-    best_bw = -1
-    chunked_url = None
-    lines = master_text.splitlines()
-    for i, line in enumerate(lines):
-        if not line.startswith("#EXT-X-STREAM-INF"):
-            continue
-        url = lines[i + 1].strip() if i + 1 < len(lines) else ""
-        if not url or url.startswith("#"):
-            continue
-        bw = -1
-        match = re.search(r"BANDWIDTH=(\d+)", line)
-        if match:
-            bw = int(match.group(1))
-        if 'VIDEO="chunked"' in line or 'NAME="chunked"' in line:
-            chunked_url = url
-        if bw > best_bw:
-            best_bw = bw
-            best_url = url
-    return chunked_url or best_url
-
-
-async def twitch_live_hls(session: aiohttp.ClientSession, login: str):
-    """Anonymous GQL playback token + Usher HLS. No website auth-token cookie."""
-    headers = {
-        "Client-ID": TWITCH_WEB_CLIENT_ID,
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
-    }
-    payload = {
-        "query": LIVE_PLAYBACK_QUERY,
-        "variables": {"login": login, "playerType": "site"},
-    }
-    async with session.post(TWITCH_GQL, headers=headers, json=payload) as resp:
-        try:
-            body = await resp.json(content_type=None)
-        except Exception:
-            return None, None, f"gql_http_{resp.status}", None
-        if resp.status != 200:
-            return None, None, f"gql_http_{resp.status}", None
-    data = body.get("data") if isinstance(body, dict) else None
-    user = data.get("user") if isinstance(data, dict) else None
-    stream = user.get("stream") if isinstance(user, dict) else None
-    if not stream:
-        return False, None, None, None
-    meta = stream_meta_from_gql(stream)
-    token = stream.get("playbackAccessToken") if isinstance(stream, dict) else None
-    value = token.get("value") if isinstance(token, dict) else None
-    signature = token.get("signature") if isinstance(token, dict) else None
-    if not value or not signature:
-        return True, None, "gql_no_token", meta
-    params = {
-        "player": "twitchweb",
-        "allow_source": "true",
-        "allow_audio_only": "false",
-        "allow_spectre": "false",
-        "playlist_include_framerate": "true",
-        "sig": signature,
-        "token": value,
-    }
-    usher = TWITCH_LIVE_USHER.format(login=login)
-    async with session.get(usher, params=params, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-        playlist = await resp.text()
-        playlist_url = str(resp.url)
-        if resp.status != 200 or not playlist:
-            return True, None, f"usher_http_{resp.status}", meta
-    if "#EXT-X-STREAM-INF" in playlist:
-        variant = _pick_hls_variant(playlist)
-        if not variant:
-            return True, None, "no_hls_variant", meta
-        if not variant.startswith("http"):
-            variant = urljoin(playlist_url, variant)
-        return True, variant, None, meta
-    if "#EXTINF" in playlist:
-        return True, playlist_url, None, meta
-    return True, None, "unrecognised_playlist", meta
 
 def resolve_cookies_path(cookies_path: str) -> Optional[str]:
     if not cookies_path:
@@ -1116,29 +1018,28 @@ class RecordChecker:
                 if not hls_url:
                     self.logger.error(f"No live HLS for {username}: {hls_err}")
                     return
+            # The capture helper reads the playlist, drops Twitch's stitched ads and
+            # pipes the live segments into ffmpeg (see twitch_live_capture.py)
             cmd = [
-                "ffmpeg",
-                "-hide_banner",
-                "-loglevel", "warning",
-                "-stats",
-                "-user_agent", "Mozilla/5.0",
-                "-reconnect", "1",
-                "-reconnect_streamed", "1",
-                "-reconnect_delay_max", "5",
-                "-i", hls_url,
-                "-c", "copy",
-                "-bsf:a", "aac_adtstoasc",
-                "-movflags", "frag_keyframe+empty_moov+default_base_moof",
-                "-f", "mp4",
-                output_path,
+                sys.executable,
+                CAPTURE_SCRIPT,
+                "--login", username,
+                "--playlist", hls_url,
+                "--output", output_path,
+                "--ads", RECORDING_AD_MODE,
             ]
             rec_log_path = os.path.join(user_storage_path, f"{base_filename}.ffmpeg.log")
             rec_log_file = open(rec_log_path, 'a', encoding='utf-8')
             process = subprocess.Popen(
                 cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=rec_log_file,
                 stderr=rec_log_file,
                 start_new_session=True,
+            )
+            self.logger.info(
+                f"{username}: playlist from "
+                f"{'the ad-free login (Twitch cookies file)' if (stream_info or {}).get('ad_free_login') else 'a logged-out viewer; ads are cut'}"
             )
             self.active_recordings[username] = {
                 'process': process,
