@@ -146,3 +146,4 @@ dashboard-ui/node_modules/
 beta-dashboard/
 beta-admin/
 /cdn/app-builds
+/stream/logs
