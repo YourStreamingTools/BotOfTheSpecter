@@ -196,6 +196,8 @@ export default function Media() {
         )}
       </section>
 
+      {list && d && <WalkonList list={list} onOpen={setOpen} onChange={load} onErr={(text) => setToast({ kind: 'err', text })} />}
+
       {open && list && d && <FileModal f={open} list={list} onClose={() => setOpen(null)} onChange={load} onTest={() => test(open)} onPreview={() => setPreview(open)} />}
       {preview && list && (
         <Modal title={base(preview.path)} icon={icon(preview.type)} onClose={() => setPreview(null)} wide>
@@ -222,6 +224,40 @@ export default function Media() {
         </Modal>
       )}
     </div>
+  )
+}
+
+const MODES: Record<string, string> = { sound: 'Sound only', sound_overlay: 'Sound plus picture and name', video: 'Video' }
+
+// Every walk-on in one place: who, which file, and how it plays.
+function WalkonList({ list, onOpen, onChange, onErr }: { list: List; onOpen: (f: FileRow) => void; onChange: () => void; onErr: (m: string) => void }) {
+  const [busy, setBusy] = useState('')
+  const rows = Object.entries(list.media_data.walkons ?? {})
+    .flatMap(([file, ws]) => ws.map((w) => ({ ...w, file, row: list.files.find((f) => f.path === file) ?? list.files.find((f) => base(f.path) === file) })))
+    .sort((a, b) => a.user_name.localeCompare(b.user_name))
+  async function remove(file: string, userId: string) {
+    setBusy(userId)
+    try {
+      const r = await post<{ success: boolean }>(API, { media_type: 'walkon_mapping', action: 'remove', media_file: file, twitch_user_id: userId })
+      if (!r.success) onErr('That walk-on was not removed. Try again.')
+    } catch { onErr('That walk-on was not removed. Try again.') }
+    setBusy(''); onChange()
+  }
+  return (
+    <section className="card" aria-label="Walk-ons">
+      <div className="card-title-row"><h3 className="card-h"><i className="fas fa-person-walking" /> Walk-ons</h3><span className="pill">{rows.length}</span></div>
+      <p className="muted small">Who has a walk-on and which file plays. To add one, open a file in the library above.</p>
+      <div className="bp-table"><table>
+        <thead><tr><th>User</th><th>File</th><th>Mode</th><th /></tr></thead>
+        <tbody>{rows.length === 0 ? <tr><td colSpan={4} className="muted bp-empty">No walk-ons set up yet.</td></tr>
+          : rows.map((w) => <tr key={`${w.user_id}-${w.file}`}>
+            <td data-l="User">@{w.user_name}</td>
+            <td data-l="File">{w.row ? <button type="button" className="btn btn-quiet sm" onClick={() => onOpen(w.row!)}>{base(w.file)}</button> : <span title="This file is not in your library">{base(w.file)} <span className="pill pill-warn">Missing</span></span>}</td>
+            <td data-l="Mode">{MODES[w.mode] ?? w.mode}</td>
+            <td><button type="button" className="icon-btn icon-err" title="Remove walk-on" aria-label={`Remove walk-on for @${w.user_name}`} disabled={busy === w.user_id} onClick={() => remove(w.file, w.user_id)}><i className="fas fa-trash" /></button></td>
+          </tr>)}</tbody>
+      </table></div>
+    </section>
   )
 }
 
