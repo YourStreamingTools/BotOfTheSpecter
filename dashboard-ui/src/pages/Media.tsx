@@ -392,11 +392,11 @@ function FileModal({ f, list, onClose, onChange, onTest, onPreview }: { f: FileR
   const rewardOpts: ComboOption[] = d.rewards.filter((r) => !usedRewards.has(r.reward_id)).map((r) => ({ value: r.reward_id, label: r.reward_title }))
   const eventOpts: ComboOption[] = d.twitch_events_list.filter((e) => !events.includes(e)).map((e) => ({ value: e, label: e }))
 
-  async function send(fields: Record<string, string>) {
+  async function send(fields: Record<string, string>, done = '') {
     setBusy(true); setMsg('')
     try {
       const r = await post<{ success: boolean }>(API, fields)
-      if (!r.success) setMsg('That did not save. Try again.')
+      setMsg(r.success ? done : 'That did not save. Try again.')
       onChange()
     } catch { setMsg('That did not save. Try again.') }
     setBusy(false)
@@ -411,7 +411,7 @@ function FileModal({ f, list, onClose, onChange, onTest, onPreview }: { f: FileR
       const r = await get<{ success: boolean; user_id?: string; user_name?: string; error?: string }>(`${API}?action=helix_lookup_user&login=${encodeURIComponent(login)}`)
       if (!r.success || !r.user_id) { setMsg(r.error || 'Lookup failed.'); setBusy(false); return }
       setUser('')
-      await send({ media_type: 'walkon_mapping', action: 'add', media_file: f.path, twitch_user_id: r.user_id, twitch_user_name: r.user_name ?? login, mode: isVideo ? 'video' : mode })
+      await send({ media_type: 'walkon_mapping', action: 'add', media_file: f.path, twitch_user_id: r.user_id, twitch_user_name: r.user_name ?? login, mode: isVideo ? 'video' : mode }, `Added @${r.user_name ?? login} as a walk-on.`)
     } catch { setMsg('Lookup failed.'); setBusy(false) }
   }
   const head = f.type === 'video' ? 'MP4 video' : f.type === 'audio' ? 'MP3 audio' : f.type === 'image' ? `${ext(f.path).toUpperCase()} image` : 'File'
