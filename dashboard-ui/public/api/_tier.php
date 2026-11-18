@@ -8,8 +8,14 @@ function beta_ensure_tier(mysqli $conn): void {
     $userTwitchId = (string) ($_SESSION['twitchUserId'] ?? '');
     if ($userTwitchId === '') return;
     if (!empty($_SESSION['beta_tier_checked']) && time() - (int) $_SESSION['beta_tier_checked'] < 600 && isset($_SESSION['tier'])) return;
+    // Declare the config's variables global BEFORE the require_once. Inside a
+    // function the file would otherwise set locals, and every later
+    // include_once/require_once of it in the endpoint is skipped, leaving
+    // $clientID and $oauth unset (media walk-on lookup: "Bot credentials
+    // unavailable"). Declaring global after the include also blanked the
+    // Client-ID here, so this check always failed and never cached.
+    global $clientID, $clientSecret, $oauth, $redirectURI, $betaRedirectURI, $use_backup;
     require_once '/var/www/config/twitch.php';
-    global $clientID;
     $broadcasterId = '140296994';
     $token = null;
     $stmt = $conn->prepare('SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?');
