@@ -89,10 +89,12 @@ export default function StartBots() {
   const refreshAll = async () => { setToast({ kind: 'ok', text: l('toast_refreshing_all') }); await loadInv(); await allTokens(data.users) }
   const pollOne = async (u: string, type: string) => { for (let a = 0; a < 3; a++) { await new Promise((r) => setTimeout(r, 1500)); try { const c = await getJson<{ running?: boolean }>(`${API}?check_one_bot=1&username=${encodeURIComponent(u)}&bot_type=${encodeURIComponent(type)}`); if (c.running) break } catch { /* keep polling */ } } await loadInv() }
 
+  // v6 has no lang key on the old page, so its button label falls back to plain text.
+  const startLbl = (type: string) => type === 'beta' ? l('btn_start_beta') : type === 'v6' ? (L.btn_start_v6 ?? 'Start V6') : l('btn_start_stable')
   const start = (u: U, type: string, i: Inv | null) => {
     const live = i?.currently_running ? lower(i.bot_type) : ''
     const go = async () => {
-      setB(u.username, 'start')
+      setB(u.username, 'start'); setToast({ kind: 'ok', text: `Starting the ${typeLabel(type)} bot for ${u.display_name}...` })
       try {
         const body: Record<string, string | number> = { start_user_bot: 1, username: u.username, bot_type: type }
         if (u.custom_enabled) body.use_custom = wantCustom(u, i) ? '1' : '0'
@@ -103,7 +105,7 @@ export default function StartBots() {
     }
     setAsk(live && live !== type
       ? { title: l('switch_title'), ok: l('switch_confirm'), danger: true, text: l('switch_text_stop_start', typeLabel(live), typeLabel(type)), run: go }
-      : { title: `${type === 'beta' ? l('btn_start_beta') : l('btn_start_stable')}?`, ok: type === 'beta' ? l('btn_start_beta') : l('btn_start_stable'), text: <>Start the {typeLabel(type)} bot for <strong>{u.display_name}</strong> on the live bots server.</>, run: go })
+      : { title: `${startLbl(type)}?`, ok: startLbl(type), text: <>Start the {typeLabel(type)} bot for <strong>{u.display_name}</strong> on the live bots server.</>, run: go })
   }
   const switchType = (u: U, i: Inv, target: string) => setAsk({ title: l('switch_title'), ok: l('switch_confirm_target', typeLabel(target)), danger: true, text: l('switch_text_target', typeLabel(target)), run: async () => {
     setB(u.username, 'switch')
@@ -218,7 +220,8 @@ export default function StartBots() {
                   {u.custom_enabled && <label className="adm-check" title={l('custom_toggle_title')}><input type="checkbox" checked={wantCustom(u, i)} onChange={(e) => setCustom((c) => ({ ...c, [u.username]: e.target.checked }))} /> {l('custom_toggle')}</label>}
                   {inv && !live && <>
                     <button type="button" className="btn btn-ok" disabled={!!b} onClick={() => start(u, 'stable', i)}><i className="fas fa-play" /> <span className="lbl">{l('btn_start_stable')}</span></button>
-                    <button type="button" className="btn" disabled={!!b} onClick={() => start(u, 'beta', i)}><i className="fas fa-flask" /> <span className="lbl">{l('btn_start_beta')}</span></button></>}
+                    <button type="button" className="btn" disabled={!!b} onClick={() => start(u, 'beta', i)}><i className="fas fa-flask" /> <span className="lbl">{l('btn_start_beta')}</span></button>
+                    <button type="button" className="btn" disabled={!!b} onClick={() => start(u, 'v6', i)}><i className="fas fa-rocket" /> <span className="lbl">{startLbl('v6')}</span></button></>}
                   {live && <>
                     <button type="button" className="btn btn-warn" disabled={!!b} onClick={() => restart(u, i!)}><i className={`fas ${b === 'restart' ? 'fa-spinner fa-spin' : 'fa-sync-alt'}`} /> <span className="lbl">{l('btn_restart')}</span></button>
                     <button type="button" className="btn btn-ghost" disabled={!!b} onClick={() => switchType(u, i!, rt === 'beta' || rt === 'custom' ? 'stable' : 'beta')}><i className="fas fa-exchange-alt" /> <span className="lbl">{rt === 'beta' || rt === 'custom' ? l('switch_to_stable') : l('switch_to_beta')}</span></button>
