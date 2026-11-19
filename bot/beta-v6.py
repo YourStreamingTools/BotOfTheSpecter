@@ -452,7 +452,7 @@ _ws_reg_epoch = 0                                       # Bumps on each REGISTER
 _ws_register_sent = False                               # True after REGISTER emit this transport (skip WELCOME double-fire)
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
-OPENAI_MODEL = "gpt-5.4-mini"                           # OpenAI chat model for all AI responses
+OPENAI_MODEL = "gpt-6-luna"                           # OpenAI chat model for all AI responses
 _shared_http_session = None                             # Shared aiohttp session (lazy-created)
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online

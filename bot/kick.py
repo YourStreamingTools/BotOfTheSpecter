@@ -201,7 +201,7 @@ _shared_http_session    = None
 HEARTRATE               = None
 MYSQL_QUERY_TIMEOUT     = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))
 openai_client           = AsyncOpenAI(api_key=OPENAI_API_KEY)
-OPENAI_MODEL            = "gpt-5.4-mini"                  # OpenAI chat model for AI responses
+OPENAI_MODEL            = "gpt-6-luna"                  # OpenAI chat model for AI responses
 
 def signal_handler(*_):
     bot_logger.info("[SHUTDOWN] Termination signal received.")

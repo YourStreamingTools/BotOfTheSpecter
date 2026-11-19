@@ -246,7 +246,7 @@ def handle_rate_limit(max_retries=3):
 
 # OpenAI / AI system configuration
 OPENAI_API_KEY = os.getenv("OPENAI_KEY")
-OPENAI_MODEL = "gpt-5.4-mini"
+OPENAI_MODEL = "gpt-6-luna"
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 INSTRUCTIONS_CACHE_TTL = 300  # seconds
 _cached_instructions = None

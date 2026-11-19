@@ -11,7 +11,7 @@ from pathlib import Path
 from aiomysql import DictCursor
 
 # OpenAI chat model used for this channel's AI responses
-OPENAI_MODEL = "gpt-5.4-mini"
+OPENAI_MODEL = "gpt-6-luna"
 
 def is_bot_home_channel(channel_name: str, bot_home_channel_name: str) -> bool:
     return str(channel_name).lower() == str(bot_home_channel_name).lower()
