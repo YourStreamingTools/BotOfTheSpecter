@@ -269,6 +269,24 @@ def safe_int_convert(value, default=None, logger=None):
             logger.warning(f"Failed to convert '{value}' to int, using default: {default}")
         return default
 
+# Websocket notify sends query-string values, so booleans arrive as "True"/"False".
+# bool("False") is True in Python, which made named gift subs post as Anonymous.
+def safe_bool_convert(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("1", "true", "yes", "on"):
+            return True
+        if normalized in ("", "0", "false", "no", "off", "none"):
+            return False
+        return default
+    return default
+
 # Ensure directories exist with proper error handling
 def ensure_directory_exists(directory_path, description=""):
     try:
@@ -4315,7 +4333,7 @@ class BotOfTheSpecter(commands.Bot):
             count = safe_int_convert(data.get("twitch-gift-count", 1), default=1, logger=self.logger)
             tier = data.get("twitch-tier")
             total = safe_int_convert(data.get("twitch-total-gifted", 0), default=0, logger=self.logger)
-            anonymous = bool(data.get("twitch-anonymous", False))
+            anonymous = safe_bool_convert(data.get("twitch-anonymous", False))
             gifter = "Anonymous" if anonymous else (data.get("twitch-username") or twitch_username)
             if count == 1:
                 title = "Gift Sub!"
