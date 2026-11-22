@@ -2,7 +2,7 @@
 // original PHP tag, which is replaced with these values when rendered.
 export const effectiveDates = {
   privacy: 'November 23, 2026',
-  terms: 'November 22, 2026',
+  terms: 'November 23, 2026',
 }
 
 const TAG = /<\?php echo \$effectiveDate; \?>/g
