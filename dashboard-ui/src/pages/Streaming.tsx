@@ -365,6 +365,50 @@ function Secret({ id, value, onChange, label, readOnly, warn, ask }: { id: strin
 }
 function Copy({ v, toast }: { v: string; toast?: (t: Toast) => void }) { return <button type="button" className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(v).then(() => toast?.({ kind: 'ok', text: 'Copied.' }))}><i className="fas fa-copy" /> Copy</button> }
 
+// Other Twitch channels recorded into this user's storage (public/api/streaming/watched.php).
+const WATCHED_API = '/api/streaming/watched.php'
+type WatchedPage = { success: boolean; act_as?: boolean; channels?: { login: string; display_name: string; enabled: boolean }[]; limit?: number; message?: string; error?: string; not_ready?: boolean }
+function Watched({ toast, ask }: { toast?: (t: Toast) => void; ask?: Ctx['ask'] }) {
+  const [w, setW] = useState<WatchedPage | null>(null), [err, setErr] = useState(''), [name, setName] = useState(''), [busy, setBusy] = useState('')
+  async function load() {
+    try { const r = await get<WatchedPage>(`${WATCHED_API}?_ts=${Date.now()}`); if (!r.success) throw new Error(r.error || ''); setW(r); setErr('') }
+    catch (e) { setErr((e as Error).message && !(e as Error).message.startsWith('http_') ? (e as Error).message : 'Your recorded channels could not load. Refresh to try again.') }
+  }
+  useEffect(() => { load() }, [])
+  async function run(key: string, body: Record<string, string>) {
+    setBusy(key)
+    try {
+      const r = await send<WatchedPage>(WATCHED_API, body)
+      if (r.success) { setW(r); if (body.action === 'add') setName('') }
+      toast?.({ kind: r.success ? 'ok' : 'err', text: r.message || r.error || (r.success ? 'Done.' : 'That did not work. Please try again.') })
+    } catch (e) { toast?.({ kind: 'err', text: (e as Error).message }) }
+    setBusy('')
+  }
+  const list = w?.channels ?? [], limit = w?.limit ?? 0, ro = !!w?.act_as
+  const clean = name.trim().toLowerCase()
+  const valid = /^[a-z0-9_]{1,25}$/.test(clean)
+  return <section className="card" id="record-others" aria-label="Record other channels">
+    <div className="card-title-row"><h3 className="card-h"><i className="fas fa-users" /> Record other channels</h3>{w && <span className="pill">{list.length} of {limit}</span>}</div>
+    <p className="muted">Record streamers you watch. They are recorded the same way as your own stream, from when they go live, and the files go in your Library and count toward your recording storage.</p>
+    {err ? <div className="notice notice-warn"><i className="fas fa-circle-exclamation" /> <span>{err}</span></div> : !w ? <span className="skel skel-line" /> : <>
+      {list.length > limit && <div className="notice notice-warn"><i className="fas fa-circle-exclamation" /> <span>Only the first {limit} channel{limit === 1 ? '' : 's'} on your list will be recorded.</span></div>}
+      {!list.length ? <div className="st-empty"><i className="fab fa-twitch" /> No channels yet.</div> : <div className="bp-table cm-table st-table"><table>
+        <thead><tr><th>Channel</th><th className="cm-c">Record</th><th className="cm-c">Action</th></tr></thead>
+        <tbody>{list.map((c) => <tr key={c.login}>
+          <td data-l="Channel" className="st-title"><a href={`https://twitch.tv/${c.login}`} target="_blank" rel="noopener noreferrer">{c.display_name}</a></td>
+          <td data-l="Record" className="cm-c"><Opt id={`watch-${c.login}`} on={c.enabled} disabled={ro || busy !== ''} set={(v) => run('t' + c.login, { action: 'toggle', channel: c.login, enabled: v ? '1' : '0' })} label={c.enabled ? 'On' : 'Off'} /></td>
+          <td className="cm-c"><Btn k={'r' + c.login} busy={busy} cls="btn btn-ghost btn-danger" disabled={ro} onClick={() => ask ? ask({ title: `Remove ${c.display_name}?`, body: <p>{c.display_name} will no longer be recorded. Recordings you already have stay in your Library.</p>, yes: 'Remove', run: () => run('r' + c.login, { action: 'remove', channel: c.login }) }) : run('r' + c.login, { action: 'remove', channel: c.login })}><i className="fas fa-trash" /> Remove</Btn></td>
+        </tr>)}</tbody>
+      </table></div>}
+      {!ro && list.length < limit && <form className="st-form" onSubmit={(e) => { e.preventDefault(); if (valid) run('add', { action: 'add', channel: clean }) }}>
+        <div className="fld"><label htmlFor="watch-add">Twitch channel name</label><input id="watch-add" className="input" maxLength={25} autoComplete="off" placeholder="channelname" value={name} onChange={(e) => setName(e.target.value)} /></div>
+        <div className="row-btns"><button type="submit" className="btn" disabled={!valid || busy !== ''}>{busy === 'add' ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-plus" />} Add channel</button></div>
+      </form>}
+      {!ro && limit === 0 && <p className="muted small">Recording other channels is not available on your account.</p>}
+    </>}
+  </section>
+}
+
 function Camera() {
   return <section className="card" id="camera" aria-label="Phone Camera">
     <h3 className="card-h"><i className="fas fa-mobile-alt" /> Phone Camera</h3>
@@ -390,6 +434,7 @@ function Setup({ p, busy, act, ask, toast }: Ctx) {
       <div className="st-opts"><Opt id="auto_record" on={rec} set={setRec} disabled={p.act_as} label="Enable channel recording" /></div>
       <div className="row-btns"><Btn k="rec" busy={busy} cls="btn" disabled={p.act_as || rec === p.auto_record} onClick={() => act('rec', rec ? { save_recording_settings: '1', auto_record: 'on' } : { save_recording_settings: '1' }, 'load')}>Save</Btn></div>
     </section>
+    <Watched toast={toast} ask={ask} />
     <section className="card" id="youtube" aria-label="YouTube">
       <div className="card-title-row"><h3 className="card-h"><i className="fab fa-youtube" /> YouTube</h3>{!p.can_youtube ? <Pill k="pill-warn">Coming soon</Pill> : y.linked ? <Pill k="pill-ok">Connected</Pill> : y.needs_reauth ? <Pill k="pill-warn">Reconnect required</Pill> : <Pill k="pill-err">Not connected</Pill>}</div>
       {!p.can_youtube ? <p className="muted">YouTube VOD upload is in testing and is not available on public accounts yet.</p> : <>

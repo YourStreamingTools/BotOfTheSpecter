@@ -26,6 +26,7 @@ export default function Users() {
   const [q, setQ] = useState(() => new URLSearchParams(location.search).get('search') || '')
   const [toast, setToast] = useState<Toast | null>(null), [ask, setAsk] = useState<Ask>(null)
   const [detail, setDetail] = useState<U | null>(null), [programsFor, setProgramsFor] = useState<U | null>(null), [del, setDel] = useState<U | null>(null)
+  const [watchFor, setWatchFor] = useState<U | null>(null)
   const [actNote] = useState(() => new URLSearchParams(location.search).get('act_as') || '')
   const load = async () => {
     try { const r = await getJson<{ success: boolean; users: U[] }>(`${API}?ajax_action=list`); if (!r.success) throw new Error(); setUsers(r.users); setLoadErr(false) } catch { setLoadErr(true) }
@@ -86,6 +87,7 @@ export default function Users() {
           <B t={betaTitle} icon="fas fa-flask" cls={beta ? 'btn-warn' : ''} dis={dead || locked}
             on={() => act(l(beta ? 'js_remove_beta_title' : 'js_grant_beta_title'), fmt(beta ? 'js_remove_beta_html' : 'js_grant_beta_html', { name: u.username }), l(beta ? 'js_remove_word' : 'js_grant_word'), { beta_action: beta ? 'remove_beta' : 'grant_beta', user_id: u.id }, l('js_updated'), l(beta ? 'js_beta_access_removed' : 'js_beta_access_granted'), 'msg_update_beta_access_failed', beta)} />
           <B t={l('btn_manage_beta_programs')} icon="fas fa-list-check" dis={dead} on={() => setProgramsFor(u)} />
+          <B t="Record other channels limit" icon="fas fa-video" dis={dead} on={() => setWatchFor(u)} />
           <B t={restrictTitle} icon="fas fa-user-lock" cls={rest ? 'btn-warn' : 'btn-ghost'} dis={dead || (!rest && !canRestrict)}
             on={() => act(l(rest ? 'js_remove_restriction_title' : 'js_restrict_user_title'), <>{fmt('js_confirm_restrict_html', { action: l(rest ? 'js_action_word_unrestrict' : 'js_action_word_restrict'), name: u.username })}{!rest && restrictNote}</>, l(rest ? 'btn_unrestrict' : 'btn_restrict'), { restrict_action: rest ? 'unrestrict' : 'restrict', user_id: u.id, username: u.username, twitch_user_id: u.twitch_user_id || '' }, l('js_success'), l(rest ? 'js_restriction_removed' : 'js_user_restricted'), 'js_could_not_update_restriction', !rest)} />
           <B t={l(dead ? 'btn_remove_memorial' : 'btn_mark_memorial')} icon="fas fa-dove" cls="btn-ghost adm-memorial-btn" dis={!sa}
@@ -120,6 +122,7 @@ export default function Users() {
       </section>
       {detail && <Details u={detail} l={l} fmt={fmt} tier={tierPill(detail.twitch_user_id)} setToast={setToast} onClose={() => setDetail(null)} />}
       {programsFor && <Programs u={(users ?? []).find((x) => x.id === programsFor.id) ?? programsFor} l={l} fmt={fmt} setToast={setToast} reload={load} onClose={() => setProgramsFor(null)} />}
+      {watchFor && <WatchedLimit u={watchFor} setToast={setToast} onClose={() => setWatchFor(null)} />}
       {del && <DeleteFlow u={del} l={l} fmt={fmt} onClose={() => setDel(null)} onDone={async (r, withDb) => {
         if (!r.success) setToast({ kind: 'err', text: r.msg || l('msg_delete_user_failed') })
         else if (withDb && !r.db_deleted) setToast({ kind: 'err', text: `${l('js_user_deleted_title')}: ${l('js_db_delete_failed_html')} ${r.msg ? l('js_db_delete_reason').replace(':reason', r.msg) : l('js_unknown_error')}` })
@@ -214,6 +217,35 @@ function Programs({ u, l, fmt, setToast, reload, onClose }: { u: U; l: L; fmt: F
         <p>{fmt('js_remove_program_html', { program: rm })}</p>
         <div className="modal-acts"><button type="button" className="btn btn-ghost" onClick={() => setRm('')}>{l('js_cancel')}</button><button type="button" className="btn btn-danger" data-autofocus onClick={() => { const p = rm; setRm(''); void send('remove', p) }}>{l('js_remove_word')}</button></div>
       </Modal>}
+    </Modal>
+  )
+}
+
+// How many other Twitch channels the user may record into their own storage (admin-tails/users.php).
+type WL = { success: boolean; limit?: number; default?: number; custom?: boolean; count?: number; msg?: string }
+function WatchedLimit({ u, setToast, onClose }: { u: U; setToast: (t: Toast) => void; onClose: () => void }) {
+  const [d, setD] = useState<WL | null>(null), [val, setVal] = useState(''), [busy, setBusy] = useState(false)
+  useEffect(() => {
+    getJson<WL>(`${API}?watched_limit=${u.id}`).then((r) => { if (!r.success) throw new Error(r.msg); setD(r); setVal(String(r.limit)) }).catch((e) => { setToast({ kind: 'err', text: (e as Error).message || 'Could not load the limit.' }); onClose() })
+  }, [u.id])
+  const send = async (body: Record<string, string | number>) => {
+    setBusy(true)
+    try { const r = await post<WL>(API, { user_id: u.id, ...body }); if (!r.success) throw new Error(r.msg); setD(r); setVal(String(r.limit)); setToast({ kind: 'ok', text: `Updated: ${u.username} can record up to ${r.limit} other channel${r.limit === 1 ? '' : 's'}.` }) }
+    catch (e) { setToast({ kind: 'err', text: (e as Error).message || 'Could not save the limit.' }) }
+    setBusy(false)
+  }
+  const ok = /^\d{1,2}$/.test(val) && +val <= 50
+  return (
+    <Modal title={`Record other channels: ${u.username}`} icon="fas fa-video" onClose={onClose}>
+      {!d ? <span className="bp-skel bp-skel-w" /> : <>
+        <p>{u.username} has {d.count} channel{d.count === 1 ? '' : 's'} on their list. Their limit is <b>{d.limit}</b>{d.custom ? ` (set by an admin, the default is ${d.default})` : ' (the default)'}. 0 turns the feature off for them.</p>
+        <form className="adm-inline adm-gap" onSubmit={(e) => { e.preventDefault(); if (ok) void send({ watched_limit_action: 'set', max_channels: val }) }}>
+          <input className="input" type="number" min={0} max={50} value={val} aria-label="Channel limit" onChange={(e) => setVal(e.target.value)} />
+          <button type="submit" className="btn" disabled={busy || !ok}>Save</button>
+          {d.custom && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void send({ watched_limit_action: 'reset' })}>Use default ({d.default})</button>}
+        </form>
+      </>}
+      <div className="modal-acts"><button type="button" className="btn btn-ghost" onClick={onClose}>Close</button></div>
     </Modal>
   )
 }

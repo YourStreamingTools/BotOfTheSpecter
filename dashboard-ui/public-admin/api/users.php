@@ -571,6 +571,52 @@ if (isset($_GET['act_as_user'])) {
     header('Location: https://beta.dashboard.botofthespecter.com/api/act_as.php?handoff=' . $token);
     exit;
 }
+// GET ?watched_limit=<id>: how many other Twitch channels the user may record into
+// their own storage (website.watched_record_limits, default 3). POST
+// watched_limit_action=set (max_channels 0-50) or reset (back to the default).
+if (isset($_GET['watched_limit']) || ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['watched_limit_action']))) {
+    header('Content-Type: application/json');
+    $wlDefault = 3;
+    $wlId = (int) ($_GET['watched_limit'] ?? ($_POST['user_id'] ?? 0));
+    $wlRead = function (int $id) use ($conn, $wlDefault): array {
+        $st = $conn->prepare('SELECT max_channels FROM watched_record_limits WHERE user_id = ? LIMIT 1');
+        $st->bind_param('i', $id);
+        $st->execute();
+        $row = $st->get_result()->fetch_assoc();
+        $st->close();
+        $st = $conn->prepare('SELECT COUNT(*) AS n FROM watched_record_channels WHERE user_id = ?');
+        $st->bind_param('i', $id);
+        $st->execute();
+        $n = (int) ($st->get_result()->fetch_assoc()['n'] ?? 0);
+        $st->close();
+        return ['success' => true, 'limit' => $row ? (int) $row['max_channels'] : $wlDefault, 'default' => $wlDefault, 'custom' => (bool) $row, 'count' => $n];
+    };
+    try {
+        $st = $conn->prepare('SELECT username FROM users WHERE id = ? LIMIT 1');
+        $st->bind_param('i', $wlId);
+        $st->execute();
+        $wlUser = $st->get_result()->fetch_assoc();
+        $st->close();
+        if (!$wlUser) { echo json_encode(['success' => false, 'msg' => t('admin_users_msg_user_not_found')]); exit; }
+        if (isset($_GET['watched_limit'])) { echo json_encode($wlRead($wlId)); exit; }
+        $wlAction = (string) $_POST['watched_limit_action'];
+        if ($wlAction === 'reset') {
+            $st = $conn->prepare('DELETE FROM watched_record_limits WHERE user_id = ?');
+            $st->bind_param('i', $wlId);
+        } elseif ($wlAction === 'set' && preg_match('/^\d{1,2}$/', (string) ($_POST['max_channels'] ?? '')) && (int) $_POST['max_channels'] <= 50) {
+            $wlMax = (int) $_POST['max_channels'];
+            $st = $conn->prepare('INSERT INTO watched_record_limits (user_id, max_channels, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE max_channels = VALUES(max_channels), updated_by = VALUES(updated_by)');
+            $st->bind_param('iii', $wlId, $wlMax, $currentAdminUserId);
+        } else { echo json_encode(['success' => false, 'msg' => 'Enter a number from 0 to 50.']); exit; }
+        $st->execute();
+        $st->close();
+        admin_audit_log('admin_user_watched_limit', 'info', ['user_id' => $wlId, 'action' => $wlAction, 'max_channels' => $wlMax ?? null], 'user', (string) $wlUser['username']);
+        echo json_encode($wlRead($wlId));
+    } catch (mysqli_sql_exception $e) {
+        echo json_encode(['success' => false, 'msg' => 'Recording other channels is not set up yet (the website migration has not been run).']);
+    }
+    exit;
+}
 header('Content-Type: application/json');
 echo json_encode(['success' => true, 'current_admin_id' => $currentAdminUserId, 'is_super_admin' => $currentAdminIsSuperAdmin, 'L' => badm_lang('admin_users_'), 'title' => t('admin_user_management_title')], JSON_UNESCAPED_UNICODE);
 exit;

@@ -84,6 +84,10 @@ STORAGE_ROOT_PATH = os.getenv('STREAM_FILES_ROOT') or os.getenv('STREAM_ROOT_PAT
 FILE_RETENTION_SECONDS = int(os.getenv('RECORDING_RETENTION_SECONDS', '86400'))
 STREAM_STORAGE_QUOTA_BYTES = int(os.getenv('STREAM_STORAGE_QUOTA_BYTES') or str(100 * 1024 * 1024 * 1024))
 MIN_DISK_FREE_BYTES = int(os.getenv('STREAM_MIN_DISK_FREE_BYTES') or str(20 * 1024 * 1024 * 1024))
+# Other channels a user records into their own storage (website.watched_record_channels).
+# An admin can change a user's limit (website.watched_record_limits).
+WATCHED_RECORD_DEFAULT_LIMIT = max(0, int(os.getenv('WATCHED_RECORD_DEFAULT_LIMIT') or '3'))
+TWITCH_LOGIN_RE = re.compile(r'^[a-z0-9_]{1,25}$')
 WINDOWS_RESERVED = {
     "CON", "PRN", "AUX", "NUL",
     *(f"COM{i}" for i in range(1, 10)),
@@ -464,6 +468,49 @@ class MySQLManager:
         finally:
             conn.close()
 
+    async def get_watched_channels(self) -> List[Tuple[str, str]]:
+        """(owner username, channel login) pairs to record, within each owner's limit."""
+        conn = await self.get_connection('website')
+        if not conn:
+            return []
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    """
+                    SELECT u.username AS owner, w.channel_login, w.display_name, w.enabled, l.max_channels
+                    FROM watched_record_channels w
+                    JOIN users u ON u.id = w.user_id
+                    LEFT JOIN watched_record_limits l ON l.user_id = w.user_id
+                    WHERE u.username IS NOT NULL AND u.username != ''
+                    ORDER BY w.user_id, w.id
+                    """
+                )
+                rows = await cursor.fetchall()
+        except Exception as e:
+            self.logger.debug(f"Could not read watched channels: {e}")
+            return []
+        finally:
+            conn.close()
+        pairs: List[Tuple[str, str]] = []
+        names: Dict[Tuple[str, str], str] = {}
+        seen: Dict[str, int] = {}
+        for row in rows:
+            owner = str(row.get('owner') or '').strip().lower()
+            channel = str(row.get('channel_login') or '').strip().lower()
+            if not owner or not TWITCH_LOGIN_RE.match(channel) or channel == owner:
+                continue
+            limit = row.get('max_channels')
+            limit = WATCHED_RECORD_DEFAULT_LIMIT if limit is None else int(limit)
+            # The limit counts every listed channel (oldest first), switched on or off
+            position = seen.get(owner, 0)
+            seen[owner] = position + 1
+            if position >= limit or not int(row.get('enabled') or 0):
+                continue
+            pairs.append((owner, channel))
+            names[(owner, channel)] = str(row.get('display_name') or '').strip() or channel
+        self.watched_display_names = names
+        return pairs
+
     async def get_users_to_monitor(self) -> List[str]:
         try:
             conn = await self.get_connection('website')
@@ -600,6 +647,10 @@ class RecordChecker:
         self.file_retention_seconds = FILE_RETENTION_SECONDS
         self.mysql_manager = MySQLManager(logger=logging.getLogger("RecordChecker"))
         self.active_recordings = {}  # username: subprocess or recording info
+        # (owner, channel): recording info for other channels a user records
+        self.watched_recordings: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self._watched_last_live: Dict[Tuple[str, str], bool] = {}
+        self.last_watched = set()
         self.forwarding_processes: Dict[str, Dict[str, Any]] = {}  # username -> {service: {procs, log}}
         self.logger = logging.getLogger("RecordChecker")
         self.running = False
@@ -708,6 +759,7 @@ class RecordChecker:
                 for username in users_to_monitor:
                     force_live = username in newly_enabled
                     await self.check_and_record_user(username, force_live=force_live)
+                await self.check_watched_channels()
                 await self.cleanup_finished_recordings()
                 await self.cleanup_finished_forwarders()
                 self._cleanup_tick += 1
@@ -742,7 +794,7 @@ class RecordChecker:
             kept.setdefault(username, set()).update(names_kept_with(filename))
         active_paths = {
             rec.get("filename")
-            for rec in self.active_recordings.values()
+            for rec in list(self.active_recordings.values()) + list(self.watched_recordings.values())
             if rec.get("filename")
         }
         active_sidecars = set()
@@ -819,6 +871,69 @@ class RecordChecker:
             is_live, hls_url, live_err, meta = await twitch_live_hls(session, username)
         self._live_cache[username] = (now, is_live, hls_url, live_err, meta or {})
         return is_live, hls_url, live_err, meta or {}
+
+    async def check_watched_channels(self):
+        pairs = await self.mysql_manager.get_watched_channels()
+        current = set(pairs)
+        newly = current - self.last_watched
+        for owner, channel in sorted(newly):
+            self.logger.info(f"{owner} now records {channel}")
+        for key in sorted(self.last_watched - current):
+            self.logger.info(f"{key[0]} no longer records {key[1]}")
+            self._watched_last_live.pop(key, None)
+        self.last_watched = current
+        for key in list(self.watched_recordings.keys()):
+            if key not in current:
+                await self.stop_watched_recording(key)
+        for key in sorted(current):
+            await self.check_and_record_watched(key, force_live=key in newly)
+
+    async def check_and_record_watched(self, key: Tuple[str, str], force_live=False):
+        owner, channel = key
+        label = f"{owner} (recording {channel})"
+        try:
+            is_live, hls_url, live_err, meta = await self._cached_live(channel, force=force_live)
+            stream_info = dict(meta or {})
+            stream_info['display_name'] = getattr(self.mysql_manager, 'watched_display_names', {}).get(key, channel)
+            if hls_url:
+                stream_info['hls_url'] = hls_url
+            if is_live is None:
+                self.logger.warning(f"Could not determine stream status for {channel}: {live_err}")
+                return
+            if not is_live:
+                self._watched_last_live[key] = False
+                if key in self.watched_recordings:
+                    self.logger.info(f"{channel} went offline, stopping recording for {owner}")
+                    await self.stop_watched_recording(key)
+                return
+            if key in self.watched_recordings:
+                if not await self._user_has_quota_room(owner):
+                    self.logger.warning(f"Stopping {label}: {owner}'s stream storage is full")
+                    await self.stop_watched_recording(key)
+                self._watched_last_live[key] = True
+                return
+            # Same rule as a user's own channel: only start on offline -> online
+            went_live = self._watched_last_live.get(key) is False
+            if went_live:
+                if await self.mysql_manager.specter_rerun_live(channel):
+                    self.logger.info(f"Not recording {label}: this stream is a Specter rerun")
+                elif not self._disk_has_room():
+                    self.logger.warning(
+                        f"Skipping {label}: host disk has less than {MIN_DISK_FREE_BYTES} bytes free"
+                    )
+                elif not await self._user_has_quota_room(owner):
+                    self.logger.warning(f"Skipping {label}: {owner}'s stream storage is full")
+                else:
+                    self.logger.info(f"Starting new recording for {label} (stream just went live)")
+                    await self.start_recording_for_user(owner, stream_info, channel=channel)
+            elif self._watched_last_live.get(key) is not True:
+                self.logger.info(
+                    f"Not starting {label}: {channel} was already live when it was added; "
+                    f"waiting for the next full stream"
+                )
+            self._watched_last_live[key] = True
+        except Exception as e:
+            self.logger.error(f"Error checking {label}: {e}", exc_info=True)
 
     async def check_and_record_user(self, username, force_live=False):
         try:
@@ -930,6 +1045,19 @@ class RecordChecker:
                 "output_prefix": info.get("output_prefix") or "",
                 "user_storage_path": info.get("user_storage_path") or "",
             }
+        watched = []
+        for (owner, channel), info in self.watched_recordings.items():
+            pid = getattr(info.get("process"), "pid", None)
+            if not pid:
+                continue
+            watched.append({
+                "owner": owner,
+                "channel": channel,
+                "pid": int(pid),
+                "filename": info.get("filename") or "",
+                "output_prefix": info.get("output_prefix") or "",
+                "user_storage_path": info.get("user_storage_path") or "",
+            })
         forwarding = {}
         for username, services in self.forwarding_processes.items():
             row = {}
@@ -940,7 +1068,7 @@ class RecordChecker:
                     row[service] = {"pid": int(pid)}
             if row:
                 forwarding[username] = row
-        atomic_write_json(self._jobs_path, {"recordings": recordings, "forwarding": forwarding})
+        atomic_write_json(self._jobs_path, {"recordings": recordings, "watched": watched, "forwarding": forwarding})
 
     def _recover_ffmpeg_jobs(self) -> None:
         data = load_json(self._jobs_path, {})
@@ -969,6 +1097,35 @@ class RecordChecker:
                 }
                 self._last_live[username] = True
                 self.logger.info(f"Reattached recording for {username} pid={pid}")
+        watched = data.get("watched") if isinstance(data, dict) else []
+        if isinstance(watched, list):
+            for info in watched:
+                if not isinstance(info, dict):
+                    continue
+                owner = str(info.get("owner") or "")
+                channel = str(info.get("channel") or "")
+                pid = int(info.get("pid") or 0)
+                filename = info.get("filename") or ""
+                if not owner or not channel:
+                    continue
+                if not pid_alive(pid) or not cmdline_has(pid, filename or os.path.basename(filename)):
+                    self.logger.info(f"Dropping stale recording job for {owner} (recording {channel}, pid {pid})")
+                    continue
+                prefix = info.get("output_prefix") or os.path.splitext(filename)[0]
+                storage = info.get("user_storage_path") or os.path.dirname(filename)
+                log_path = prefix + ".ffmpeg.log"
+                log_file = open(log_path, "a", encoding="utf-8") if os.path.isdir(os.path.dirname(log_path) or ".") else None
+                self.watched_recordings[(owner, channel)] = {
+                    "process": AttachedProcess(pid),
+                    "log_file": log_file,
+                    "filename": filename,
+                    "output_prefix": prefix,
+                    "output_template": filename,
+                    "user_storage_path": storage,
+                    "start_time": datetime.datetime.now(),
+                }
+                self._watched_last_live[(owner, channel)] = True
+                self.logger.info(f"Reattached recording for {owner} (recording {channel}) pid={pid}")
         forwarding = data.get("forwarding") if isinstance(data, dict) else {}
         if isinstance(forwarding, dict):
             for username, services in forwarding.items():
@@ -990,7 +1147,9 @@ class RecordChecker:
                     self.logger.info(f"Reattached {service} forwarding for {username} pid={pid}")
         self._persist_ffmpeg_jobs()
 
-    async def start_recording_for_user(self, username, stream_info):
+    async def start_recording_for_user(self, username, stream_info, channel: Optional[str] = None):
+        # channel: another streamer recorded into this user's storage (None = their own channel)
+        source = channel or username
         try:
             game = ((stream_info or {}).get("game_name") or "").strip() or "Unknown Game"
             title = ((stream_info or {}).get("title") or "").strip() or "Untitled"
@@ -1001,7 +1160,11 @@ class RecordChecker:
                 tz = datetime.timezone.utc
                 tz_name = "UTC"
             start_time = datetime.datetime.now(tz).strftime("%Y-%m-%d %H-%M")
-            base_filename = sanitize_filename(f"{start_time} - {title} - {game}")
+            if channel:
+                display = ((stream_info or {}).get("display_name") or "").strip() or channel
+                base_filename = sanitize_filename(f"{start_time} - {display} - {title} - {game}")
+            else:
+                base_filename = sanitize_filename(f"{start_time} - {title} - {game}")
             user_storage_path = os.path.join(self.root_path, username)
             os.makedirs(user_storage_path, exist_ok=True)
             base_filename = unique_recording_basename(user_storage_path, base_filename)
@@ -1012,18 +1175,18 @@ class RecordChecker:
             if not hls_url:
                 timeout = aiohttp.ClientTimeout(total=30)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    _live, hls_url, hls_err, extra = await twitch_live_hls(session, username)
+                    _live, hls_url, hls_err, extra = await twitch_live_hls(session, source)
                 if extra:
                     stream_info.update(extra)
                 if not hls_url:
-                    self.logger.error(f"No live HLS for {username}: {hls_err}")
+                    self.logger.error(f"No live HLS for {source}: {hls_err}")
                     return
             # The capture helper reads the playlist, drops Twitch's stitched ads and
             # pipes the live segments into ffmpeg (see twitch_live_capture.py)
             cmd = [
                 sys.executable,
                 CAPTURE_SCRIPT,
-                "--login", username,
+                "--login", source,
                 "--playlist", hls_url,
                 "--output", output_path,
                 "--ads", RECORDING_AD_MODE,
@@ -1038,10 +1201,11 @@ class RecordChecker:
                 start_new_session=True,
             )
             self.logger.info(
-                f"{username}: playlist from "
+                f"{source}: playlist from "
                 f"{'the ad-free login (Twitch cookies file)' if (stream_info or {}).get('ad_free_login') else 'a logged-out viewer; ads are cut'}"
             )
-            self.active_recordings[username] = {
+            table = self.watched_recordings if channel else self.active_recordings
+            table[(username, channel) if channel else username] = {
                 'process': process,
                 'log_file': rec_log_file,
                 'filename': output_path,
@@ -1051,7 +1215,7 @@ class RecordChecker:
                 'start_time': datetime.datetime.now()
             }
             self._persist_ffmpeg_jobs()
-            self.logger.info(f"Started recording for {username}: {base_filename}.mp4")
+            self.logger.info(f"Started recording for {username}{f' (recording {channel})' if channel else ''}: {base_filename}.mp4")
             self.logger.info(f"Process PID: {process.pid}")
         except Exception as e:
             self.logger.error(f"Error starting recording for {username}: {e}", exc_info=True)
@@ -1074,10 +1238,16 @@ class RecordChecker:
         except Exception as e:
             self.logger.warning(f"Could not rename .part files for {username}: {e}")
 
+    async def stop_watched_recording(self, key: Tuple[str, str]):
+        await self._stop_recording(self.watched_recordings, key, f"{key[0]} (recording {key[1]})")
+
     async def stop_recording_for_user(self, username):
+        await self._stop_recording(self.active_recordings, username, username)
+
+    async def _stop_recording(self, table, key, username):
         try:
-            if username in self.active_recordings:
-                recording_info = self.active_recordings[username]
+            if key in table:
+                recording_info = table[key]
                 process = recording_info['process']
                 log_file = recording_info.get('log_file')
                 output_prefix = recording_info.get('output_prefix', '')
@@ -1100,14 +1270,21 @@ class RecordChecker:
                 if output_prefix:
                     self._rename_part_files(username, output_prefix)
                 self.logger.info(f"Stopped recording for {username}")
-                del self.active_recordings[username]
+                del table[key]
                 self._persist_ffmpeg_jobs()
         except Exception as e:
             self.logger.error(f"Error stopping recording for {username}: {e}")
 
     async def cleanup_finished_recordings(self):
+        changed = False
+        for table in (self.active_recordings, self.watched_recordings):
+            changed = self._cleanup_finished(table) or changed
+        if changed:
+            self._persist_ffmpeg_jobs()
+
+    def _cleanup_finished(self, table) -> bool:
         finished_users = []
-        for username, recording_info in self.active_recordings.items():
+        for username, recording_info in table.items():
             process = recording_info['process']
             if process.poll() is not None:  # Process has finished
                 return_code = process.returncode
@@ -1124,9 +1301,8 @@ class RecordChecker:
                     self._rename_part_files(username, output_prefix)
         for username in finished_users:
             self.logger.info(f"Cleaning up recording for {username}")
-            del self.active_recordings[username]
-        if finished_users:
-            self._persist_ffmpeg_jobs()
+            del table[username]
+        return bool(finished_users)
 
     async def start_forwarding_for_service(
         self, username: str, service: str, stream_key: str, hls_url: Optional[str] = None
@@ -1258,6 +1434,14 @@ class RecordChecker:
                 except Exception:
                     pass
         self.active_recordings.clear()
+        for info in self.watched_recordings.values():
+            log_file = info.get("log_file")
+            if log_file:
+                try:
+                    log_file.close()
+                except Exception:
+                    pass
+        self.watched_recordings.clear()
         for username in list(self.forwarding_processes.keys()):
             for fwd_info in self.forwarding_processes[username].values():
                 log_file = fwd_info.get("log_file")
