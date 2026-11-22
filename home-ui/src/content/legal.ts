@@ -1,8 +1,8 @@
 // Effective dates for the legal pages. The page HTML keeps the
 // original PHP tag, which is replaced with these values when rendered.
 export const effectiveDates = {
-  privacy: 'October 29, 2026',
-  terms: 'July 9, 2026',
+  privacy: 'November 22, 2026',
+  terms: 'November 22, 2026',
 }
 
 const TAG = /<\?php echo \$effectiveDate; \?>/g
