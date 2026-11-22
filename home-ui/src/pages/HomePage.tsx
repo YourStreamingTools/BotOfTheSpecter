@@ -12,7 +12,7 @@ export default function HomePage({ loggedIn, displayName }: HomePageProps) {
         </div>
         <h1 className="hs-hero-title">BotOfTheSpecter</h1>
         <p className="hs-hero-tagline">
-          The Twitch chat bot built to replace them all&mdash;with a dashboard, overlays, and a Discord extension.
+          The Twitch chat bot built to replace them all, with a dashboard, overlays, and a Discord extension.
         </p>
         <div className="hs-hero-ctas">
           {loggedIn ? (
@@ -48,7 +48,7 @@ export default function HomePage({ loggedIn, displayName }: HomePageProps) {
         <br />
         Sign in with Twitch to configure your channel in the dashboard, run the chat bot, and drive OBS overlays in real time.
         <br />
-        The <u>Discord bot is not standalone</u>&mdash;it&rsquo;s built to connect your Twitch activity to Discord. If you only
+        The <u>Discord bot is not standalone</u>. It&rsquo;s built to connect your Twitch activity to Discord. If you only
         want a Discord bot, this isn&rsquo;t the right tool.
         <br />
         Optional add-ons include Spotify, tip platforms, a Kick companion bot, multi-region stream tools, and Premium perks via
@@ -91,7 +91,7 @@ export default function HomePage({ loggedIn, displayName }: HomePageProps) {
             <li>Relay tip and event alerts configured through the dashboard.</li>
             <li>Optional FreeStuff game announcement channel settings.</li>
             <li>Discord&ndash;Twitch user linking for connected community tools.</li>
-            <li>Requires a Twitch-linked setup&mdash;not a standalone Discord bot product.</li>
+            <li>Requires a Twitch-linked setup, not a standalone Discord bot product.</li>
           </ul>
         </div>
         <div className="hs-card">
@@ -115,7 +115,7 @@ export default function HomePage({ loggedIn, displayName }: HomePageProps) {
               <strong>Stream tools:</strong> Optional multi-region ingest, recording, and multi-destination forward settings.
             </li>
             <li>
-              <strong>API &amp; real-time events:</strong> API keys and WebSocket-powered live overlays.
+              <strong>API &amp; real-time events:</strong> API keys and live overlays that update instantly.
             </li>
           </ul>
         </div>
@@ -127,7 +127,7 @@ export default function HomePage({ loggedIn, displayName }: HomePageProps) {
         </h2>
         <p>
           BotOfTheSpecter is aimed at Twitch streamers who want chat commands, moderation helpers, community tools, and live
-          overlays&mdash;with Discord as a companion channel, not a separate product. If your priority is running a strong
+          overlays, with Discord as a companion channel, not a separate product. If your priority is running a strong
           Twitch channel and optionally connecting Discord, tips, music, or Kick, this is the stack we build for.
         </p>
       </div>
@@ -141,8 +141,7 @@ export default function HomePage({ loggedIn, displayName }: HomePageProps) {
           without juggling half a dozen tools.
         </p>
         <p>
-          <strong>Real-time overlays:</strong> Load browser sources in OBS and receive live events over our WebSocket service
-          while you stream.
+          <strong>Real-time overlays:</strong> Load browser sources in OBS and receive live events as they happen while you stream.
         </p>
         <p>
           <strong>Open source:</strong> Prefer to inspect or contribute? The project is open source on GitHub.
