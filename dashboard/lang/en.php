@@ -1148,7 +1148,6 @@ return [
     'discordbot_msg_mod_alert_updated' => 'Moderation and Alert channels updated successfully<br>',
     'discordbot_msg_monitoring_updated' => 'Twitch Stream Monitoring channel updated successfully<br>',
     // integrations.php
-    '' => '',
     // profile.php
     'profile_export_my_data' => 'Export My Data',
     'profile_export_help' => 'Request a copy of your personal data. Exports are queued and emailed when ready.',
@@ -1170,7 +1169,7 @@ return [
     'profile_custom_bot_verify_heading' => '<strong>To verify this bot:</strong>',
     'profile_custom_bot_verify_step1' => 'Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener">mybot.specterbotsystems.com/custombot.php</a>',
     'profile_custom_bot_verify_step2' => 'Sign in using the <strong>bot account</strong> credentials',
-    'profile_custom_bot_verify_step3' => 'Complete the verification process',
+    'profile_custom_bot_verify_step3' => 'Complete the verification within 24 hours. If it is not verified in time, the bot is removed and you will need to add it again.',
     'profile_custom_bot_verify_note' => '<em>Note: Using an incognito/private window ensures you don\'t accidentally sign in with your main account.</em>',
     'profile_custom_bot_verified' => 'Verified',
     'profile_custom_bot_name_label' => 'Bot Name',
@@ -2222,7 +2221,7 @@ return [
     'modules_add_bot_btn' => 'Add Bot',
     'modules_verification_required_note' => '<strong>Verification required:</strong> After adding a bot, it must be verified before it can send messages.
                             Open <a href="https://mybot.specterbotsystems.com/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbotsystems.com/custombot.php</strong></a>
-                            in an <strong>incognito/private window</strong> and sign in with the bot account to complete verification.',
+                            in an <strong>incognito/private window</strong> and sign in with the bot account to complete verification. Bots that are not verified within 24 hours are removed, and you can add them again.',
     'modules_linked_bots' => 'Linked Bots',
     'modules_no_module_bots_linked' => 'No custom module bots linked yet. Use the form above to add one.',
     'modules_table_bot_username' => 'Bot Username',
@@ -7116,6 +7115,9 @@ This action cannot be undone.',
     'closed_captions_translate_off' => 'Same as spoken (no translation)',
     'closed_captions_translate_downloading' => 'Downloading translation model… ',
     'closed_captions_translate_unavailable' => 'Live translation isn\'t available in this browser; captions show the spoken language.',
+    'closed_captions_translate_active' => 'Translating captions to: ',
+    'closed_captions_translate_needs_click' => 'The translation model needs a download. Press Stop, then Start, to allow it; captions show the spoken language until then.',
+    'closed_captions_translate_pair_unavailable' => 'This browser can\'t translate between these two languages; captions show the spoken language.',
     // Admin: Caddy control page
     'menu_admin_caddy' => 'Caddy Server',
     'caddy_page_title' => 'Caddy Web Server',
