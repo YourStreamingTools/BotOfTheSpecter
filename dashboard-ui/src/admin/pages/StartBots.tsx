@@ -94,18 +94,18 @@ export default function StartBots() {
   const start = (u: U, type: string, i: Inv | null) => {
     const live = i?.currently_running ? lower(i.bot_type) : ''
     const go = async () => {
-      setB(u.username, 'start'); setToast({ kind: 'ok', text: `Starting the ${typeLabel(type)} bot for ${u.display_name}...` })
+      setB(u.username, 'start'); setToast({ kind: 'ok', text: `Starting the ${typeLabel(type)} bot for ${u.username}...` })
       try {
         const body: Record<string, string | number> = { start_user_bot: 1, username: u.username, bot_type: type }
         if (u.custom_enabled) body.use_custom = wantCustom(u, i) ? '1' : '0'
         const r = await post(API, body)
-        setToast(r.success ? { kind: 'ok', text: l('toast_started', typeLabel(type), u.display_name) } : { kind: 'err', text: l('toast_start_failed', u.display_name, r.message || l('could_not_start')) })
+        setToast(r.success ? { kind: 'ok', text: l('toast_started', typeLabel(type), u.username) } : { kind: 'err', text: l('toast_start_failed', u.username, r.message || l('could_not_start')) })
         if (r.success) await pollOne(u.username, type)
-      } catch { setToast({ kind: 'err', text: l('toast_error_starting', u.display_name) }) } finally { setB(u.username, '') }
+      } catch { setToast({ kind: 'err', text: l('toast_error_starting', u.username) }) } finally { setB(u.username, '') }
     }
     setAsk(live && live !== type
       ? { title: l('switch_title'), ok: l('switch_confirm'), danger: true, text: l('switch_text_stop_start', typeLabel(live), typeLabel(type)), run: go }
-      : { title: `${startLbl(type)}?`, ok: startLbl(type), text: <>Start the {typeLabel(type)} bot for <strong>{u.display_name}</strong> on the live bots server.</>, run: go })
+      : { title: `${startLbl(type)}?`, ok: startLbl(type), text: <>Start the {typeLabel(type)} bot for <strong>{u.username}</strong> on the live bots server.</>, run: go })
   }
   const switchType = (u: U, i: Inv, target: string) => setAsk({ title: l('switch_title'), ok: l('switch_confirm_target', typeLabel(target)), danger: true, text: l('switch_text_target', typeLabel(target)), run: async () => {
     setB(u.username, 'switch')
@@ -113,13 +113,13 @@ export default function StartBots() {
       const body: Record<string, string | number> = { start_user_bot: 1, username: u.username, bot_type: target === 'custom' ? 'beta' : target }
       if (u.custom_enabled) body.use_custom = target === 'custom' ? '1' : '0'
       const r = await post(API, body)
-      setToast(r.success ? { kind: 'ok', text: l('toast_started', typeLabel(target), u.display_name) } : { kind: 'err', text: l('toast_start_failed', u.display_name, r.message || l('could_not_start')) })
+      setToast(r.success ? { kind: 'ok', text: l('toast_started', typeLabel(target), u.username) } : { kind: 'err', text: l('toast_start_failed', u.username, r.message || l('could_not_start')) })
       if (r.success) await pollOne(u.username, String(body.bot_type))
-    } catch { setToast({ kind: 'err', text: l('toast_error_starting', u.display_name) }) } finally { setB(u.username, '') }
+    } catch { setToast({ kind: 'err', text: l('toast_error_starting', u.username) }) } finally { setB(u.username, '') }
     void i
   } })
-  const restart = (u: U, i: Inv) => setAsk({ title: l('restart_confirm_title'), ok: l('restart_confirm_btn'), danger: true, text: <>{l('restart_confirm_text')} <strong>{u.display_name}</strong> ({typeLabel(i.bot_type)}, PID {i.pid})</>, run: async () => {
-    setB(u.username, 'restart'); setToast({ kind: 'ok', text: l('toast_restarting', typeLabel(i.bot_type), u.display_name) })
+  const restart = (u: U, i: Inv) => setAsk({ title: l('restart_confirm_title'), ok: l('restart_confirm_btn'), danger: true, text: <>{l('restart_confirm_text')} <strong>{u.username}</strong> ({typeLabel(i.bot_type)}, PID {i.pid})</>, run: async () => {
+    setB(u.username, 'restart'); setToast({ kind: 'ok', text: l('toast_restarting', typeLabel(i.bot_type), u.username) })
     try {
       const body: Record<string, string | number> = { restart_bot: 1, username: u.username, bot_type: String(i.bot_type || 'stable'), pid: Number(i.pid) || 0 }
       if (u.custom_enabled) body.use_custom = wantCustom(u, i) ? '1' : '0'
@@ -127,12 +127,12 @@ export default function StartBots() {
       if (r.success) await pollOne(u.username, String(i.bot_type || 'stable'))
     } catch { setToast({ kind: 'err', text: l('network_error_restart', u.username) }) } finally { setB(u.username, '') }
   } })
-  const stop = (u: U, i: Inv) => setAsk({ title: l('stop_confirm_title'), ok: l('stop_confirm_btn'), danger: true, text: l('stop_confirm_text', u.display_name), run: async () => {
-    setB(u.username, 'stop'); setToast({ kind: 'ok', text: l('toast_stopping', u.display_name) })
+  const stop = (u: U, i: Inv) => setAsk({ title: l('stop_confirm_title'), ok: l('stop_confirm_btn'), danger: true, text: l('stop_confirm_text', u.username), run: async () => {
+    setB(u.username, 'stop'); setToast({ kind: 'ok', text: l('toast_stopping', u.username) })
     try { const r = await post(API, { stop_bot: 1, username: u.username, bot_type: lower(i.bot_type) || 'stable', pid: i.was_running ? 0 : Number(i.pid) || 0 }); setToast({ kind: r.success ? 'ok' : 'err', text: r.message || l(r.success ? 'stop_success' : 'stop_failed_default') }); await loadInv() }
     catch { setToast({ kind: 'err', text: l('network_error_stop', u.username) }) } finally { setB(u.username, '') }
   } })
-  const makeMod = (u: U) => setAsk({ title: l('btn_make_mod'), ok: l('btn_make_mod'), text: <>{l('btn_make_mod_title')} in <strong>{u.display_name}</strong>'s channel?</>, run: async () => {
+  const makeMod = (u: U) => setAsk({ title: l('btn_make_mod'), ok: l('btn_make_mod'), text: <>{l('btn_make_mod_title')} in <strong>{u.username}</strong>'s channel?</>, run: async () => {
     setMod((m) => ({ ...m, [u.twitch_user_id]: { state: 'busy' } }))
     try { const r = await post(API, { make_bot_mod: 1, twitch_user_id: u.twitch_user_id }); setToast({ kind: r.success ? 'ok' : 'err', text: r.success ? l('make_mod_success_text') : `${l('make_mod_failed_title')}: ${r.message || l('make_mod_failed_html')}` }) }
     catch { setToast({ kind: 'err', text: l('make_mod_error_text') }) }
@@ -205,7 +205,7 @@ export default function StartBots() {
             const up = i && live ? (i.uptime_seconds !== null && i.uptime_seconds !== undefined && i.uptime_seconds !== '' && Number.isFinite(Number(i.uptime_seconds)) ? upt(Number(i.uptime_seconds)) : (i.uptime_human || l('label_unknown'))) : ''
             return (
               <tr key={u.id}>
-                <td><div className="adm-user">{u.profile_image && <img src={u.profile_image} alt="" width={32} height={32} loading="lazy" />}<span>{u.display_name}</span></div></td>
+                <td><div className="adm-user">{u.profile_image && <img src={u.profile_image} alt="" width={32} height={32} loading="lazy" />}<span>{u.username}</span></div></td>
                 <td>{u.twitch_user_id}</td>
                 <td>{!inv ? (invErr ? <span className="pill pill-err">{l('error')}</span> : <span className="bp-skel adm-skel-pill" aria-label={l('status_checking')} />)
                   : live ? <span className="pill pill-ok"><i className="fas fa-check-circle" /> {l('status_running_pid', String(i!.pid))}</span>

@@ -1320,7 +1320,7 @@ ob_start();
                                 <img src="<?php echo htmlspecialchars($user['profile_image']); ?>"
                                     alt="<?php echo htmlspecialchars($user['username']); ?>"
                                     class="admin-bot-avatar">
-                                <span><?php echo htmlspecialchars($user['twitch_display_name'] ?: $user['username']); ?></span>
+                                <span><?php echo htmlspecialchars($user['username']); ?></span>
                             </div>
                         </td>
                         <td class="col-twitch-id"><?php echo htmlspecialchars($user['twitch_user_id']); ?></td>
